@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+pwa-frontend/node_modules/
+pwa-backend/node_modules/
+
+# Environment variables (CRÍTICO - credenciales)
+.env
+.env.local
+.env.development
+.env.production
+pwa-frontend/.env*
+pwa-backend/.env*
+
+# Build outputs
+dist/
+build/
+pwa-frontend/dist/
+pwa-frontend/build/
+pwa-backend/dist/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Temp files
+*.tmp
+temp/
+
+
+## MUY IMPORTANTE - Archivos que SÍ debes versionar:
+#```
+# package.json
+# package-lock.json
+# .env.example (plantilla SIN credenciales)
