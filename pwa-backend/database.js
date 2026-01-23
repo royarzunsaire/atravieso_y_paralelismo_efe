@@ -28,6 +28,20 @@ db.serialize(() => {
       console.log('Tabla "datos" lista');
     }
   });
+  db.run(`
+    CREATE TABLE IF NOT EXISTS usuarios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      nombre TEXT NOT NULL,
+      rol TEXT DEFAULT 'usuario',
+      auth_type TEXT DEFAULT 'local',
+      azure_id TEXT,
+      activo INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_login DATETIME
+    )
+  `);
 });
 
 module.exports = db;

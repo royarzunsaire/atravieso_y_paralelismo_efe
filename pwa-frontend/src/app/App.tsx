@@ -1,16 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { ProjectDetail, Inspection, Photo } from './components/ProjectDetail';
 import { NewInspection } from './components/NewInspection';
 import { PhotoCapture } from './components/PhotoCapture';
 import { BottomNav } from './components/BottomNav';
+import { Login } from './components/Login';
+import { AuthCallback } from './components/AuthCallback';
 import { Project } from './components/ProjectCard';
+import { authService } from '../services/auth';
+import { Profile } from './components/Profile';
 
 type Screen = 
+  | { type: 'login' }
+  | { type: 'authCallback' }
   | { type: 'dashboard' }
+  | { type: 'profile' }
   | { type: 'projectDetail'; projectId: string }
   | { type: 'newInspection'; projectId: string }
   | { type: 'photoCapture' };
+
+  
 
 interface InspectionPhoto {
   id: string;
@@ -120,13 +129,45 @@ const mockPhotos: { [projectId: string]: Photo[] } = {
 };
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>({ type: 'dashboard' });
+  const [currentScreen, setCurrentScreen] = useState<Screen>({ type: 'login' });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [bottomNavTab, setBottomNavTab] = useState<'home' | 'reports' | 'camera' | 'profile'>('home');
   const [tempPhotos, setTempPhotos] = useState<InspectionPhoto[]>([]);
-  
-  // State para almacenar inspecciones y fotos (en producción esto estaría en una base de datos)
   const [inspections, setInspections] = useState(mockInspections);
   const [photos, setPhotos] = useState(mockPhotos);
+
+  // Verificar autenticación al cargar
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (window.location.pathname === '/auth/callback') {
+        setCurrentScreen({ type: 'authCallback' });
+        return;
+      }
+
+      const isAuth = authService.isAuthenticated();
+      setIsAuthenticated(isAuth);
+      
+      if (isAuth) {
+        setCurrentScreen({ type: 'dashboard' });
+      } else {
+        setCurrentScreen({ type: 'login' });
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    setCurrentScreen({ type: 'dashboard' });
+  };
+
+  const handleLogout = () => {
+    authService.logout();
+    setIsAuthenticated(false);
+    setCurrentScreen({ type: 'login' });
+    setBottomNavTab('home');
+  };
   
   const handleProjectSelect = (projectId: string) => {
     setCurrentScreen({ type: 'projectDetail', projectId });
@@ -228,13 +269,15 @@ export default function App() {
   };
   
   const handleBottomNavChange = (tab: 'home' | 'reports' | 'camera' | 'profile') => {
-    setBottomNavTab(tab);
-    
-    if (tab === 'home') {
-      setCurrentScreen({ type: 'dashboard' });
-    }
-    // Otras tabs pueden implementarse en futuras versiones
-  };
+  setBottomNavTab(tab);
+  
+  if (tab === 'home') {
+    setCurrentScreen({ type: 'dashboard' });
+  } else if (tab === 'profile') {
+    // Mostrar pantalla de perfil con logout
+    setCurrentScreen({ type: 'profile' });
+  }
+};
   
   // Guardar el último proyecto activo para la navegación
   if (currentScreen.type === 'newInspection') {
@@ -243,17 +286,41 @@ export default function App() {
   
   return (
     <div className="min-h-screen bg-[#F5F7FA]">
-      {currentScreen.type === 'dashboard' && (
+      {/* Login */}
+      {currentScreen.type === 'login' && (
+        <Login onLoginSuccess={handleLoginSuccess} />
+      )}
+
+      {/* Callback Microsoft */}
+      {currentScreen.type === 'authCallback' && (
+        <AuthCallback onSuccess={handleLoginSuccess} />
+      )}
+
+      {/* Dashboard */}
+      {isAuthenticated && currentScreen.type === 'dashboard' && (
         <>
           <Dashboard
             projects={mockProjects}
             onProjectSelect={handleProjectSelect}
+            onLogout={handleLogout} // ← Agregar
+          />
+          <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
+        </>
+      )}
+
+      {/* Profile - AGREGAR */}
+      {isAuthenticated && currentScreen.type === 'profile' && (
+        <>
+          <Profile 
+            onBack={handleBackToDashboard}
+            onLogout={handleLogout}
           />
           <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
         </>
       )}
       
-      {currentScreen.type === 'projectDetail' && (
+      {/* Project Detail */}
+      {isAuthenticated && currentScreen.type === 'projectDetail' && (
         <>
           <ProjectDetail
             project={mockProjects.find(p => p.id === currentScreen.projectId)!}
@@ -266,7 +333,8 @@ export default function App() {
         </>
       )}
       
-      {currentScreen.type === 'newInspection' && (
+      {/* New Inspection */}
+      {isAuthenticated && currentScreen.type === 'newInspection' && (
         <NewInspection
           projectName={mockProjects.find(p => p.id === currentScreen.projectId)?.name || ''}
           onBack={() => handleBackToProject(currentScreen.projectId)}
@@ -277,7 +345,8 @@ export default function App() {
         />
       )}
       
-      {currentScreen.type === 'photoCapture' && (
+      {/* Photo Capture */}
+      {isAuthenticated && currentScreen.type === 'photoCapture' && (
         <PhotoCapture
           onBack={() => {
             const lastScreen = sessionStorage.getItem('lastProjectScreen');

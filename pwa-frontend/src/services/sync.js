@@ -1,16 +1,23 @@
 import { storage } from './storage';
+import { authService } from './auth'; 
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
-console.log('API URL configurada:', API_URL);
 
 export const syncService = {
-  // Verificar si hay conexión
   isOnline() {
     return navigator.onLine;
   },
 
-  // NUEVO: Obtener todos los datos del servidor
+  // NUEVO: Helper para headers con token
+  getHeaders() {
+    const token = authService.getToken();
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    };
+  },
+
   async fetchServerData() {
     if (!this.isOnline()) {
       throw new Error('No hay conexión a internet');
@@ -19,10 +26,13 @@ export const syncService = {
     try {
       const response = await fetch(`${API_URL}/datos`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers: this.getHeaders() // ← Usar headers con token
       });
+
+      if (response.status === 401) {
+        authService.logout();
+        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+      }
 
       if (!response.ok) {
         throw new Error(`Error del servidor: ${response.status}`);
@@ -36,7 +46,6 @@ export const syncService = {
     }
   },
 
-  // Sincronizar datos pendientes
   async syncPendingData() {
     if (!this.isOnline()) {
       throw new Error('No hay conexión a internet');
@@ -54,21 +63,20 @@ export const syncService = {
     
     for (const item of unsynced) {
       try {
-        console.log('Sincronizando:', item);
         const response = await fetch(`${API_URL}/datos`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: this.getHeaders(), // ← Usar headers con token
           body: JSON.stringify(item)
         });
 
+        if (response.status === 401) {
+          authService.logout();
+          throw new Error('Sesión expirada');
+        }
+
         if (response.ok) {
           results.push(item.id);
-          console.log('✓ Sincronizado:', item.id);
         } else {
-          const error = await response.json();
-          console.error('Error en respuesta:', error);
           errors.push(item.id);
         }
       } catch (error) {
@@ -77,7 +85,6 @@ export const syncService = {
       }
     }
 
-    // Marcar como sincronizados
     if (results.length > 0) {
       await storage.markAsSynced(results);
     }
@@ -89,4 +96,3 @@ export const syncService = {
     };
   }
 };
-

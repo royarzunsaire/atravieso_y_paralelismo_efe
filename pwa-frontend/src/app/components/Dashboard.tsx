@@ -6,9 +6,10 @@ import { ProjectCard, Project } from './ProjectCard';
 interface DashboardProps {
   projects: Project[];
   onProjectSelect: (projectId: string) => void;
+  onLogout: () => void; // ← Nuevo
 }
 
-export function Dashboard({ projects, onProjectSelect }: DashboardProps) {
+export function Dashboard({ projects, onProjectSelect, onLogout }: DashboardProps) {
   const [searchQuery, setSearchQuery] = useState('');
   
   const filteredProjects = projects.filter(project =>
@@ -18,7 +19,11 @@ export function Dashboard({ projects, onProjectSelect }: DashboardProps) {
   
   return (
     <div className="min-h-screen bg-[#F5F7FA] pb-20 md:pb-8">
-      <Header title="Mis Obras" />
+      <Header 
+        title="Mis Obras" 
+        showLogout={true}
+        onLogout={onLogout}
+      />
       
       <div className="p-4 space-y-4">
         {/* Barra de búsqueda */}

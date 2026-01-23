@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const { verifyToken } = require('./auth'); // ← Importar middleware
 require('dotenv').config();
+
+router.use(verifyToken);
 
 // Helper para llamar a Power Automate
 const callFlow = async (url, data = null) => {
@@ -183,6 +186,28 @@ router.delete('/:id', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error en DELETE /:id:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET - Obtener todos los datos
+router.get('/', async (req, res) => {
+  try {
+    console.log(`📥 GET /api/datos - Usuario: ${req.user.email}`); // ← Ahora sabemos quién hace la petición
+
+    const result = await callFlow(process.env.FLOW_READ_ALL_URL);
+    const items = Array.isArray(result) ? result : [];
+    const mappedItems = items.map(mapSharePointItem);
+
+    res.json({
+      success: true,
+      data: mappedItems
+    });
+  } catch (error) {
+    console.error('❌ Error en GET /:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
