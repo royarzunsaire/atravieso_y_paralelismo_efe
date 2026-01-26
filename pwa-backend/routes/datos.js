@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const { verifyToken } = require('./auth'); // ← Importar middleware
+const { verifyToken } = require('./auth');
 require('dotenv').config();
 
 router.use(verifyToken);

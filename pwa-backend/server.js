@@ -6,6 +6,7 @@ require('dotenv').config();
 
 const datosRoutes = require('./routes/datos');
 const authRoutes = require('./routes/auth');
+const solicitudesRoutes = require('./routes/solicitudes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -41,6 +42,7 @@ app.get('/', (req, res) => {
 
 app.use('/auth', authRoutes);
 app.use('/api/datos', datosRoutes);
+app.use('/api/solicitudes', solicitudesRoutes);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(50));
