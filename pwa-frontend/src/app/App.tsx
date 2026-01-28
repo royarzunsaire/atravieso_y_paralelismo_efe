@@ -19,7 +19,7 @@ type Screen =
   | { type: 'profile' }
   | { type: 'solicitudesDashboard' } 
   | { type: 'solicitudDetail'; solicitudId: number }
-  | { type: 'newInspection'; solicitudId: number }
+  | { type: 'newInspection'; solicitudId: number; solicitud: Solicitud }
   | { type: 'photoCapture' };
 
 interface InspectionPhoto {
@@ -35,6 +35,62 @@ interface Photo {
   date: string;
 }
 
+interface Responsable {
+  nombre: string;
+  email: string;
+  departamento?: string | null;
+  cargo?: string | null;
+  foto?: string;
+}
+
+interface Autor {
+  nombre: string;
+  email: string;
+  departamento?: string | null;
+  cargo?: string | null;
+  foto?: string;
+}
+
+interface Solicitud {
+  id: number;
+  title: string;
+  codigo: string | null;
+  estadoSolicitud: string | null;
+  estadoSolicitudId: number | null;
+  prioridad: string | null;
+  prioridadId: number | null;
+  cliente: string | null;
+  clienteId: number | null;
+  consultor: string | null;
+  consultorId: number | null;
+  tipoProyecto: string | null;
+  tipoProyectoId: number | null;
+  tipoObra: string | null;
+  tipoObraId: number | null;
+  tipoServicio: string | null;
+  tipoServicioId: number | null;
+  ramal: string | null;
+  ramalId: number | null;
+  region: string | null;
+  regionId: number | null;
+  comuna: string | null;
+  comunaId: number | null;
+  rolAsignado: string | null;
+  rolAsignadoId: number | null;
+  esExcepcion: boolean;
+  finalizada: boolean;
+  responsable: Responsable | null;
+  autor: Autor | null;
+  hasAttachments: boolean;
+  link: string | null;
+  versionNumber: string | null;
+  etag: string | null;
+  observacion: string | null;
+  descripcion: string | null;
+  etapa: string | null;
+  kilometraje: string | null;
+}
+
 // ========================================
 // COMPONENT
 // ========================================
@@ -48,6 +104,7 @@ export default function App() {
   // Estados para almacenar inspecciones y fotos por solicitud
   const [inspections, setInspections] = useState<{ [solicitudId: number]: Inspection[] }>({});
   const [photos, setPhotos] = useState<{ [solicitudId: number]: Photo[] }>({});
+  const [currentSolicitud, setCurrentSolicitud] = useState<Solicitud | null>(null);
 
   // ========================================
   // EFFECTS
@@ -74,12 +131,21 @@ export default function App() {
     checkAuth();
   }, []);
 
-  // Guardar el último solicitudId activo para la navegación de fotos
-  useEffect(() => {
-    if (currentScreen.type === 'newInspection') {
-      sessionStorage.setItem('lastSolicitudScreen', currentScreen.solicitudId.toString());
+// Guardar el último solicitudId activo para la navegación de fotos
+useEffect(() => {
+  if (currentScreen.type === 'newInspection') {
+    sessionStorage.setItem('lastSolicitudScreen', currentScreen.solicitudId.toString());
+    sessionStorage.setItem('currentSolicitud', JSON.stringify(currentScreen.solicitud));
+  }
+  
+  // Limpiar al salir de nueva inspección
+  return () => {
+    if (currentScreen.type !== 'newInspection' && currentScreen.type !== 'photoCapture') {
+      sessionStorage.removeItem('lastSolicitudScreen');
+      sessionStorage.removeItem('currentSolicitud');
     }
-  }, [currentScreen]);
+  };
+}, [currentScreen]);
 
   // ========================================
   // HANDLERS - AUTHENTICATION
@@ -114,9 +180,14 @@ export default function App() {
     setCurrentScreen({ type: 'solicitudesDashboard' });
   };
 
-  const handleNewInspection = (solicitudId: number) => {
+  const handleNewInspection = (solicitudId: number, solicitud: Solicitud) => { // ← CAMBIADO
+    setCurrentSolicitud(solicitud);
     setTempPhotos([]);
-    setCurrentScreen({ type: 'newInspection', solicitudId });
+    setCurrentScreen({ type: 'newInspection', solicitudId, solicitud }); // ← CAMBIADO
+  };
+
+  const handleBackFromInspection = (solicitudId: number) => {
+    setCurrentScreen({ type: 'solicitudDetail', solicitudId });
   };
 
   const handleBottomNavChange = (tab: 'home' | 'reports' | 'camera' | 'profile') => {
@@ -150,6 +221,12 @@ export default function App() {
   // ========================================
 
   const handleAddPhoto = () => {
+    // Guardar el solicitudId actual antes de ir a la cámara
+    if (currentScreen.type === 'newInspection') {
+      sessionStorage.setItem('lastSolicitudScreen', currentScreen.solicitudId.toString());
+      // NUEVO: Guardar también la solicitud completa
+      sessionStorage.setItem('currentSolicitud', JSON.stringify(currentScreen.solicitud));
+    }
     setCurrentScreen({ type: 'photoCapture' });
   };
 
@@ -164,10 +241,20 @@ export default function App() {
     // Volver al formulario de inspección
     if (currentScreen.type === 'photoCapture') {
       const lastScreen = sessionStorage.getItem('lastSolicitudScreen');
-      if (lastScreen) {
-        const solicitudId = parseInt(lastScreen, 10);
-        if (!isNaN(solicitudId)) {
-          setCurrentScreen({ type: 'newInspection', solicitudId });
+      const solicitudData = sessionStorage.getItem('currentSolicitud');
+      
+      if (lastScreen && solicitudData) {
+        try {
+          const solicitudId = parseInt(lastScreen, 10);
+          const solicitud: Solicitud = JSON.parse(solicitudData);
+          
+          if (!isNaN(solicitudId) && solicitud) {
+            setCurrentScreen({ type: 'newInspection', solicitudId, solicitud });
+          }
+        } catch (error) {
+          console.error('Error parsing solicitud data:', error);
+          // Fallback: volver al dashboard si hay error
+          setCurrentScreen({ type: 'solicitudesDashboard' });
         }
       }
     }
@@ -179,10 +266,20 @@ export default function App() {
 
   const handleBackFromPhotoCapture = () => {
     const lastScreen = sessionStorage.getItem('lastSolicitudScreen');
-    if (lastScreen) {
-      const solicitudId = parseInt(lastScreen, 10);
-      if (!isNaN(solicitudId)) {
-        setCurrentScreen({ type: 'newInspection', solicitudId });
+    const solicitudData = sessionStorage.getItem('currentSolicitud');
+    
+    if (lastScreen && solicitudData) {
+      try {
+        const solicitudId = parseInt(lastScreen, 10);
+        const solicitud: Solicitud = JSON.parse(solicitudData);
+        
+        if (!isNaN(solicitudId) && solicitud) {
+          setCurrentScreen({ type: 'newInspection', solicitudId, solicitud });
+        }
+      } catch (error) {
+        console.error('Error parsing solicitud data:', error);
+        // Fallback: volver al dashboard si hay error
+        setCurrentScreen({ type: 'solicitudesDashboard' });
       }
     }
   };
@@ -280,7 +377,7 @@ export default function App() {
             solicitudId={currentScreen.solicitudId}
             inspections={inspections[currentScreen.solicitudId] || []}
             onBack={handleBackToSolicitudes}
-            onNewInspection={() => handleNewInspection(currentScreen.solicitudId)}
+            onNewInspection={(solicitud) => handleNewInspection(currentScreen.solicitudId, solicitud)} // ← CAMBIADO
           />
           <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
         </>
@@ -298,10 +395,10 @@ export default function App() {
       )}
       
       {/* Nueva Inspección */}
-      {isAuthenticated && currentScreen.type === 'newInspection' && (
+      {isAuthenticated && currentScreen.type === 'newInspection' && currentScreen.solicitud && ( // ← CAMBIADO
         <NewInspection
-          projectName={`Solicitud #${currentScreen.solicitudId}`}
-          onBack={handleBackToSolicitudes}
+          solicitud={currentScreen.solicitud} // ← CAMBIADO: pasa toda la solicitud
+          onBack={() => handleBackFromInspection(currentScreen.solicitudId)}
           onSave={(inspection) => handleSaveInspection(currentScreen.solicitudId, inspection)}
           onAddPhoto={handleAddPhoto}
           tempPhotos={tempPhotos}

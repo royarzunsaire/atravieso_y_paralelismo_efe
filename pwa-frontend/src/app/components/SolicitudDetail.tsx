@@ -81,7 +81,7 @@ interface SolicitudDetailProps {
   solicitudId: number;
   inspections: Inspection[];
   onBack: () => void;
-  onNewInspection: () => void;
+  onNewInspection: (solicitud: Solicitud) => void; // ← CAMBIADO: ahora recibe solicitud
 }
 
 interface InfoRowProps {
@@ -369,7 +369,7 @@ export function SolicitudDetail({ solicitudId, inspections, onBack, onNewInspect
         )}      
       </div>
       <FloatingActionButton
-        onClick={onNewInspection}
+        onClick={() => solicitud && onNewInspection(solicitud)} // ← CAMBIADO: pasa la solicitud
         icon={<Plus className="w-6 h-6" />}
         label="Inspección"
       />

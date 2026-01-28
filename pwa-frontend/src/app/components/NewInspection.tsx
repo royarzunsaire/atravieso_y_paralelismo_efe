@@ -9,8 +9,31 @@ interface InspectionPhoto {
   description: string;
 }
 
+interface Responsable {
+  nombre: string;
+  email: string;
+  departamento?: string | null;
+  cargo?: string | null;
+  foto?: string;
+}
+
+interface Solicitud {
+  id: number;
+  codigo: string | null;
+  cliente: string | null;
+  tipoProyecto: string | null;
+  tipoObra: string | null;
+  tipoServicio: string | null;
+  region: string | null;
+  comuna: string | null;
+  responsable: Responsable | null;
+  prioridad: string | null;
+  estadoSolicitud: string | null;
+  // ... puedes agregar más campos según necesites
+}
+
 interface NewInspectionProps {
-  projectName: string;
+  solicitud: Solicitud; // ← CAMBIADO: ahora recibe toda la solicitud
   onBack: () => void;
   onSave: (inspection: {
     type: string;
@@ -34,7 +57,7 @@ const inspectionTypes = [
 ];
 
 export function NewInspection({
-  projectName,
+  solicitud,
   onBack,
   onSave,
   onAddPhoto,
@@ -121,7 +144,7 @@ export function NewInspection({
         {/* Información del proyecto */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <p className="text-sm text-[#4A4A4A] mb-1">Proyecto</p>
-          <p className="text-[#003D7A]">{projectName}</p>
+          <p className="text-[#003D7A]">Solicitud #{solicitud.codigo}</p>
         </div>
         
         {/* Fecha y hora */}
