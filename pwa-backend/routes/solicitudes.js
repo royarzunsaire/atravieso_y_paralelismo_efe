@@ -20,7 +20,7 @@ async function callFlow(flowUrl, data = {}) {
     });
     return response.data;
   } catch (error) {
-    console.error('Error calling flow:', error.message);
+    console.error('❌ Error calling flow:', error.message);
     throw new Error(`Flow error: ${error.message}`);
   }
 }
@@ -33,6 +33,10 @@ function mapSolicitudItem(item) {
     id: item.ID,
     title: item.Title,
     codigo: item.Codigo || null,
+    observacion: item.Observacion || null,
+    descripcion: item.DescripcionObra || null,
+    etapa: item.EtapaTexto || null,
+    kilometraje: item.Kilometraje || null,
     
     // Campos de lookup (solo valor de texto)
     rolAsignado: item.RolAsignado?.Value || null,
@@ -101,119 +105,22 @@ function mapSolicitudItem(item) {
 }
 
 /**
- * GET /api/solicitudes
- * Obtener todas las solicitudes (con filtro opcional por usuario)
- */
-router.get('/', verifyToken, async (req, res) => {
-  try {
-    const { filterByUser } = req.query;
-    const userEmail = req.user?.email; // Email del usuario logueado desde el token JWT
-    
-    // Llamar al flow para obtener todas las solicitudes
-    const rawData = await callFlow(FLOW_SOLICITUD_READ_ALL_URL);
-    
-    // Verificar que sea un array
-    if (!Array.isArray(rawData)) {
-      return res.status(500).json({
-        error: 'Invalid response from SharePoint flow',
-        message: 'Expected array of items',
-      });
-    }
-    
-    // Mapear los items
-    let solicitudes = rawData.map(mapSolicitudItem);
-    
-    // Filtrar por usuario si se solicita
-    if (filterByUser === 'true' && userEmail) {
-      solicitudes = solicitudes.filter(s => {
-        // Solo mostrar las que tienen Responsable asignado Y coincide con el email del usuario
-        return s.responsable && s.responsable.email.toLowerCase() === userEmail.toLowerCase();
-      });
-    }
-    
-    res.json({
-      success: true,
-      count: solicitudes.length,
-      data: solicitudes,
-    });
-    
-  } catch (error) {
-    console.error('Error fetching solicitudes:', error);
-    res.status(500).json({
-      error: 'Failed to fetch solicitudes',
-      message: error.message,
-    });
-  }
-});
-
-/**
- * GET /api/solicitudes/:id
- * Obtener una solicitud por ID
- */
-router.get('/:id', verifyToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Validar que ID sea un número
-    if (isNaN(id)) {
-      return res.status(400).json({
-        error: 'Invalid ID',
-        message: 'ID must be a number',
-      });
-    }
-    
-    // Llamar al flow para obtener un item específico
-    const rawData = await callFlow(FLOW_SOLICITUD_READ_ONE_URL, {
-      id: parseInt(id),
-    });
-    
-    // Verificar que se obtuvo data
-    if (!rawData || !rawData.ID) {
-      return res.status(404).json({
-        error: 'Solicitud not found',
-        message: `No solicitud found with ID ${id}`,
-      });
-    }
-    
-    // Mapear el item
-    const solicitud = mapSolicitudItem(rawData);
-    
-    res.json({
-      success: true,
-      data: solicitud,
-    });
-    
-  } catch (error) {
-    console.error(`Error fetching solicitud ${req.params.id}:`, error);
-    
-    // Si es un error 404 del flow
-    if (error.response && error.response.status === 404) {
-      return res.status(404).json({
-        error: 'Solicitud not found',
-        message: `No solicitud found with ID ${req.params.id}`,
-      });
-    }
-    
-    res.status(500).json({
-      error: 'Failed to fetch solicitud',
-      message: error.message,
-    });
-  }
-});
-
-/**
  * GET /api/solicitudes/stats/summary
  * Obtener estadísticas resumidas
+ * IMPORTANTE: Esta ruta debe ir ANTES de /:id
  */
 router.get('/stats/summary', verifyToken, async (req, res) => {
   try {
     const userEmail = req.user?.email;
+    
+    console.log(`📊 GET /api/solicitudes/stats/summary - Usuario: ${userEmail}`);
     
     // Obtener todas las solicitudes
     const rawData = await callFlow(FLOW_SOLICITUD_READ_ALL_URL);
     
     if (!Array.isArray(rawData)) {
       return res.status(500).json({
+        success: false,
         error: 'Invalid response from SharePoint flow',
       });
     }
@@ -249,15 +156,134 @@ router.get('/stats/summary', verifyToken, async (req, res) => {
       }
     });
     
+    console.log(`✅ Estadísticas calculadas: ${stats.total} solicitudes asignadas`);
+    
     res.json({
       success: true,
       data: stats,
     });
     
   } catch (error) {
-    console.error('Error fetching stats:', error);
+    console.error('❌ Error fetching stats:', error);
     res.status(500).json({
+      success: false,
       error: 'Failed to fetch statistics',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/solicitudes
+ * Obtener todas las solicitudes (con filtro opcional por usuario)
+ */
+router.get('/', verifyToken, async (req, res) => {
+  try {
+    const { filterByUser } = req.query;
+    const userEmail = req.user?.email; // Email del usuario logueado desde el token JWT
+    
+    console.log(`📥 GET /api/solicitudes - Usuario: ${userEmail}, Filtrar: ${filterByUser}`);
+    
+    // Llamar al flow para obtener todas las solicitudes
+    const rawData = await callFlow(FLOW_SOLICITUD_READ_ALL_URL);
+    
+    // Verificar que sea un array
+    if (!Array.isArray(rawData)) {
+      return res.status(500).json({
+        success: false,
+        error: 'Invalid response from SharePoint flow',
+        message: 'Expected array of items',
+      });
+    }
+    
+    // Mapear los items
+    let solicitudes = rawData.map(mapSolicitudItem);
+    
+    console.log(`📋 Total de solicitudes en SharePoint: ${solicitudes.length}`);
+    
+    // Filtrar por usuario si se solicita
+    if (filterByUser === 'true' && userEmail) {
+      solicitudes = solicitudes.filter(s => {
+        // Solo mostrar las que tienen Responsable asignado Y coincide con el email del usuario
+        return s.responsable && s.responsable.email.toLowerCase() === userEmail.toLowerCase();
+      });
+      console.log(`🔍 Solicitudes filtradas para ${userEmail}: ${solicitudes.length}`);
+    }
+    
+    res.json({
+      success: true,
+      count: solicitudes.length,
+      data: solicitudes,
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching solicitudes:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch solicitudes',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/solicitudes/:id
+ * Obtener una solicitud por ID
+ */
+router.get('/:id', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`🔍 GET /api/solicitudes/${id}`);
+    
+    // Validar que ID sea un número
+    if (isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid ID',
+        message: 'ID must be a number',
+      });
+    }
+    
+    // Llamar al flow para obtener un item específico
+    const rawData = await callFlow(FLOW_SOLICITUD_READ_ONE_URL, {
+      id: parseInt(id),
+    });
+    
+    // Verificar que se obtuvo data
+    if (!rawData || !rawData.ID) {
+      return res.status(404).json({
+        success: false,
+        error: 'Solicitud not found',
+        message: `No solicitud found with ID ${id}`,
+      });
+    }
+    
+    // Mapear el item
+    const solicitud = mapSolicitudItem(rawData);
+    
+    console.log(`✅ Solicitud ${id} obtenida correctamente`);
+    
+    res.json({
+      success: true,
+      data: solicitud,
+    });
+    
+  } catch (error) {
+    console.error(`❌ Error fetching solicitud ${req.params.id}:`, error);
+    
+    // Si es un error 404 del flow
+    if (error.response && error.response.status === 404) {
+      return res.status(404).json({
+        success: false,
+        error: 'Solicitud not found',
+        message: `No solicitud found with ID ${req.params.id}`,
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch solicitud',
       message: error.message,
     });
   }

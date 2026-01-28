@@ -1,25 +1,26 @@
 import { useState, useEffect } from 'react';
-import { Dashboard } from './components/Dashboard';
-import { ProjectDetail, Inspection, Photo } from './components/ProjectDetail';
-import { NewInspection } from './components/NewInspection';
-import { PhotoCapture } from './components/PhotoCapture';
 import { BottomNav } from './components/BottomNav';
 import { Login } from './components/Login';
 import { AuthCallback } from './components/AuthCallback';
-import { Project } from './components/ProjectCard';
 import { authService } from '../services/auth';
 import { Profile } from './components/Profile';
+import { SolicitudesDashboard } from './components/SolicitudesDashboard';
+import { SolicitudDetail, Inspection } from './components/SolicitudDetail';
+import { NewInspection } from './components/NewInspection';
+import { PhotoCapture } from './components/PhotoCapture';
+
+// ========================================
+// TYPES
+// ========================================
 
 type Screen = 
   | { type: 'login' }
   | { type: 'authCallback' }
-  | { type: 'dashboard' }
   | { type: 'profile' }
-  | { type: 'projectDetail'; projectId: string }
-  | { type: 'newInspection'; projectId: string }
+  | { type: 'solicitudesDashboard' } 
+  | { type: 'solicitudDetail'; solicitudId: number }
+  | { type: 'newInspection'; solicitudId: number }
   | { type: 'photoCapture' };
-
-  
 
 interface InspectionPhoto {
   id: string;
@@ -27,114 +28,30 @@ interface InspectionPhoto {
   description: string;
 }
 
-// Mock data
-const mockProjects: Project[] = [
-  {
-    id: '1',
-    name: 'Extensión Línea 1 Metro Valparaíso',
-    location: 'Valparaíso, Región de Valparaíso',
-    status: 'active',
-    progress: 67,
-  },
-  {
-    id: '2',
-    name: 'Modernización Vía Férrea Rancagua-Talca',
-    location: 'Rancagua - Talca, Región del Maule',
-    status: 'active',
-    progress: 42,
-  },
-  {
-    id: '3',
-    name: 'Restauración Puente Ferroviario Malleco',
-    location: 'Collipulli, Región de La Araucanía',
-    status: 'paused',
-    progress: 28,
-  },
-  {
-    id: '4',
-    name: 'Ampliación Estación Central Santiago',
-    location: 'Santiago, Región Metropolitana',
-    status: 'active',
-    progress: 85,
-  },
-  {
-    id: '5',
-    name: 'Construcción Terminal de Carga Puerto Montt',
-    location: 'Puerto Montt, Región de Los Lagos',
-    status: 'completed',
-    progress: 100,
-  },
-];
+interface Photo {
+  id: string;
+  url: string;
+  description: string;
+  date: string;
+}
 
-const mockInspections: { [projectId: string]: Inspection[] } = {
-  '1': [
-    {
-      id: '1',
-      date: '05/01/2026 - 10:30',
-      type: 'Inspección General',
-      progress: 65,
-      status: 'conforme',
-      observations: 'Se observa avance conforme al cronograma. Trabajos de tendido de rieles en progreso normal. Condiciones climáticas favorables.',
-    },
-    {
-      id: '2',
-      date: '30/12/2025 - 14:15',
-      type: 'Control de Calidad',
-      progress: 60,
-      status: 'observaciones',
-      observations: 'Se detectaron algunas irregularidades menores en el nivelado de balasto en sector km 2.5. Se solicitó corrección inmediata al contratista.',
-    },
-  ],
-  '2': [
-    {
-      id: '3',
-      date: '03/01/2026 - 09:00',
-      type: 'Seguridad',
-      progress: 42,
-      status: 'conforme',
-      observations: 'Revisión de protocolos de seguridad. Todo el personal cuenta con EPP adecuado. Señalética correctamente instalada en toda el área de trabajo.',
-    },
-  ],
-};
-
-const mockPhotos: { [projectId: string]: Photo[] } = {
-  '1': [
-    {
-      id: '1',
-      url: 'https://images.unsplash.com/photo-1699740085489-ed33b4ba6ee3?w=800&h=600&fit=crop',
-      description: 'Vista general del avance en el sector norte',
-      date: '05/01/2026',
-    },
-    {
-      id: '2',
-      url: 'https://images.unsplash.com/photo-1725234839695-3b5f9af28a1d?w=800&h=600&fit=crop',
-      description: 'Detalle de instalación de rieles nuevos',
-      date: '05/01/2026',
-    },
-    {
-      id: '3',
-      url: 'https://images.unsplash.com/photo-1630050668512-799363304546?w=800&h=600&fit=crop',
-      description: 'Estructura de puente en construcción',
-      date: '30/12/2025',
-    },
-  ],
-  '2': [
-    {
-      id: '4',
-      url: 'https://images.unsplash.com/photo-1699740085489-ed33b4ba6ee3?w=800&h=600&fit=crop',
-      description: 'Inicio de trabajos de modernización',
-      date: '03/01/2026',
-    },
-  ],
-};
+// ========================================
+// COMPONENT
+// ========================================
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>({ type: 'login' });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [bottomNavTab, setBottomNavTab] = useState<'home' | 'reports' | 'camera' | 'profile'>('home');
   const [tempPhotos, setTempPhotos] = useState<InspectionPhoto[]>([]);
-  const [inspections, setInspections] = useState(mockInspections);
-  const [photos, setPhotos] = useState(mockPhotos);
+  
+  // Estados para almacenar inspecciones y fotos por solicitud
+  const [inspections, setInspections] = useState<{ [solicitudId: number]: Inspection[] }>({});
+  const [photos, setPhotos] = useState<{ [solicitudId: number]: Photo[] }>({});
+
+  // ========================================
+  // EFFECTS
+  // ========================================
 
   // Verificar autenticación al cargar
   useEffect(() => {
@@ -148,7 +65,7 @@ export default function App() {
       setIsAuthenticated(isAuth);
       
       if (isAuth) {
-        setCurrentScreen({ type: 'dashboard' });
+        setCurrentScreen({ type: 'solicitudesDashboard' });
       } else {
         setCurrentScreen({ type: 'login' });
       }
@@ -157,9 +74,20 @@ export default function App() {
     checkAuth();
   }, []);
 
+  // Guardar el último solicitudId activo para la navegación de fotos
+  useEffect(() => {
+    if (currentScreen.type === 'newInspection') {
+      sessionStorage.setItem('lastSolicitudScreen', currentScreen.solicitudId.toString());
+    }
+  }, [currentScreen]);
+
+  // ========================================
+  // HANDLERS - AUTHENTICATION
+  // ========================================
+
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
-    setCurrentScreen({ type: 'dashboard' });
+    setCurrentScreen({ type: 'solicitudesDashboard' });
   };
 
   const handleLogout = () => {
@@ -168,29 +96,63 @@ export default function App() {
     setCurrentScreen({ type: 'login' });
     setBottomNavTab('home');
   };
-  
-  const handleProjectSelect = (projectId: string) => {
-    setCurrentScreen({ type: 'projectDetail', projectId });
-  };
-  
+
+  // ========================================
+  // HANDLERS - NAVIGATION
+  // ========================================
+
   const handleBackToDashboard = () => {
-    setCurrentScreen({ type: 'dashboard' });
+    setCurrentScreen({ type: 'solicitudesDashboard' });
     setBottomNavTab('home');
   };
-  
-  const handleBackToProject = (projectId: string) => {
-    setCurrentScreen({ type: 'projectDetail', projectId });
+
+  const handleSolicitudSelect = (solicitudId: number) => {
+    setCurrentScreen({ type: 'solicitudDetail', solicitudId });
   };
-  
-  const handleNewInspection = (projectId: string) => {
+
+  const handleBackToSolicitudes = () => {
+    setCurrentScreen({ type: 'solicitudesDashboard' });
+  };
+
+  const handleNewInspection = (solicitudId: number) => {
     setTempPhotos([]);
-    setCurrentScreen({ type: 'newInspection', projectId });
+    setCurrentScreen({ type: 'newInspection', solicitudId });
   };
-  
+
+  const handleBottomNavChange = (tab: 'home' | 'reports' | 'camera' | 'profile') => {
+    setBottomNavTab(tab);
+    
+    if (tab === 'home') {
+      setCurrentScreen({ type: 'solicitudesDashboard' });
+      return;
+    }
+
+    if (tab === 'reports') {
+      // Futuro: mostrar reportes
+      setCurrentScreen({ type: 'solicitudesDashboard' });
+      return;
+    }
+    
+    if (tab === 'profile') {
+      setCurrentScreen({ type: 'profile' });
+      return;
+    }
+
+    if (tab === 'camera') {
+      // Futuro: cámara rápida
+      setCurrentScreen({ type: 'solicitudesDashboard' });
+      return;
+    }
+  };
+
+  // ========================================
+  // HANDLERS - PHOTOS
+  // ========================================
+
   const handleAddPhoto = () => {
     setCurrentScreen({ type: 'photoCapture' });
   };
-  
+
   const handlePhotoConfirm = (photo: { url: string; description: string }) => {
     const newPhoto: InspectionPhoto = {
       id: Date.now().toString(),
@@ -201,19 +163,35 @@ export default function App() {
     
     // Volver al formulario de inspección
     if (currentScreen.type === 'photoCapture') {
-      // Recuperar el último proyecto activo
-      const lastScreen = sessionStorage.getItem('lastProjectScreen');
+      const lastScreen = sessionStorage.getItem('lastSolicitudScreen');
       if (lastScreen) {
-        setCurrentScreen({ type: 'newInspection', projectId: lastScreen });
+        const solicitudId = parseInt(lastScreen, 10);
+        if (!isNaN(solicitudId)) {
+          setCurrentScreen({ type: 'newInspection', solicitudId });
+        }
       }
     }
   };
-  
+
   const handleRemovePhoto = (photoId: string) => {
     setTempPhotos(tempPhotos.filter(p => p.id !== photoId));
   };
-  
-  const handleSaveInspection = (projectId: string, inspection: {
+
+  const handleBackFromPhotoCapture = () => {
+    const lastScreen = sessionStorage.getItem('lastSolicitudScreen');
+    if (lastScreen) {
+      const solicitudId = parseInt(lastScreen, 10);
+      if (!isNaN(solicitudId)) {
+        setCurrentScreen({ type: 'newInspection', solicitudId });
+      }
+    }
+  };
+
+  // ========================================
+  // HANDLERS - INSPECTIONS
+  // ========================================
+
+  const handleSaveInspection = (solicitudId: number, inspection: {
     type: string;
     progress: number;
     observations: string;
@@ -243,10 +221,10 @@ export default function App() {
     // Agregar inspección
     setInspections(prev => ({
       ...prev,
-      [projectId]: [newInspection, ...(prev[projectId] || [])],
+      [solicitudId]: [newInspection, ...(prev[solicitudId] || [])],
     }));
     
-    // Agregar fotos
+    // Agregar fotos si existen
     if (inspection.photos.length > 0) {
       const newPhotos: Photo[] = inspection.photos.map(p => ({
         id: p.id,
@@ -257,33 +235,21 @@ export default function App() {
       
       setPhotos(prev => ({
         ...prev,
-        [projectId]: [...newPhotos, ...(prev[projectId] || [])],
+        [solicitudId]: [...newPhotos, ...(prev[solicitudId] || [])],
       }));
     }
     
     // Limpiar fotos temporales
     setTempPhotos([]);
     
-    // Volver al detalle del proyecto
-    setCurrentScreen({ type: 'projectDetail', projectId });
+    // Volver al detalle de la solicitud
+    setCurrentScreen({ type: 'solicitudDetail', solicitudId });
   };
-  
-  const handleBottomNavChange = (tab: 'home' | 'reports' | 'camera' | 'profile') => {
-  setBottomNavTab(tab);
-  
-  if (tab === 'home') {
-    setCurrentScreen({ type: 'dashboard' });
-  } else if (tab === 'profile') {
-    // Mostrar pantalla de perfil con logout
-    setCurrentScreen({ type: 'profile' });
-  }
-};
-  
-  // Guardar el último proyecto activo para la navegación
-  if (currentScreen.type === 'newInspection') {
-    sessionStorage.setItem('lastProjectScreen', currentScreen.projectId);
-  }
-  
+
+  // ========================================
+  // RENDER
+  // ========================================
+
   return (
     <div className="min-h-screen bg-[#F5F7FA]">
       {/* Login */}
@@ -296,19 +262,31 @@ export default function App() {
         <AuthCallback onSuccess={handleLoginSuccess} />
       )}
 
-      {/* Dashboard */}
-      {isAuthenticated && currentScreen.type === 'dashboard' && (
+      {/* Dashboard de Solicitudes */}
+      {isAuthenticated && currentScreen.type === 'solicitudesDashboard' && (
         <>
-          <Dashboard
-            projects={mockProjects}
-            onProjectSelect={handleProjectSelect}
-            onLogout={handleLogout} // ← Agregar
+          <SolicitudesDashboard
+            onSolicitudSelect={handleSolicitudSelect}
+            onLogout={handleLogout}
           />
           <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
         </>
       )}
 
-      {/* Profile - AGREGAR */}
+      {/* Detalle de Solicitud */}
+      {isAuthenticated && currentScreen.type === 'solicitudDetail' && (
+        <>
+          <SolicitudDetail
+            solicitudId={currentScreen.solicitudId}
+            inspections={inspections[currentScreen.solicitudId] || []}
+            onBack={handleBackToSolicitudes}
+            onNewInspection={() => handleNewInspection(currentScreen.solicitudId)}
+          />
+          <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
+        </>
+      )}
+
+      {/* Profile */}
       {isAuthenticated && currentScreen.type === 'profile' && (
         <>
           <Profile 
@@ -319,41 +297,22 @@ export default function App() {
         </>
       )}
       
-      {/* Project Detail */}
-      {isAuthenticated && currentScreen.type === 'projectDetail' && (
-        <>
-          <ProjectDetail
-            project={mockProjects.find(p => p.id === currentScreen.projectId)!}
-            inspections={inspections[currentScreen.projectId] || []}
-            photos={photos[currentScreen.projectId] || []}
-            onBack={handleBackToDashboard}
-            onNewInspection={() => handleNewInspection(currentScreen.projectId)}
-          />
-          <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
-        </>
-      )}
-      
-      {/* New Inspection */}
+      {/* Nueva Inspección */}
       {isAuthenticated && currentScreen.type === 'newInspection' && (
         <NewInspection
-          projectName={mockProjects.find(p => p.id === currentScreen.projectId)?.name || ''}
-          onBack={() => handleBackToProject(currentScreen.projectId)}
-          onSave={(inspection) => handleSaveInspection(currentScreen.projectId, inspection)}
+          projectName={`Solicitud #${currentScreen.solicitudId}`}
+          onBack={handleBackToSolicitudes}
+          onSave={(inspection) => handleSaveInspection(currentScreen.solicitudId, inspection)}
           onAddPhoto={handleAddPhoto}
           tempPhotos={tempPhotos}
           onRemovePhoto={handleRemovePhoto}
         />
       )}
       
-      {/* Photo Capture */}
+      {/* Captura de Foto */}
       {isAuthenticated && currentScreen.type === 'photoCapture' && (
         <PhotoCapture
-          onBack={() => {
-            const lastScreen = sessionStorage.getItem('lastProjectScreen');
-            if (lastScreen) {
-              setCurrentScreen({ type: 'newInspection', projectId: lastScreen });
-            }
-          }}
+          onBack={handleBackFromPhotoCapture}
           onPhotoConfirm={handlePhotoConfirm}
         />
       )}

@@ -14,7 +14,7 @@ export function FloatingActionButton({ onClick, icon, label }: FloatingActionBut
       aria-label={label}
     >
       <span className="flex-shrink-0">{icon}</span>
-      {label && <span className="hidden sm:inline">{label}</span>}
+      {label && <span className="sm:inline">{label}</span>}
     </button>
   );
 }

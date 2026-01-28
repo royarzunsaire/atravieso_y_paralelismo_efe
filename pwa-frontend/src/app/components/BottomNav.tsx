@@ -7,7 +7,7 @@ interface BottomNavProps {
 
 const navItems = [
   { id: 'home' as const, label: 'Obras', icon: Home },
-  { id: 'reports' as const, label: 'Reportes', icon: FileText },
+  { id: 'reports' as const, label: 'Proyectos', icon: FileText },
   { id: 'camera' as const, label: 'Cámara', icon: Camera },
   { id: 'profile' as const, label: 'Perfil', icon: User },
 ];
