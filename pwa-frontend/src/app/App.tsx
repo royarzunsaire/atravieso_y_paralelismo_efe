@@ -5,9 +5,10 @@ import { AuthCallback } from './components/AuthCallback';
 import { authService } from '../services/auth';
 import { Profile } from './components/Profile';
 import { SolicitudesDashboard } from './components/SolicitudesDashboard';
-import { SolicitudDetail, Inspection } from './components/SolicitudDetail';
+import { SolicitudDetail } from './components/SolicitudDetail';
 import { NewInspection } from './components/NewInspection';
 import { PhotoCapture } from './components/PhotoCapture';
+import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
 
 // ========================================
 // TYPES
@@ -21,75 +22,6 @@ type Screen =
   | { type: 'solicitudDetail'; solicitudId: number }
   | { type: 'newInspection'; solicitudId: number; solicitud: Solicitud }
   | { type: 'photoCapture' };
-
-interface InspectionPhoto {
-  id: string;
-  url: string;
-  description: string;
-}
-
-interface Photo {
-  id: string;
-  url: string;
-  description: string;
-  date: string;
-}
-
-interface Responsable {
-  nombre: string;
-  email: string;
-  departamento?: string | null;
-  cargo?: string | null;
-  foto?: string;
-}
-
-interface Autor {
-  nombre: string;
-  email: string;
-  departamento?: string | null;
-  cargo?: string | null;
-  foto?: string;
-}
-
-interface Solicitud {
-  id: number;
-  title: string;
-  codigo: string | null;
-  estadoSolicitud: string | null;
-  estadoSolicitudId: number | null;
-  prioridad: string | null;
-  prioridadId: number | null;
-  cliente: string | null;
-  clienteId: number | null;
-  consultor: string | null;
-  consultorId: number | null;
-  tipoProyecto: string | null;
-  tipoProyectoId: number | null;
-  tipoObra: string | null;
-  tipoObraId: number | null;
-  tipoServicio: string | null;
-  tipoServicioId: number | null;
-  ramal: string | null;
-  ramalId: number | null;
-  region: string | null;
-  regionId: number | null;
-  comuna: string | null;
-  comunaId: number | null;
-  rolAsignado: string | null;
-  rolAsignadoId: number | null;
-  esExcepcion: boolean;
-  finalizada: boolean;
-  responsable: Responsable | null;
-  autor: Autor | null;
-  hasAttachments: boolean;
-  link: string | null;
-  versionNumber: string | null;
-  etag: string | null;
-  observacion: string | null;
-  descripcion: string | null;
-  etapa: string | null;
-  kilometraje: string | null;
-}
 
 // ========================================
 // COMPONENT

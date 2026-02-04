@@ -2,35 +2,7 @@ import { useState, FormEvent } from 'react';
 import { Header } from './Header';
 import { Button } from './Button';
 import { Camera, X, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
-
-interface InspectionPhoto {
-  id: string;
-  url: string;
-  description: string;
-}
-
-interface Responsable {
-  nombre: string;
-  email: string;
-  departamento?: string | null;
-  cargo?: string | null;
-  foto?: string;
-}
-
-interface Solicitud {
-  id: number;
-  codigo: string | null;
-  cliente: string | null;
-  tipoProyecto: string | null;
-  tipoObra: string | null;
-  tipoServicio: string | null;
-  region: string | null;
-  comuna: string | null;
-  responsable: Responsable | null;
-  prioridad: string | null;
-  estadoSolicitud: string | null;
-  // ... puedes agregar más campos según necesites
-}
+import type { Solicitud, InspectionPhoto } from '../../types/solicitud';
 
 interface NewInspectionProps {
   solicitud: Solicitud; // ← CAMBIADO: ahora recibe toda la solicitud
@@ -39,7 +11,7 @@ interface NewInspectionProps {
     type: string;
     progress: number;
     observations: string;
-    status: 'conforme' | 'observaciones' | 'no-conforme';
+    status: 'conforme' | 'no-conforme';
     photos: InspectionPhoto[];
   }) => void;
   onAddPhoto: () => void;
@@ -67,7 +39,7 @@ export function NewInspection({
   const [type, setType] = useState('');
   const [progress, setProgress] = useState(0);
   const [observations, setObservations] = useState('');
-  const [status, setStatus] = useState<'conforme' | 'observaciones' | 'no-conforme'>('conforme');
+  const [status, setStatus] = useState<'conforme' |'no-conforme'>('conforme');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   
   const now = new Date();
@@ -120,13 +92,13 @@ export function NewInspection({
       color: 'border-green-600 bg-green-50 text-green-700',
       activeColor: 'border-green-600 bg-green-600 text-white',
     },
-    {
-      value: 'observaciones' as const,
-      label: 'Observaciones',
-      icon: <AlertTriangle className="w-5 h-5" />,
-      color: 'border-orange-500 bg-orange-50 text-orange-600',
-      activeColor: 'border-orange-500 bg-orange-500 text-white',
-    },
+    // {
+    //   value: 'observaciones' as const,
+    //   label: 'Observaciones',
+    //   icon: <AlertTriangle className="w-5 h-5" />,
+    //   color: 'border-orange-500 bg-orange-50 text-orange-600',
+    //   activeColor: 'border-orange-500 bg-orange-500 text-white',
+    // },
     {
       value: 'no-conforme' as const,
       label: 'No Conforme',
@@ -220,7 +192,32 @@ export function NewInspection({
             <span>100%</span>
           </div>
         </div>
-        
+
+        {/* Comentarios de Avance */}
+        <div className="bg-white rounded-lg p-4 shadow-sm">
+          <label className="block text-sm text-[#4A4A4A] mb-2">
+            Comentarios de Avance <span className="text-[#E30613]">*</span>
+          </label>
+          <textarea
+            value={observations}
+            onChange={(e) => {
+              setObservations(e.target.value);
+              setErrors({ ...errors, observations: '' });
+            }}
+            placeholder="Agregue cualquier comentario respecto al avance..."
+            rows={4}
+            className={`w-full px-3 py-2 bg-white rounded-lg border ${
+              errors.observations ? 'border-[#E30613]' : 'border-[#003D7A]/20'
+            } focus:outline-none focus:ring-2 focus:ring-[#0066CC] resize-none`}
+          />
+          {errors.observations && (
+            <p className="mt-1 text-sm text-[#E30613]">{errors.observations}</p>
+          )}
+          <p className="mt-2 text-xs text-[#4A4A4A]">
+            {observations.length} caracteres (mínimo 10)
+          </p>
+        </div>
+
         {/* Estado general */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <label className="block text-sm text-[#4A4A4A] mb-3">Estado General</label>
@@ -244,7 +241,7 @@ export function NewInspection({
         {/* Observaciones */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <label className="block text-sm text-[#4A4A4A] mb-2">
-            Observaciones <span className="text-[#E30613]">*</span>
+            Observaciones de inspección <span className="text-[#E30613]">*</span>
           </label>
           <textarea
             value={observations}

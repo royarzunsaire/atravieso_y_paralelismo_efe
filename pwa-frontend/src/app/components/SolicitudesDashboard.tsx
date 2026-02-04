@@ -4,35 +4,11 @@ import { Header } from './Header';
 import { SolicitudCard } from './SolicitudCard';
 import { Button } from './Button';
 import { solicitudesService } from '../../services/solicitudes';
+import type { Solicitud, SolicitudStats } from '../../types/solicitud';
 
 // ========================================
-// INTERFACES - AGREGADAS
+// INTERFACES
 // ========================================
-
-interface Responsable {
-  nombre: string;
-  email: string;
-  departamento?: string | null;
-  cargo?: string | null;
-  foto?: string;
-}
-
-interface Solicitud {
-  id: number;
-  codigo: string | null;
-  cliente: string | null;
-  comuna: string | null;
-  estadoSolicitud: string | null;
-  responsable: Responsable | null;
-  prioridad: string | null;
-  tipoProyecto: string | null;
-  tipoServicio: string | null;
-  region: string | null;
-  observacion: string | null;
-  descripcion: string | null;
-  etapa: string | null;
-  kilometraje: string | null;
-}
 
 interface Stats {
   total: number;

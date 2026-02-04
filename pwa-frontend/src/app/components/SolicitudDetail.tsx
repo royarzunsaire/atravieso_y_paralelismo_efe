@@ -1,87 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { FloatingActionButton } from './FloatingActionButton';
-import { 
-  MapPin, Building2, User, Calendar, 
-  AlertCircle, FileText, Loader2,
-  Plus, Phone, Mail, CheckCircle2, AlertTriangle, XCircle 
-} from 'lucide-react';
+import { MapPin, Building2, User, Calendar, FileText, Loader2, Plus, CheckCircle2, AlertTriangle, XCircle, Eye, ArrowUpDown } from 'lucide-react';
 import { solicitudesService } from '../../services/solicitudes';
+import { getEstadoColor, getPrioridadTextColor  } from '../../utils/solicitudUtils';
+import type { Solicitud, Inspection, Archivo } from '../../types/solicitud';
+import { archivosService } from '../../services/archivos';
+import { getFileIconInfo, getTipoDocumentoColor, getTipoDocumentoBadgeColor } from '../../utils/fileUtils';
+
 
 // ========================================
-// INTERFACES - AGREGADAS
+// INTERFACES
 // ========================================
-
-interface Responsable {
-  nombre: string;
-  email: string;
-  departamento?: string | null;
-  cargo?: string | null;
-  foto?: string;
-}
-
-interface Autor {
-  nombre: string;
-  email: string;
-  departamento?: string | null;
-  cargo?: string | null;
-  foto?: string;
-}
-
-interface Solicitud {
-  id: number;
-  title: string;
-  codigo: string | null;
-  estadoSolicitud: string | null;
-  estadoSolicitudId: number | null;
-  prioridad: string | null;
-  prioridadId: number | null;
-  cliente: string | null;
-  clienteId: number | null;
-  consultor: string | null;
-  consultorId: number | null;
-  tipoProyecto: string | null;
-  tipoProyectoId: number | null;
-  tipoObra: string | null;
-  tipoObraId: number | null;
-  tipoServicio: string | null;
-  tipoServicioId: number | null;
-  ramal: string | null;
-  ramalId: number | null;
-  region: string | null;
-  regionId: number | null;
-  comuna: string | null;
-  comunaId: number | null;
-  rolAsignado: string | null;
-  rolAsignadoId: number | null;
-  esExcepcion: boolean;
-  finalizada: boolean;
-  responsable: Responsable | null;
-  autor: Autor | null;
-  hasAttachments: boolean;
-  link: string | null;
-  versionNumber: string | null;
-  etag: string | null;
-  observacion: string | null;
-  descripcion: string | null;
-  etapa: string | null;
-  kilometraje: string | null;
-}
-
-export interface Inspection {
-  id: string;
-  date: string;
-  type: string;
-  progress: number;
-  status: 'conforme' | 'observaciones' | 'no-conforme';
-  observations: string;
-}
 
 interface SolicitudDetailProps {
   solicitudId: number;
   inspections: Inspection[];
   onBack: () => void;
-  onNewInspection: (solicitud: Solicitud) => void; // ← CAMBIADO: ahora recibe solicitud
+  onNewInspection: (solicitud: Solicitud) => void;
 }
 
 interface InfoRowProps {
@@ -89,25 +25,8 @@ interface InfoRowProps {
   value?: string | number | null;
 }
 
-// Función para obtener color del estado
-const getEstadoColor = (etapa: string): string => {
-    // Puedes personalizar según tus estados
-    const estadosActivos = ['Análisis de Proyecto', 'Asignación de Proyecto', 'Recepción de Solicitud'];
-    const estadosCompletados = ['Inicio de Obra', 'Contrato Firmado', 'Aprobación y Contrato'];
-    const estadosRechazados = ['Proyecto Rechazado', 'Solicitud Devuelta'];
-
-    if (estadosActivos.includes(etapa)) {
-      return 'text-[#0066CC]';
-    } else if (estadosCompletados.includes(etapa)) {
-      return 'text-green-600';
-    } else if (estadosRechazados.includes(etapa)) {
-      return 'text-red-600';
-    }
-    return 'text-[#4A4A4A]';
-};
-
 // ========================================
-// COMPONENTE - SIN CAMBIOS EN LA LÓGICA
+// COMPONENTE
 // ========================================
 
 export function SolicitudDetail({ solicitudId, inspections, onBack, onNewInspection  }: SolicitudDetailProps) {
@@ -116,9 +35,21 @@ export function SolicitudDetail({ solicitudId, inspections, onBack, onNewInspect
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('info');
 
+  const [archivos, setArchivos] = useState<Archivo[]>([]);
+  const [loadingArchivos, setLoadingArchivos] = useState(false);
+  const [errorArchivos, setErrorArchivos] = useState<string | null>(null);
+
+  const [sortBy, setSortBy] = useState<'fecha' | 'nombre' | 'tipo'>('fecha');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+
   useEffect(() => {
+    if (activeTab === 'documentos') {
+      loadArchivos();
+      return
+    }
     loadSolicitud();
-  }, [solicitudId]);
+  }, [activeTab, solicitudId]);
 
   const loadSolicitud = async () => {
     setLoading(true);
@@ -132,6 +63,61 @@ export function SolicitudDetail({ solicitudId, inspections, onBack, onNewInspect
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadArchivos = async () => {
+    setLoadingArchivos(true);
+    setErrorArchivos(null);
+    
+    try {
+      const data = await archivosService.getBySolicitudId(solicitudId);
+      setArchivos(data);
+    } catch (err: any) {
+      setErrorArchivos(err.message);
+      console.error('Error cargando archivos:', err);
+    } finally {
+      setLoadingArchivos(false);
+    }
+  };
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    
+    if (tabId === 'documentos' && archivos.length === 0) {
+      loadArchivos();
+    }
+  };
+
+  const handleSort = (newSortBy: 'fecha' | 'nombre' | 'tipo') => {
+    if (sortBy === newSortBy) {
+      // Toggle order
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('desc');
+    }
+  };
+
+  const getSortedArchivos = () => {
+    const sorted = [...archivos].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'fecha':
+          comparison = new Date(a.modified).getTime() - new Date(b.modified).getTime();
+          break;
+        case 'nombre':
+          comparison = a.fileName.localeCompare(b.fileName);
+          break;
+        case 'tipo':
+          comparison = a.tipoDocumento.localeCompare(b.tipoDocumento);
+          break;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+    
+    return sorted;
   };
 
   const tabs = [
@@ -190,7 +176,7 @@ export function SolicitudDetail({ solicitudId, inspections, onBack, onNewInspect
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex-1 h-12 transition-colors ${
                 activeTab === tab.id
                   ? 'text-[#0066CC] border-b-2 border-[#0066CC]'
@@ -220,12 +206,8 @@ export function SolicitudDetail({ solicitudId, inspections, onBack, onNewInspect
                 </div>
                 <div>
                   <p className="text-sm text-[#4A4A4A] mb-1">Prioridad</p>
-                  <p className={`font-medium ${
-                    solicitud.prioridad === 'Alta' ? 'text-red-600' :
-                    solicitud.prioridad === 'Media' ? 'text-yellow-600' :
-                    'text-green-600'
-                  }`}>
-                    {solicitud.prioridad}
+                  <p className={`font-medium ${getPrioridadTextColor(solicitud.prioridad)}`}>
+                    {solicitud.prioridad || 'Sin prioridad'}
                   </p>
                 </div>
               </div>
@@ -239,11 +221,12 @@ export function SolicitudDetail({ solicitudId, inspections, onBack, onNewInspect
               </h3>
               <div className="space-y-3">
                 <InfoRow label="Descripción" value={solicitud.descripcion} />
-                <InfoRow label="Cliente" value={solicitud.cliente} />
-                <InfoRow label="Consultor" value={solicitud.consultor} />
+                <InfoRow label="Empresa Mandante" value={solicitud.cliente} />
+                <InfoRow label="Inspector Técnico / Constructora" value={solicitud.consultor} />
                 <InfoRow label="Tipo de Proyecto" value={solicitud.tipoProyecto} />
                 <InfoRow label="Tipo de Obra" value={solicitud.tipoObra} />
                 <InfoRow label="Tipo de Servicio" value={solicitud.tipoServicio} />
+                <InfoRow label="P. Kilometraje" value={solicitud.kilometraje +' Km'}  />
                 <InfoRow label="Observación" value={solicitud.observacion} />
                 {/* <InfoRow 
                   label="Es Excepción" 
@@ -366,7 +349,130 @@ export function SolicitudDetail({ solicitudId, inspections, onBack, onNewInspect
               </div>
             )}
           </div>
-        )}      
+        )}  
+        {/* Tab: Documentos */}
+        {activeTab === 'documentos' && (
+          <div className="space-y-4">
+            {/* Controles de ordenamiento */}
+            {!loadingArchivos && !errorArchivos && archivos.length > 0 && (
+              <div className="bg-white rounded-lg p-3 shadow-sm">
+                <p className="text-sm text-[#4A4A4A] mb-2">Ordenar por:</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleSort('fecha')}
+                    className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors ${
+                      sortBy === 'fecha'
+                        ? 'bg-[#0066CC] text-white'
+                        : 'bg-gray-100 text-[#4A4A4A]'
+                    }`}
+                  >
+                    Fecha
+                    {sortBy === 'fecha' && (
+                      <ArrowUpDown className="w-4 h-4" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleSort('nombre')}
+                    className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors ${
+                      sortBy === 'nombre'
+                        ? 'bg-[#0066CC] text-white'
+                        : 'bg-gray-100 text-[#4A4A4A]'
+                    }`}
+                  >
+                    Nombre
+                    {sortBy === 'nombre' && (
+                      <ArrowUpDown className="w-4 h-4" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleSort('tipo')}
+                    className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors ${
+                      sortBy === 'tipo'
+                        ? 'bg-[#0066CC] text-white'
+                        : 'bg-gray-100 text-[#4A4A4A]'
+                    }`}
+                  >
+                    Tipo
+                    {sortBy === 'tipo' && (
+                      <ArrowUpDown className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Lista de archivos */}
+            {loadingArchivos ? (
+              <div className="bg-white rounded-lg p-8 text-center">
+                <Loader2 className="w-12 h-12 text-[#0066CC] animate-spin mx-auto mb-4" />
+                <p className="text-[#4A4A4A]">Cargando documentos...</p>
+              </div>
+            ) : errorArchivos ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm text-red-800">{errorArchivos}</p>
+              </div>
+            ) : archivos.length > 0 ? (
+              getSortedArchivos().map(archivo => {
+                const badgeColor = getTipoDocumentoBadgeColor(archivo.tipoDocumento);
+                const iconInfo = getFileIconInfo(archivo.fileName);
+                
+                return (
+                  <div 
+                    key={archivo.id} 
+                    className="bg-white rounded-lg p-4 shadow-sm"
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Icono del archivo */}
+                      <div className={`w-12 h-14 flex flex-col items-center justify-center ${iconInfo.bg} rounded-lg shadow-sm flex-shrink-0`}>
+                        <div className={`w-8 h-1 ${iconInfo.color} rounded-t mb-1`}></div>
+                        <span className="text-[10px] font-bold text-gray-700">{iconInfo.text}</span>
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-[#003D7A] font-medium truncate mb-2">
+                          {archivo.fileName}
+                        </h4>
+                        
+                        {/* Badge del tipo de documento con color */}
+                        <span className={`inline-block px-2 py-1 rounded-md text-xs font-medium border ${badgeColor}`}>
+                          {archivo.tipoDocumento}
+                        </span>
+                        
+                        <p className="text-xs text-[#4A4A4A] mt-2">
+                          Modificado: {new Date(archivo.modified).toLocaleDateString('es-CL')} por {archivo.modifiedBy}
+                        </p>
+                        {archivo.estado && (
+                          <p className="text-xs text-[#4A4A4A] mt-1">
+                            Estado: {archivo.estado}
+                          </p>
+                        )}
+                      </div>
+                              <div className="flex-shrink-0">
+                                <a
+                                  href={archivo.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center justify-center w-10 h-10 bg-[#0066CC] rounded-lg text-white active:scale-95 transition-transform"
+                                  title="Abrir en SharePoint"
+                                >
+                                  <Eye className="w-5 h-5" />
+                                </a>
+                            </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="bg-white rounded-lg p-8 text-center">
+                <FileText className="w-16 h-16 text-[#4A4A4A] opacity-30 mx-auto mb-4" />
+                <p className="text-[#4A4A4A] mb-2">No hay documentos adjuntos</p>
+                <p className="text-sm text-[#4A4A4A]">
+                  Los documentos de esta solicitud aparecerán aquí
+                </p>
+              </div>
+            )}
+          </div>
+        )}    
       </div>
       <FloatingActionButton
         onClick={() => solicitud && onNewInspection(solicitud)} // ← CAMBIADO: pasa la solicitud
@@ -388,3 +494,6 @@ function InfoRow({ label, value }: InfoRowProps) {
     </div>
   );
 }
+
+// Exportar Inspection para que App.tsx pueda usarlo
+export type { Inspection };
