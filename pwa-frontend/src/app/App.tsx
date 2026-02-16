@@ -8,6 +8,7 @@ import { SolicitudesDashboard } from './components/SolicitudesDashboard';
 import { SolicitudDetail } from './components/SolicitudDetail';
 import { NewInspection } from './components/NewInspection';
 import { PhotoCapture } from './components/PhotoCapture';
+import { inspeccionesService } from '../services/inspecciones';
 import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
 
 // ========================================
@@ -220,13 +221,63 @@ useEffect(() => {
   // HANDLERS - INSPECTIONS
   // ========================================
 
-  const handleSaveInspection = (solicitudId: number, inspection: {
-    type: string;
-    progress: number;
-    observations: string;
-    status: 'conforme' | 'observaciones' | 'no-conforme';
-    photos: InspectionPhoto[];
-  }) => {
+  const handleSaveInspection = async (solicitudId: number, inspection: {
+  type: string;
+  progress: number;
+  observations: string;
+  status: 'conforme' | 'no-conforme';
+  photos: InspectionPhoto[];
+  solicitarParalizacion?: boolean;
+  motivoParalizacion?: string;
+}) => {
+  try {
+    // Mostrar indicador de carga (opcional)
+    console.log('Guardando inspección...');
+    
+    // Obtener solicitud actual para el código
+    const solicitud = currentSolicitud;
+    
+    // Intentar obtener geolocalización
+    let latitud = '';
+    let longitud = '';
+    
+    if (navigator.geolocation) {
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 5000,
+            maximumAge: 0
+          });
+        });
+        latitud = position.coords.latitude.toString();
+        longitud = position.coords.longitude.toString();
+      } catch (error) {
+        console.log('Geolocalización no disponible');
+      }
+    }
+    
+    // Preparar datos de la inspección
+    const inspeccionData = {
+      solicitudId,
+      codigoSolicitud: solicitud?.codigo || null,
+      tipoInspeccion: inspection.type,
+      porcentajeAvance: inspection.progress,
+      estadoInspeccion: inspection.status === 'conforme' ? 'Conforme' : 'No Conforme',
+      observacionesAvance: inspection.observations,
+      observacionesInspeccion: inspection.observations,
+      solicitarParalizacion: inspection.solicitarParalizacion || false,
+      motivoParalizacion: inspection.motivoParalizacion || '',
+      cantidadFotos: inspection.photos.length,
+      latitud,
+      longitud
+    };
+    
+    // Llamar al servicio para crear la inspección en SharePoint
+    const result = await inspeccionesService.create(inspeccionData);
+    
+    console.log('✅ Inspección guardada en SharePoint:', result);
+    
+    // Crear inspección local para el historial
     const now = new Date();
     const dateStr = now.toLocaleDateString('es-CL', {
       day: '2-digit',
@@ -239,7 +290,7 @@ useEffect(() => {
     });
     
     const newInspection: Inspection = {
-      id: Date.now().toString(),
+      id: result.id?.toString() || Date.now().toString(),
       date: `${dateStr} - ${timeStr}`,
       type: inspection.type,
       progress: inspection.progress,
@@ -247,13 +298,13 @@ useEffect(() => {
       observations: inspection.observations,
     };
     
-    // Agregar inspección
+    // Agregar inspección al estado local
     setInspections(prev => ({
       ...prev,
       [solicitudId]: [newInspection, ...(prev[solicitudId] || [])],
     }));
     
-    // Agregar fotos si existen
+    // Agregar fotos si existen (TODO: implementar subida de fotos a SharePoint)
     if (inspection.photos.length > 0) {
       const newPhotos: Photo[] = inspection.photos.map(p => ({
         id: p.id,
@@ -273,7 +324,19 @@ useEffect(() => {
     
     // Volver al detalle de la solicitud
     setCurrentScreen({ type: 'solicitudDetail', solicitudId });
-  };
+    
+    // Mostrar mensaje de éxito
+    let successMessage = '✅ Inspección guardada exitosamente';
+    if (inspection.solicitarParalizacion) {
+      successMessage += '\n\n⚠️ Solicitud de paralización enviada al supervisor para revisión.';
+    }
+    alert(successMessage);
+    
+  } catch (error: any) {
+    console.error('❌ Error guardando inspección:', error);
+    alert('Error al guardar la inspección:\n\n' + error.message);
+  }
+};
 
   // ========================================
   // RENDER

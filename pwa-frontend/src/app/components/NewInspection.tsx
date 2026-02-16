@@ -1,11 +1,11 @@
 import { useState, FormEvent } from 'react';
 import { Header } from './Header';
 import { Button } from './Button';
-import { Camera, X, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { Camera, X, CheckCircle2, AlertTriangle, XCircle, AlertOctagon  } from 'lucide-react';
 import type { Solicitud, InspectionPhoto } from '../../types/solicitud';
 
 interface NewInspectionProps {
-  solicitud: Solicitud; // ← CAMBIADO: ahora recibe toda la solicitud
+  solicitud: Solicitud;
   onBack: () => void;
   onSave: (inspection: {
     type: string;
@@ -13,6 +13,8 @@ interface NewInspectionProps {
     observations: string;
     status: 'conforme' | 'no-conforme';
     photos: InspectionPhoto[];
+    solicitarParalizacion?: boolean;  // ← AGREGAR
+    motivoParalizacion?: string;      // ← AGREGAR
   }) => void;
   onAddPhoto: () => void;
   tempPhotos: InspectionPhoto[];
@@ -41,6 +43,8 @@ export function NewInspection({
   const [observations, setObservations] = useState('');
   const [status, setStatus] = useState<'conforme' |'no-conforme'>('conforme');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [solicitarParalizacion, setSolicitarParalizacion] = useState(false);
+  const [motivoParalizacion, setMotivoParalizacion] = useState('');
   
   const now = new Date();
   const currentDate = now.toLocaleDateString('es-CL', {
@@ -60,8 +64,14 @@ export function NewInspection({
       newErrors.type = 'Debe seleccionar un tipo de inspección';
     }
     
-    if (observations.trim().length < 10) {
-      newErrors.observations = 'Las observaciones deben tener al menos 10 caracteres';
+    // Las observaciones solo son obligatorias si el estado es "No conforme"
+    if (status === 'no-conforme' && observations.trim().length < 10) {
+      newErrors.observations = 'Las observaciones son obligatorias cuando el estado es "No conforme" (mínimo 10 caracteres)';
+    }
+    
+    // Si solicita paralización, el motivo es obligatorio
+    if (solicitarParalizacion && motivoParalizacion.trim().length < 20) {
+      newErrors.motivoParalizacion = 'El motivo de paralización debe tener al menos 20 caracteres';
     }
     
     setErrors(newErrors);
@@ -69,20 +79,22 @@ export function NewInspection({
   };
   
   const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    
-    if (!validate()) {
-      return;
-    }
-    
-    onSave({
-      type,
-      progress,
-      observations,
-      status,
-      photos: tempPhotos,
-    });
-  };
+  e.preventDefault();
+  
+  if (!validate()) {
+    return;
+  }
+  
+  onSave({
+    type,
+    progress,
+    observations,
+    status,
+    photos: tempPhotos,
+    solicitarParalizacion,
+    motivoParalizacion: solicitarParalizacion ? motivoParalizacion : undefined,
+  });
+};
   
   const statusOptions = [
     {
@@ -172,13 +184,33 @@ export function NewInspection({
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <label className="text-sm text-[#4A4A4A]">% Avance de Obra</label>
-            <span className="text-xl text-[#0066CC]">{progress}%</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={progress}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || 0;
+                  const clampedValue = Math.max(0, Math.min(100, value));
+                  setProgress(clampedValue);
+                }}
+                onBlur={(e) => {
+                  // Al perder el foco, asegurar que el valor esté en rango
+                  const value = parseInt(e.target.value) || 0;
+                  const clampedValue = Math.max(0, Math.min(100, value));
+                  setProgress(clampedValue);
+                }}
+                className="w-16 h-9 px-2 text-center bg-white border-2 border-[#0066CC] rounded-lg text-[#0066CC] font-bold focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+              />
+              <span className="text-xl text-[#0066CC] font-bold">%</span>
+            </div>
           </div>
           <input
             type="range"
             min="0"
             max="100"
-            step="5"
+            step="1"
             value={progress}
             onChange={(e) => setProgress(Number(e.target.value))}
             className="w-full h-2 bg-[#F5F7FA] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#0066CC] [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#0066CC] [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
@@ -226,7 +258,14 @@ export function NewInspection({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => setStatus(option.value)}
+                onClick={() => {
+                  setStatus(option.value);
+                  // Si cambia de "No conforme" a "Conforme", resetear paralización
+                  if (option.value === 'conforme') {
+                    setSolicitarParalizacion(false);
+                    setMotivoParalizacion('');
+                  }
+                }}
                 className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
                   status === option.value ? option.activeColor : option.color
                 }`}
@@ -237,11 +276,83 @@ export function NewInspection({
             ))}
           </div>
         </div>
+
+        {/* ← AGREGAR ESTA SECCIÓN */}
+        {/* Solicitud de Paralización (solo visible si estado es "No conforme") */}
+        {status === 'no-conforme' && (
+          <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4 shadow-sm">
+            <div className="flex items-start gap-3 mb-3">
+              <AlertOctagon className="w-6 h-6 text-orange-600 flex-shrink-0 mt-1" />
+              <div className="flex-1">
+                <h3 className="text-[#003D7A] font-medium mb-1">Solicitar Paralización de Obra</h3>
+                <p className="text-sm text-[#4A4A4A] mb-3">
+                  Si esta situación requiere detener la obra, puedes solicitar una paralización que será revisada por el supervisor.
+                </p>
+                
+                {/* Checkbox para activar solicitud */}
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={solicitarParalizacion}
+                    onChange={(e) => {
+                      setSolicitarParalizacion(e.target.checked);
+                      if (!e.target.checked) {
+                        setMotivoParalizacion('');
+                        setErrors({ ...errors, motivoParalizacion: '' });
+                      }
+                    }}
+                    className="w-5 h-5 text-orange-600 border-2 border-orange-400 rounded focus:ring-2 focus:ring-orange-500"
+                  />
+                  <span className="text-sm font-medium text-[#003D7A]">
+                    Solicitar paralización de esta obra
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Campo de motivo (solo visible si checkbox está marcado) */}
+            {solicitarParalizacion && (
+              <div className="mt-4 pl-9">
+                {/* <label className="block text-sm text-[#4A4A4A] mb-2">
+                  Motivo de la Paralización <span className="text-[#E30613]">*</span>
+                </label>
+                <textarea
+                  value={motivoParalizacion}
+                  onChange={(e) => {
+                    setMotivoParalizacion(e.target.value);
+                    setErrors({ ...errors, motivoParalizacion: '' });
+                  }}
+                  placeholder="Describa detalladamente por qué es necesario paralizar la obra (mínimo 20 caracteres)..."
+                  rows={4}
+                  className={`w-full px-3 py-2 bg-white rounded-lg border-2 ${
+                    errors.motivoParalizacion ? 'border-[#E30613]' : 'border-orange-400'
+                  } focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none`}
+                />
+                {errors.motivoParalizacion && (
+                  <p className="mt-1 text-sm text-[#E30613]">{errors.motivoParalizacion}</p>
+                )}
+                <p className="mt-2 text-xs text-[#4A4A4A]">
+                  {motivoParalizacion.length} caracteres (mínimo 20)
+                </p> */}
+                
+                <div className="mt-3 p-3 bg-orange-100 border border-orange-300 rounded-lg">
+                  <p className="text-xs text-orange-800">
+                    <strong>Importante:</strong> Esta solicitud será enviada al supervisor para su revisión. La obra no se paralizará automáticamente.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Observaciones */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <label className="block text-sm text-[#4A4A4A] mb-2">
-            Observaciones de inspección <span className="text-[#E30613]">*</span>
+            Observaciones de inspección 
+            {status === 'no-conforme' && <span className="text-[#E30613]"> *</span>}
+            {status === 'no-conforme' && (
+              <span className="text-xs text-[#E30613] ml-1">(Obligatorio para No Conforme)</span>
+            )}
           </label>
           <textarea
             value={observations}
@@ -259,7 +370,8 @@ export function NewInspection({
             <p className="mt-1 text-sm text-[#E30613]">{errors.observations}</p>
           )}
           <p className="mt-2 text-xs text-[#4A4A4A]">
-            {observations.length} caracteres (mínimo 10)
+            {observations.length} caracteres
+            {status === 'no-conforme' && ' (mínimo 10 requerido)'}
           </p>
         </div>
         
