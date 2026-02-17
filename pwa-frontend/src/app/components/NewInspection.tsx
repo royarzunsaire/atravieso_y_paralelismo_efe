@@ -1,20 +1,22 @@
 import { useState, FormEvent } from 'react';
 import { Header } from './Header';
 import { Button } from './Button';
-import { Camera, X, CheckCircle2, AlertTriangle, XCircle, AlertOctagon  } from 'lucide-react';
+import { Camera, X, CheckCircle2, XCircle, AlertOctagon } from 'lucide-react';
 import type { Solicitud, InspectionPhoto } from '../../types/solicitud';
 
 interface NewInspectionProps {
   solicitud: Solicitud;
   onBack: () => void;
+  isSaving?: boolean;
   onSave: (inspection: {
     type: string;
     progress: number;
-    observations: string;
+    comentariosAvance: string;
+    observacionesInspeccion: string;
     status: 'conforme' | 'no-conforme';
     photos: InspectionPhoto[];
-    solicitarParalizacion?: boolean;  // ← AGREGAR
-    motivoParalizacion?: string;      // ← AGREGAR
+    solicitarParalizacion?: boolean;
+    // motivoParalizacion?: string; // RESERVADO PARA USO FUTURO
   }) => void;
   onAddPhoto: () => void;
   tempPhotos: InspectionPhoto[];
@@ -34,18 +36,20 @@ export function NewInspection({
   solicitud,
   onBack,
   onSave,
+  isSaving = false,
   onAddPhoto,
   tempPhotos,
   onRemovePhoto,
 }: NewInspectionProps) {
   const [type, setType] = useState('');
   const [progress, setProgress] = useState(0);
-  const [observations, setObservations] = useState('');
-  const [status, setStatus] = useState<'conforme' |'no-conforme'>('conforme');
+  const [comentariosAvance, setComentariosAvance] = useState('');
+  const [observacionesInspeccion, setObservacionesInspeccion] = useState('');
+  const [status, setStatus] = useState<'conforme' | 'no-conforme'>('conforme');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [solicitarParalizacion, setSolicitarParalizacion] = useState(false);
-  const [motivoParalizacion, setMotivoParalizacion] = useState('');
-  
+  // const [motivoParalizacion, setMotivoParalizacion] = useState(''); // RESERVADO PARA USO FUTURO
+
   const now = new Date();
   const currentDate = now.toLocaleDateString('es-CL', {
     day: '2-digit',
@@ -56,46 +60,38 @@ export function NewInspection({
     hour: '2-digit',
     minute: '2-digit',
   });
-  
+
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
-    
+
     if (!type) {
       newErrors.type = 'Debe seleccionar un tipo de inspección';
     }
-    
-    // Las observaciones solo son obligatorias si el estado es "No conforme"
-    if (status === 'no-conforme' && observations.trim().length < 10) {
-      newErrors.observations = 'Las observaciones son obligatorias cuando el estado es "No conforme" (mínimo 10 caracteres)';
+
+    if (status === 'no-conforme' && observacionesInspeccion.trim().length < 10) {
+      newErrors.observacionesInspeccion = 'Las observaciones son obligatorias para "No Conforme" (mínimo 10 caracteres)';
     }
-    
-    // Si solicita paralización, el motivo es obligatorio
-    if (solicitarParalizacion && motivoParalizacion.trim().length < 20) {
-      newErrors.motivoParalizacion = 'El motivo de paralización debe tener al menos 20 caracteres';
-    }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-  
+
   const handleSubmit = (e: FormEvent) => {
-  e.preventDefault();
-  
-  if (!validate()) {
-    return;
-  }
-  
-  onSave({
-    type,
-    progress,
-    observations,
-    status,
-    photos: tempPhotos,
-    solicitarParalizacion,
-    motivoParalizacion: solicitarParalizacion ? motivoParalizacion : undefined,
-  });
-};
-  
+    e.preventDefault();
+    if (!validate()) return;
+
+    onSave({
+      type,
+      progress,
+      comentariosAvance,
+      observacionesInspeccion,
+      status,
+      photos: tempPhotos,
+      solicitarParalizacion,
+      // motivoParalizacion: undefined, // RESERVADO PARA USO FUTURO
+    });
+  };
+
   const statusOptions = [
     {
       value: 'conforme' as const,
@@ -104,13 +100,6 @@ export function NewInspection({
       color: 'border-green-600 bg-green-50 text-green-700',
       activeColor: 'border-green-600 bg-green-600 text-white',
     },
-    // {
-    //   value: 'observaciones' as const,
-    //   label: 'Observaciones',
-    //   icon: <AlertTriangle className="w-5 h-5" />,
-    //   color: 'border-orange-500 bg-orange-50 text-orange-600',
-    //   activeColor: 'border-orange-500 bg-orange-500 text-white',
-    // },
     {
       value: 'no-conforme' as const,
       label: 'No Conforme',
@@ -119,18 +108,19 @@ export function NewInspection({
       activeColor: 'border-[#E30613] bg-[#E30613] text-white',
     },
   ];
-  
+
   return (
     <div className="min-h-screen bg-[#F5F7FA] pb-20 md:pb-8">
       <Header title="Nueva Inspección" showBackButton onBack={onBack} />
-      
+
       <form onSubmit={handleSubmit} className="p-4 space-y-4">
+
         {/* Información del proyecto */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <p className="text-sm text-[#4A4A4A] mb-1">Proyecto</p>
           <p className="text-[#003D7A]">Solicitud #{solicitud.codigo}</p>
         </div>
-        
+
         {/* Fecha y hora */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <div className="grid grid-cols-2 gap-4">
@@ -154,7 +144,7 @@ export function NewInspection({
             </div>
           </div>
         </div>
-        
+
         {/* Tipo de inspección */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <label className="block text-sm text-[#4A4A4A] mb-2">
@@ -179,7 +169,7 @@ export function NewInspection({
             <p className="mt-1 text-sm text-[#E30613]">{errors.type}</p>
           )}
         </div>
-        
+
         {/* Slider de avance */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
@@ -192,14 +182,11 @@ export function NewInspection({
                 value={progress}
                 onChange={(e) => {
                   const value = parseInt(e.target.value) || 0;
-                  const clampedValue = Math.max(0, Math.min(100, value));
-                  setProgress(clampedValue);
+                  setProgress(Math.max(0, Math.min(100, value)));
                 }}
                 onBlur={(e) => {
-                  // Al perder el foco, asegurar que el valor esté en rango
                   const value = parseInt(e.target.value) || 0;
-                  const clampedValue = Math.max(0, Math.min(100, value));
-                  setProgress(clampedValue);
+                  setProgress(Math.max(0, Math.min(100, value)));
                 }}
                 className="w-16 h-9 px-2 text-center bg-white border-2 border-[#0066CC] rounded-lg text-[#0066CC] font-bold focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
               />
@@ -225,29 +212,19 @@ export function NewInspection({
           </div>
         </div>
 
-        {/* Comentarios de Avance */}
+        {/* Textarea 1: Comentarios de Avance (siempre visible, siempre opcional) */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <label className="block text-sm text-[#4A4A4A] mb-2">
-            Comentarios de Avance <span className="text-[#E30613]">*</span>
+            Comentarios de Avance
           </label>
           <textarea
-            value={observations}
-            onChange={(e) => {
-              setObservations(e.target.value);
-              setErrors({ ...errors, observations: '' });
-            }}
+            value={comentariosAvance}
+            onChange={(e) => setComentariosAvance(e.target.value)}
             placeholder="Agregue cualquier comentario respecto al avance..."
-            rows={4}
-            className={`w-full px-3 py-2 bg-white rounded-lg border ${
-              errors.observations ? 'border-[#E30613]' : 'border-[#003D7A]/20'
-            } focus:outline-none focus:ring-2 focus:ring-[#0066CC] resize-none`}
+            rows={3}
+            className="w-full px-3 py-2 bg-white rounded-lg border border-[#003D7A]/20 focus:outline-none focus:ring-2 focus:ring-[#0066CC] resize-none"
           />
-          {errors.observations && (
-            <p className="mt-1 text-sm text-[#E30613]">{errors.observations}</p>
-          )}
-          <p className="mt-2 text-xs text-[#4A4A4A]">
-            {observations.length} caracteres (mínimo 10)
-          </p>
+          <p className="mt-2 text-xs text-[#4A4A4A]">{comentariosAvance.length} caracteres</p>
         </div>
 
         {/* Estado general */}
@@ -260,10 +237,8 @@ export function NewInspection({
                 type="button"
                 onClick={() => {
                   setStatus(option.value);
-                  // Si cambia de "No conforme" a "Conforme", resetear paralización
                   if (option.value === 'conforme') {
                     setSolicitarParalizacion(false);
-                    setMotivoParalizacion('');
                   }
                 }}
                 className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
@@ -277,111 +252,109 @@ export function NewInspection({
           </div>
         </div>
 
-        {/* ← AGREGAR ESTA SECCIÓN */}
-        {/* Solicitud de Paralización (solo visible si estado es "No conforme") */}
+        {/* Solicitud de Paralización - solo visible si No Conforme */}
         {status === 'no-conforme' && (
           <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4 shadow-sm">
-            <div className="flex items-start gap-3 mb-3">
-              <AlertOctagon className="w-6 h-6 text-orange-600 flex-shrink-0 mt-1" />
+            <div className="flex items-start gap-3">
+              <AlertOctagon className="w-6 h-6 text-orange-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="text-[#003D7A] font-medium mb-1">Solicitar Paralización de Obra</h3>
                 <p className="text-sm text-[#4A4A4A] mb-3">
-                  Si esta situación requiere detener la obra, puedes solicitar una paralización que será revisada por el supervisor.
+                  Si la situación requiere detener la obra, el supervisor será notificado para su revisión.
                 </p>
-                
-                {/* Checkbox para activar solicitud */}
+
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={solicitarParalizacion}
-                    onChange={(e) => {
-                      setSolicitarParalizacion(e.target.checked);
-                      if (!e.target.checked) {
-                        setMotivoParalizacion('');
-                        setErrors({ ...errors, motivoParalizacion: '' });
-                      }
-                    }}
+                    onChange={(e) => setSolicitarParalizacion(e.target.checked)}
                     className="w-5 h-5 text-orange-600 border-2 border-orange-400 rounded focus:ring-2 focus:ring-orange-500"
                   />
                   <span className="text-sm font-medium text-[#003D7A]">
                     Solicitar paralización de esta obra
                   </span>
                 </label>
+
+                {solicitarParalizacion && (
+                  <div className="mt-3 p-3 bg-orange-100 border border-orange-300 rounded-lg">
+                    <p className="text-xs text-orange-800">
+                      <strong>Importante:</strong> Esta solicitud será enviada al supervisor para su revisión. La obra no se paralizará automáticamente.
+                    </p>
+                  </div>
+                )}
+
+                {/* CAMPO MOTIVO - RESERVADO PARA USO FUTURO */}
+                {/* {solicitarParalizacion && (
+                  <div className="mt-4">
+                    <label className="block text-sm text-[#4A4A4A] mb-2">
+                      Motivo de la Paralización <span className="text-[#E30613]">*</span>
+                    </label>
+                    <textarea
+                      value={motivoParalizacion}
+                      onChange={(e) => {
+                        setMotivoParalizacion(e.target.value);
+                        setErrors({ ...errors, motivoParalizacion: '' });
+                      }}
+                      placeholder="Describa detalladamente por qué es necesario paralizar la obra..."
+                      rows={4}
+                      className={`w-full px-3 py-2 bg-white rounded-lg border-2 ${
+                        errors.motivoParalizacion ? 'border-[#E30613]' : 'border-orange-400'
+                      } focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none`}
+                    />
+                    {errors.motivoParalizacion && (
+                      <p className="mt-1 text-sm text-[#E30613]">{errors.motivoParalizacion}</p>
+                    )}
+                    <p className="mt-2 text-xs text-[#4A4A4A]">
+                      {motivoParalizacion.length} caracteres (mínimo 20)
+                    </p>
+                  </div>
+                )} */}
               </div>
             </div>
-
-            {/* Campo de motivo (solo visible si checkbox está marcado) */}
-            {solicitarParalizacion && (
-              <div className="mt-4 pl-9">
-                {/* <label className="block text-sm text-[#4A4A4A] mb-2">
-                  Motivo de la Paralización <span className="text-[#E30613]">*</span>
-                </label>
-                <textarea
-                  value={motivoParalizacion}
-                  onChange={(e) => {
-                    setMotivoParalizacion(e.target.value);
-                    setErrors({ ...errors, motivoParalizacion: '' });
-                  }}
-                  placeholder="Describa detalladamente por qué es necesario paralizar la obra (mínimo 20 caracteres)..."
-                  rows={4}
-                  className={`w-full px-3 py-2 bg-white rounded-lg border-2 ${
-                    errors.motivoParalizacion ? 'border-[#E30613]' : 'border-orange-400'
-                  } focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none`}
-                />
-                {errors.motivoParalizacion && (
-                  <p className="mt-1 text-sm text-[#E30613]">{errors.motivoParalizacion}</p>
-                )}
-                <p className="mt-2 text-xs text-[#4A4A4A]">
-                  {motivoParalizacion.length} caracteres (mínimo 20)
-                </p> */}
-                
-                <div className="mt-3 p-3 bg-orange-100 border border-orange-300 rounded-lg">
-                  <p className="text-xs text-orange-800">
-                    <strong>Importante:</strong> Esta solicitud será enviada al supervisor para su revisión. La obra no se paralizará automáticamente.
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         )}
-        
-        {/* Observaciones */}
+
+        {/* Textarea 2: Observaciones de Inspección (obligatorio solo para No Conforme) */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <label className="block text-sm text-[#4A4A4A] mb-2">
-            Observaciones de inspección 
+            Observaciones de Inspección
             {status === 'no-conforme' && <span className="text-[#E30613]"> *</span>}
             {status === 'no-conforme' && (
               <span className="text-xs text-[#E30613] ml-1">(Obligatorio para No Conforme)</span>
             )}
           </label>
           <textarea
-            value={observations}
+            value={observacionesInspeccion}
             onChange={(e) => {
-              setObservations(e.target.value);
-              setErrors({ ...errors, observations: '' });
+              setObservacionesInspeccion(e.target.value);
+              setErrors({ ...errors, observacionesInspeccion: '' });
             }}
-            placeholder="Describa los detalles de la inspección..."
+            placeholder={
+              status === 'no-conforme'
+                ? 'Describa los problemas detectados en la inspección...'
+                : 'Describa los detalles de la inspección (opcional)...'
+            }
             rows={4}
             className={`w-full px-3 py-2 bg-white rounded-lg border ${
-              errors.observations ? 'border-[#E30613]' : 'border-[#003D7A]/20'
+              errors.observacionesInspeccion ? 'border-[#E30613]' : 'border-[#003D7A]/20'
             } focus:outline-none focus:ring-2 focus:ring-[#0066CC] resize-none`}
           />
-          {errors.observations && (
-            <p className="mt-1 text-sm text-[#E30613]">{errors.observations}</p>
+          {errors.observacionesInspeccion && (
+            <p className="mt-1 text-sm text-[#E30613]">{errors.observacionesInspeccion}</p>
           )}
           <p className="mt-2 text-xs text-[#4A4A4A]">
-            {observations.length} caracteres
+            {observacionesInspeccion.length} caracteres
             {status === 'no-conforme' && ' (mínimo 10 requerido)'}
           </p>
         </div>
-        
+
         {/* Fotos */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <label className="text-sm text-[#4A4A4A]">Fotos Adjuntas</label>
             <span className="text-sm text-[#0066CC]">{tempPhotos.length}</span>
           </div>
-          
+
           <button
             type="button"
             onClick={onAddPhoto}
@@ -390,7 +363,7 @@ export function NewInspection({
             <Camera className="w-5 h-5" />
             Agregar Foto
           </button>
-          
+
           {tempPhotos.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
               {tempPhotos.map(photo => (
@@ -412,13 +385,30 @@ export function NewInspection({
             </div>
           )}
         </div>
-        
+
         {/* Botón guardar */}
         <div className="pt-4">
-          <Button type="submit" variant="primary" size="lg" fullWidth>
-            Guardar Inspección
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            fullWidth
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Guardando...
+              </span>
+            ) : (
+              'Guardar Inspección'
+            )}
           </Button>
         </div>
+
       </form>
     </div>
   );

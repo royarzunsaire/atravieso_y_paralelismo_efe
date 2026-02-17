@@ -9,6 +9,7 @@ import { SolicitudDetail } from './components/SolicitudDetail';
 import { NewInspection } from './components/NewInspection';
 import { PhotoCapture } from './components/PhotoCapture';
 import { inspeccionesService } from '../services/inspecciones';
+import { Toast } from './components/Toast';
 import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
 
 // ========================================
@@ -38,6 +39,13 @@ export default function App() {
   const [inspections, setInspections] = useState<{ [solicitudId: number]: Inspection[] }>({});
   const [photos, setPhotos] = useState<{ [solicitudId: number]: Photo[] }>({});
   const [currentSolicitud, setCurrentSolicitud] = useState<Solicitud | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [toast, setToast] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'warning';
+    title: string;
+    message?: string;
+  }>({ isOpen: false, type: 'success', title: '' });
 
   // ========================================
   // EFFECTS
@@ -224,120 +232,106 @@ useEffect(() => {
   const handleSaveInspection = async (solicitudId: number, inspection: {
   type: string;
   progress: number;
-  observations: string;
+  comentariosAvance: string;
+  observacionesInspeccion: string;
   status: 'conforme' | 'no-conforme';
   photos: InspectionPhoto[];
   solicitarParalizacion?: boolean;
-  motivoParalizacion?: string;
-}) => {
-  try {
-    // Mostrar indicador de carga (opcional)
-    console.log('Guardando inspección...');
-    
-    // Obtener solicitud actual para el código
-    const solicitud = currentSolicitud;
-    
-    // Intentar obtener geolocalización
-    let latitud = '';
-    let longitud = '';
-    
-    if (navigator.geolocation) {
-      try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            timeout: 5000,
-            maximumAge: 0
-          });
-        });
-        latitud = position.coords.latitude.toString();
-        longitud = position.coords.longitude.toString();
-      } catch (error) {
-        console.log('Geolocalización no disponible');
-      }
-    }
-    
-    // Preparar datos de la inspección
-    const inspeccionData = {
-      solicitudId,
-      codigoSolicitud: solicitud?.codigo || null,
-      tipoInspeccion: inspection.type,
-      porcentajeAvance: inspection.progress,
-      estadoInspeccion: inspection.status === 'conforme' ? 'Conforme' : 'No Conforme',
-      observacionesAvance: inspection.observations,
-      observacionesInspeccion: inspection.observations,
-      solicitarParalizacion: inspection.solicitarParalizacion || false,
-      motivoParalizacion: inspection.motivoParalizacion || '',
-      cantidadFotos: inspection.photos.length,
-      latitud,
-      longitud
-    };
-    
-    // Llamar al servicio para crear la inspección en SharePoint
-    const result = await inspeccionesService.create(inspeccionData);
-    
-    console.log('✅ Inspección guardada en SharePoint:', result);
-    
-    // Crear inspección local para el historial
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('es-CL', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-    const timeStr = now.toLocaleTimeString('es-CL', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    
-    const newInspection: Inspection = {
-      id: result.id?.toString() || Date.now().toString(),
-      date: `${dateStr} - ${timeStr}`,
-      type: inspection.type,
-      progress: inspection.progress,
-      status: inspection.status,
-      observations: inspection.observations,
-    };
-    
-    // Agregar inspección al estado local
-    setInspections(prev => ({
-      ...prev,
-      [solicitudId]: [newInspection, ...(prev[solicitudId] || [])],
-    }));
-    
-    // Agregar fotos si existen (TODO: implementar subida de fotos a SharePoint)
-    if (inspection.photos.length > 0) {
-      const newPhotos: Photo[] = inspection.photos.map(p => ({
-        id: p.id,
-        url: p.url,
-        description: p.description,
-        date: dateStr,
-      }));
-      
-      setPhotos(prev => ({
-        ...prev,
-        [solicitudId]: [...newPhotos, ...(prev[solicitudId] || [])],
-      }));
-    }
-    
-    // Limpiar fotos temporales
-    setTempPhotos([]);
-    
-    // Volver al detalle de la solicitud
-    setCurrentScreen({ type: 'solicitudDetail', solicitudId });
-    
-    // Mostrar mensaje de éxito
-    let successMessage = '✅ Inspección guardada exitosamente';
-    if (inspection.solicitarParalizacion) {
-      successMessage += '\n\n⚠️ Solicitud de paralización enviada al supervisor para revisión.';
-    }
-    alert(successMessage);
-    
-  } catch (error: any) {
-    console.error('❌ Error guardando inspección:', error);
-    alert('Error al guardar la inspección:\n\n' + error.message);
-  }
-};
+  }) => {
+    setIsSaving(true);
+    try {
+      const solicitud = currentSolicitud;
 
+      let latitud = '';
+      let longitud = '';
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              timeout: 5000,
+              maximumAge: 0
+            });
+          });
+          latitud = position.coords.latitude.toString();
+          longitud = position.coords.longitude.toString();
+        } catch {
+          console.log('Geolocalización no disponible');
+        }
+      }
+
+      const inspeccionData = {
+        solicitudId,
+        codigoSolicitud: solicitud?.codigo || null,
+        tipoInspeccion: inspection.type,
+        porcentajeAvance: inspection.progress,
+        estadoInspeccion: inspection.status === 'conforme' ? 'Conforme' : 'No Conforme',
+        observacionesAvance: inspection.comentariosAvance,
+        observacionesInspeccion: inspection.observacionesInspeccion,
+        solicitarParalizacion: inspection.solicitarParalizacion || false,
+        motivoParalizacion: '',
+        cantidadFotos: inspection.photos.length,
+        latitud,
+        longitud
+      };
+
+      const result = await inspeccionesService.create(inspeccionData);
+
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+
+      const newInspection: Inspection = {
+        id: result.id?.toString() || Date.now().toString(),
+        date: `${dateStr} - ${timeStr}`,
+        type: inspection.type,
+        progress: inspection.progress,
+        status: inspection.status,
+        observations: inspection.observacionesInspeccion,
+      };
+
+      setInspections(prev => ({
+        ...prev,
+        [solicitudId]: [newInspection, ...(prev[solicitudId] || [])],
+      }));
+
+      if (inspection.photos.length > 0) {
+        const newPhotos: Photo[] = inspection.photos.map(p => ({
+          id: p.id,
+          url: p.url,
+          description: p.description,
+          date: dateStr,
+        }));
+        setPhotos(prev => ({
+          ...prev,
+          [solicitudId]: [...newPhotos, ...(prev[solicitudId] || [])],
+        }));
+      }
+
+      setTempPhotos([]);
+      setCurrentScreen({ type: 'solicitudDetail', solicitudId });
+
+      // Toast de éxito
+      setToast({
+        isOpen: true,
+        type: inspection.solicitarParalizacion ? 'warning' : 'success',
+        title: 'Inspección guardada',
+        message: inspection.solicitarParalizacion
+          ? 'La solicitud de paralización fue enviada al supervisor para revisión.'
+          : `${inspection.type} registrada correctamente.`,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error guardando inspección:', error);
+      setToast({
+        isOpen: true,
+        type: 'error',
+        title: 'Error al guardar',
+        message: error.message,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
   // ========================================
   // RENDER
   // ========================================
@@ -396,6 +390,7 @@ useEffect(() => {
           onBack={() => handleBackFromInspection(currentScreen.solicitudId)}
           onSave={(inspection) => handleSaveInspection(currentScreen.solicitudId, inspection)}
           onAddPhoto={handleAddPhoto}
+          isSaving={isSaving}
           tempPhotos={tempPhotos}
           onRemovePhoto={handleRemovePhoto}
         />
@@ -408,6 +403,15 @@ useEffect(() => {
           onPhotoConfirm={handlePhotoConfirm}
         />
       )}
+
+      {/* Toast de notificaciones */}
+      <Toast
+        isOpen={toast.isOpen}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

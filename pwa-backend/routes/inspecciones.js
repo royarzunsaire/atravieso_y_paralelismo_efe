@@ -71,13 +71,13 @@ router.post('/', verifyToken, async (req, res) => {
       });
     }
 
-    if (solicitarParalizacion && (!motivoParalizacion || motivoParalizacion.trim().length < 20)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Motivo de paralización requerido',
-        message: 'El motivo de paralización debe tener al menos 20 caracteres',
-      });
-    }
+    // if (solicitarParalizacion && (!motivoParalizacion || motivoParalizacion.trim().length < 20)) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     error: 'Motivo de paralización requerido',
+    //     message: 'El motivo de paralización debe tener al menos 20 caracteres',
+    //   });
+    // }
     
     if (!FLOW_INSPECCIONES_CREAR_URL) {
       return res.status(500).json({

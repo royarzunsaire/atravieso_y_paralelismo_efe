@@ -8,6 +8,7 @@ const datosRoutes = require('./routes/datos');
 const authRoutes = require('./routes/auth');
 const solicitudesRoutes = require('./routes/solicitudes');
 const archivosRoutes = require('./routes/archivos');
+const inspeccionesRoutes = require('./routes/inspecciones');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -45,12 +46,14 @@ app.use('/auth', authRoutes);
 app.use('/api/datos', datosRoutes);
 app.use('/api/solicitudes', solicitudesRoutes);
 app.use('/api/archivos', archivosRoutes);
+app.use('/api/inspecciones', inspeccionesRoutes);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(50));
   console.log(`✓ Servidor en puerto ${PORT}`);
   console.log(`✓ Flow CREATE: ${process.env.FLOW_CREATE_URL ? 'Configurado' : '❌ NO'}`);
-  console.log(`✓ Flow ARCHIVOS: ${process.env.FLOW_ARCHIVOS_LISTAR_URL ? 'Configurado' : '❌ NO'}`); // ← AGREGAR
+  console.log(`✓ Flow ARCHIVOS: ${process.env.FLOW_ARCHIVOS_LISTAR_URL ? 'Configurado' : '❌ NO'}`);
+  console.log(`✓ Flow INSPECCIONES: ${process.env.FLOW_INSPECCIONES_CREAR_URL ? 'Configurado' : '❌ NO'}`);
   console.log(`✓ Auth Microsoft: ${process.env.AZURE_AD_CLIENT_ID ? 'Configurado' : '❌ NO'}`);
   console.log(`✓ JWT Secret: ${process.env.JWT_SECRET ? 'Configurado' : '❌ NO'}`);
   console.log('='.repeat(50));
