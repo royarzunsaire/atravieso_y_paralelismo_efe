@@ -97,7 +97,6 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection  }: Solic
     
     try {
       const data = await inspeccionesService.getBySolicitudId(solicitudId);
-      console.log('📋 Inspecciones recibidas:', JSON.stringify(data, null, 2));
       setInspecciones(data);
     } catch (err: any) {
       setErrorInspecciones(err.message);
@@ -109,12 +108,6 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection  }: Solic
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
-    
-    if (tabId === 'documentos' && archivos.length === 0) {
-      loadArchivos();
-    } else if (tabId === 'inspections' && inspecciones.length === 0) {
-      loadInspecciones();
-    }
   };
 
   // ← NUEVO: Toggle para expandir/colapsar tarjetas

@@ -5,7 +5,8 @@ const { verifyToken } = require('./auth');
 
 // URL del flow desde variables de entorno
 const FLOW_ARCHIVOS_LISTAR_URL = process.env.FLOW_ARCHIVOS_LISTAR_URL;
-
+const ARCHIVOS_CACHE_TTL_MS = parseInt(process.env.ARCHIVOS_CACHE_TTL_MS || '20000', 10);
+const archivosCache = new Map();
 /**
  * Función para llamar a Power Automate Flow
  */
@@ -22,6 +23,24 @@ async function callFlow(flowUrl, data = {}) {
     console.error('❌ Error calling archivos flow:', error.message);
     throw new Error(`Flow error: ${error.message}`);
   }
+}
+
+function getCacheEntry(cacheKey) {
+  const entry = archivosCache.get(cacheKey);
+  if (!entry) return null;
+
+  if (entry.data && Date.now() < entry.expiresAt) {
+    return entry.data;
+  }
+
+  return null;
+}
+
+function setCacheEntry(cacheKey, data) {
+  archivosCache.set(cacheKey, {
+    data,
+    expiresAt: Date.now() + ARCHIVOS_CACHE_TTL_MS,
+  });
 }
 
 /**
@@ -54,9 +73,17 @@ router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
     }
     
     // Llamar al flow
+    const cacheKey = String(parseInt(solicitudId, 10));
+    const cachedResult = getCacheEntry(cacheKey);
+
+    if (cachedResult) {
+      return res.json(cachedResult);
+    }
     const result = await callFlow(FLOW_ARCHIVOS_LISTAR_URL, {
       solicitudId: parseInt(solicitudId),
     });
+
+    setCacheEntry(cacheKey, result);
     
     // El flow ya retorna el formato correcto: { success, solicitudId, count, data }
     console.log(`✅ ${result.count || 0} archivos obtenidos para solicitud ${solicitudId}`);

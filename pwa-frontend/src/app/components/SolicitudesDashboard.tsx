@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Search, RefreshCw, Filter } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, RefreshCw } from 'lucide-react';
 import { Header } from './Header';
 import { SolicitudCard } from './SolicitudCard';
 import { Button } from './Button';
 import { solicitudesService } from '@/services/solicitudes';
-import type { Solicitud, SolicitudStats } from '@/types/solicitud.ts';
+import type { Solicitud } from '@/types/solicitud.ts';
 
 // ========================================
 // INTERFACES
@@ -52,7 +52,7 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
     setError(null);
     
     try {
-      const data = await solicitudesService.getAll(filterByUser);
+      const data = await solicitudesService.getAll(filterByUser, { forceRefresh: false });
       setSolicitudes(data);
     } catch (err: any) {
       setError(err.message);
@@ -64,7 +64,7 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
 
   const loadStats = async () => {
     try {
-      const data = await solicitudesService.getStats();
+      const data = await solicitudesService.getStats({ forceRefresh: false });
       setStats(data);
     } catch (err) {
       console.error('Error cargando estadísticas:', err);
@@ -72,24 +72,39 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
   };
 
   const handleRefresh = async () => {
-    if (filterByUser) {
-      await Promise.all([loadSolicitudes(), loadStats()]);
-      return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (filterByUser) {
+        const [solicitudesData, statsData] = await Promise.all([
+          solicitudesService.getAll(filterByUser, { forceRefresh: true }),
+          solicitudesService.getStats({ forceRefresh: true }),
+        ]);
+        setSolicitudes(solicitudesData);
+        setStats(statsData);
+      } else {
+        const data = await solicitudesService.getAll(filterByUser, { forceRefresh: true });
+        setSolicitudes(data);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    await loadSolicitudes();
   };
 
   // Filtrar solicitudes por búsqueda
-  const filteredSolicitudes = solicitudes.filter(solicitud => {
+  const filteredSolicitudes = useMemo(() => {
     const searchLower = searchQuery.toLowerCase();
-    return (
+    return solicitudes.filter((solicitud) => (
       (solicitud.codigo?.toLowerCase().includes(searchLower)) ||
       (solicitud.cliente?.toLowerCase().includes(searchLower)) ||
       (solicitud.comuna?.toLowerCase().includes(searchLower)) ||
       (solicitud.estadoSolicitud?.toLowerCase().includes(searchLower)) ||
       (solicitud.responsable?.nombre.toLowerCase().includes(searchLower))
-    );
-  });
+    ));
+  }, [solicitudes, searchQuery]);
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] pb-20 md:pb-8">

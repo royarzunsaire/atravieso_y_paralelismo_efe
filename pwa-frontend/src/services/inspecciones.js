@@ -1,9 +1,8 @@
 import { authService } from './auth';
-
+import { cachedGet, invalidateCache } from './requestCache';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const inspeccionesService = {
-  // Helper para headers con token
   getHeaders() {
     const token = authService.getToken();
     return {
@@ -13,41 +12,39 @@ export const inspeccionesService = {
     };
   },
 
-  // ========================================
-  // OBTENER INSPECCIONES POR SOLICITUD (NUEVO)
-  // ========================================
-  async getBySolicitudId(solicitudId) {
-    try {
-      const response = await fetch(`${API_URL}/api/inspecciones/solicitud/${solicitudId}`, {
-        method: 'GET',
-        headers: this.getHeaders()
-      });
+      async getBySolicitudId(solicitudId, { forceRefresh = false } = {}) {
+        const cacheKey = `inspecciones:solicitud:${solicitudId}`;
 
-      if (response.status === 401) {
-        authService.logout();
-        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
-      }
+        return cachedGet(
+            cacheKey,
+            async () => {
+              const response = await fetch(`${API_URL}/api/inspecciones/solicitud/${solicitudId}`, {
+                method: 'GET',
+                headers: this.getHeaders()
+              });
 
-      if (!response.ok) {
-        throw new Error(`Error del servidor: ${response.status}`);
-      }
 
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.message || 'Error al obtener inspecciones');
-      }
 
-      return result.data || [];
-    } catch (error) {
-      console.error(`Error obteniendo inspecciones de solicitud ${solicitudId}:`, error);
-      throw error;
-    }
-  },
+              if (response.status === 401) {
+                authService.logout();
+                throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+              }
 
-  // ========================================
-  // CREAR INSPECCIÓN (EXISTENTE - SIN CAMBIOS)
-  // ========================================
+              if (!response.ok) {
+                throw new Error(`Error del servidor: ${response.status}`);
+              }
+              const result = await response.json();
+
+              if (!result.success) {
+                throw new Error(result.message || 'Error al obtener inspecciones');
+              }
+
+              return result.data || [];
+            },
+            { ttlMs: 10000, forceRefresh }
+        );
+      },
+
   async create(inspeccionData) {
     try {
       const response = await fetch(`${API_URL}/api/inspecciones`, {
@@ -67,11 +64,12 @@ export const inspeccionesService = {
       }
 
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.message || 'Error al crear inspección');
       }
 
+      invalidateCache('inspecciones:solicitud:');
       return result.data;
     } catch (error) {
       console.error('Error creando inspección:', error);

@@ -5,6 +5,8 @@ const { verifyToken } = require('./auth');
 
 const FLOW_INSPECCIONES_CREAR_URL = process.env.FLOW_INSPECCIONES_CREAR_URL;
 const FLOW_INSPECCIONES_LISTAR_URL = process.env.FLOW_INSPECCIONES_LISTAR_URL; // ← NUEVA
+const INSPECCIONES_CACHE_TTL_MS = parseInt(process.env.INSPECCIONES_CACHE_TTL_MS || '10000', 10);
+const inspeccionesCache = new Map();
 
 async function callFlow(flowUrl, data = {}) {
   try {
@@ -25,6 +27,34 @@ async function callFlow(flowUrl, data = {}) {
  * Mapear inspección de SharePoint a formato frontend
  * Maneja correctamente los campos de tipo Lookup y User que SharePoint retorna como objetos
  */
+
+function getCacheEntry(cacheKey) {
+  const entry = inspeccionesCache.get(cacheKey);
+  if (!entry) return null;
+
+  if (entry.data && Date.now() < entry.expiresAt) {
+    return entry.data;
+  }
+
+  return null;
+}
+
+function setCacheEntry(cacheKey, data) {
+  inspeccionesCache.set(cacheKey, {
+    data,
+    expiresAt: Date.now() + INSPECCIONES_CACHE_TTL_MS,
+  });
+}
+
+function invalidateInspeccionesCache(solicitudId) {
+  if (solicitudId) {
+    inspeccionesCache.delete(String(solicitudId));
+    return;
+  }
+
+  inspeccionesCache.clear();
+}
+
 function mapInspeccionItem(item) {
   // Helper para extraer valores de campos lookup y choice
   const extractValue = (field) => {
@@ -144,10 +174,18 @@ router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
         message: 'FLOW_INSPECCIONES_LISTAR_URL is missing in .env',
       });
     }
+
+    const normalizedSolicitudId = parseInt(solicitudId, 10);
+    const cacheKey = String(normalizedSolicitudId);
+    const cachedResult = getCacheEntry(cacheKey);
+
+    if (cachedResult) {
+      return res.json(cachedResult);
+    }
     
     // Llamar al flow
     const result = await callFlow(FLOW_INSPECCIONES_LISTAR_URL, {
-      solicitudId: parseInt(solicitudId),
+      solicitudId: normalizedSolicitudId,
     });
     
     // Mapear items
@@ -156,13 +194,17 @@ router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
       : [];
     
     console.log(`✅ ${inspecciones.length} inspecciones obtenidas para solicitud ${solicitudId}`);
-    
-    res.json({
+
+    const responsePayload = {
       success: true,
-      solicitudId: parseInt(solicitudId),
+      solicitudId: normalizedSolicitudId,
       count: inspecciones.length,
       data: inspecciones,
-    });
+    };
+
+    setCacheEntry(cacheKey, responsePayload);
+
+    res.json(responsePayload);
     
   } catch (error) {
     console.error(`❌ Error fetching inspecciones for solicitud ${req.params.solicitudId}:`, error);
@@ -263,7 +305,9 @@ router.post('/', verifyToken, async (req, res) => {
     };
     
     const result = await callFlow(FLOW_INSPECCIONES_CREAR_URL, payload);
-    
+
+    invalidateInspeccionesCache(solicitudId);
+
     console.log(`✅ Inspección creada con ID: ${result.data?.id}`);
     
     res.status(201).json(result);

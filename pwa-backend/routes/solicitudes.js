@@ -8,7 +8,8 @@ const FLOW_SOLICITUD_READ_ALL_URL = process.env.FLOW_SOLICITUD_READ_ALL_URL;
 const FLOW_SOLICITUD_READ_ONE_URL = process.env.FLOW_SOLICITUD_READ_ONE_URL;
 const SOLICITUDES_CACHE_TTL_MS = parseInt(process.env.SOLICITUDES_CACHE_TTL_MS || '15000', 10);
 const solicitudesCache = {
-  data: null,
+  rawData: null,
+  mappedData: null,
   expiresAt: 0,
   inFlightRequest: null,
 };
@@ -32,15 +33,16 @@ async function callFlow(flowUrl, data = {}) {
 }
 
 function invalidateSolicitudesCache() {
-  solicitudesCache.data = null;
+  solicitudesCache.rawData = null;
+  solicitudesCache.mappedData = null;
   solicitudesCache.expiresAt = 0;
 }
 
 async function getSolicitudesRawData() {
   const now = Date.now();
 
-  if (solicitudesCache.data && now < solicitudesCache.expiresAt) {
-    return solicitudesCache.data;
+  if (solicitudesCache.rawData && now < solicitudesCache.expiresAt) {
+    return solicitudesCache.rawData;
   }
 
   if (solicitudesCache.inFlightRequest) {
@@ -50,7 +52,8 @@ async function getSolicitudesRawData() {
   solicitudesCache.inFlightRequest = callFlow(FLOW_SOLICITUD_READ_ALL_URL)
       .then((rawData) => {
         if (Array.isArray(rawData)) {
-          solicitudesCache.data = rawData;
+          solicitudesCache.rawData = rawData;
+          solicitudesCache.mappedData = rawData.map(mapSolicitudItem);
           solicitudesCache.expiresAt = Date.now() + SOLICITUDES_CACHE_TTL_MS;
         } else {
           invalidateSolicitudesCache();
@@ -65,6 +68,22 @@ async function getSolicitudesRawData() {
   return solicitudesCache.inFlightRequest;
 }
 
+async function getSolicitudesMappedData() {
+  const now = Date.now();
+
+  if (solicitudesCache.mappedData && now < solicitudesCache.expiresAt) {
+    return solicitudesCache.mappedData;
+  }
+
+  const rawData = await getSolicitudesRawData();
+
+  if (!Array.isArray(rawData)) {
+    return rawData;
+  }
+
+  solicitudesCache.mappedData = rawData.map(mapSolicitudItem);
+  return solicitudesCache.mappedData;
+}
 
 /**
  * Mapear item de SharePoint a formato limpio
@@ -157,16 +176,15 @@ router.get('/stats/summary', verifyToken, async (req, res) => {
     console.log(`📊 GET /api/solicitudes/stats/summary - Usuario: ${userEmail}`);
     
     // Obtener todas las solicitudes
-    const rawData = await getSolicitudesRawData();
+    const solicitudes = await getSolicitudesMappedData();
     
-    if (!Array.isArray(rawData)) {
+    if (!Array.isArray(solicitudes)) {
       return res.status(500).json({
         success: false,
         error: 'Invalid response from SharePoint flow',
       });
     }
-    
-    const solicitudes = rawData.map(mapSolicitudItem);
+
     
     // Filtrar solo las asignadas al usuario
     const misSolicitudes = solicitudes.filter(s => 
@@ -226,10 +244,10 @@ router.get('/', verifyToken, async (req, res) => {
     console.log(`📥 GET /api/solicitudes - Usuario: ${userEmail}, Filtrar: ${filterByUser}`);
     
     // Llamar al flow para obtener todas las solicitudes
-    const rawData = await getSolicitudesRawData();
+    const solicitudesData = await getSolicitudesMappedData();
     
     // Verificar que sea un array
-    if (!Array.isArray(rawData)) {
+    if (!Array.isArray(solicitudesData)) {
       return res.status(500).json({
         success: false,
         error: 'Invalid response from SharePoint flow',
@@ -238,7 +256,7 @@ router.get('/', verifyToken, async (req, res) => {
     }
     
     // Mapear los items
-    let solicitudes = rawData.map(mapSolicitudItem);
+    let solicitudes = solicitudesData;
     
     console.log(`📋 Total de solicitudes en SharePoint: ${solicitudes.length}`);
     
@@ -285,8 +303,21 @@ router.get('/:id', verifyToken, async (req, res) => {
         message: 'ID must be a number',
       });
     }
-    
-    // Llamar al flow para obtener un item específico
+
+    // Optimización: intentar resolver desde caché de listado primero
+    const cachedSolicitudes = await getSolicitudesMappedData();
+    if (Array.isArray(cachedSolicitudes)) {
+      const cachedSolicitud = cachedSolicitudes.find((item) => item.id === parseInt(id));
+      if (cachedSolicitud) {
+        return res.json({
+          success: true,
+          data: cachedSolicitud,
+          source: 'cache',
+        });
+      }
+    }
+
+    // Si no está en caché, llamar al flow para obtener un item específico
     const rawData = await callFlow(FLOW_SOLICITUD_READ_ONE_URL, {
       id: parseInt(id),
     });
