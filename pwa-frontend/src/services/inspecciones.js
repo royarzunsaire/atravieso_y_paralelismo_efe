@@ -13,7 +13,41 @@ export const inspeccionesService = {
     };
   },
 
-  // Crear una nueva inspección
+  // ========================================
+  // OBTENER INSPECCIONES POR SOLICITUD (NUEVO)
+  // ========================================
+  async getBySolicitudId(solicitudId) {
+    try {
+      const response = await fetch(`${API_URL}/api/inspecciones/solicitud/${solicitudId}`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+
+      if (response.status === 401) {
+        authService.logout();
+        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+      }
+
+      if (!response.ok) {
+        throw new Error(`Error del servidor: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Error al obtener inspecciones');
+      }
+
+      return result.data || [];
+    } catch (error) {
+      console.error(`Error obteniendo inspecciones de solicitud ${solicitudId}:`, error);
+      throw error;
+    }
+  },
+
+  // ========================================
+  // CREAR INSPECCIÓN (EXISTENTE - SIN CAMBIOS)
+  // ========================================
   async create(inspeccionData) {
     try {
       const response = await fetch(`${API_URL}/api/inspecciones`, {

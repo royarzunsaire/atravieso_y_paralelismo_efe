@@ -4,6 +4,7 @@ const axios = require('axios');
 const { verifyToken } = require('./auth');
 
 const FLOW_INSPECCIONES_CREAR_URL = process.env.FLOW_INSPECCIONES_CREAR_URL;
+const FLOW_INSPECCIONES_LISTAR_URL = process.env.FLOW_INSPECCIONES_LISTAR_URL; // ← NUEVA
 
 async function callFlow(flowUrl, data = {}) {
   try {
@@ -19,6 +20,160 @@ async function callFlow(flowUrl, data = {}) {
     throw new Error(`Flow error: ${error.message}`);
   }
 }
+
+/**
+ * Mapear inspección de SharePoint a formato frontend
+ * Maneja correctamente los campos de tipo Lookup y User que SharePoint retorna como objetos
+ */
+function mapInspeccionItem(item) {
+  // Helper para extraer valores de campos lookup y choice
+  const extractValue = (field) => {
+    if (!field) return null;
+    if (typeof field === 'string') return field;
+    if (typeof field === 'number') return field;
+    if (field.Value !== undefined) return field.Value;
+    return String(field);
+  };
+
+  // Helper NUEVO para extraer información de usuarios de SharePoint
+  const extractUser = (userField) => {
+    if (!userField) return null;
+    if (typeof userField === 'string') return userField;
+    
+    // Si es un objeto de SharePoint User
+    if (userField.DisplayName) return userField.DisplayName;
+    if (userField.Title) return userField.Title;
+    
+    return null;
+  };
+
+  // Helper para extraer email de usuario
+  const extractUserEmail = (userField) => {
+    if (!userField) return null;
+    if (typeof userField === 'string') return userField;
+    
+    if (userField.Email) return userField.Email;
+    
+    return null;
+  };
+
+  // Formatear fecha
+  let fecha;
+  try {
+    fecha = new Date(item.FechaInspeccion || item.Created);
+  } catch (e) {
+    fecha = new Date();
+  }
+
+  const dateStr = fecha.toLocaleDateString('es-CL', { 
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric' 
+  });
+  const timeStr = fecha.toLocaleTimeString('es-CL', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+
+  // Determinar status
+  let status = 'conforme';
+  const estadoInspeccion = extractValue(item.EstadoInspeccion) || '';
+  
+  if (estadoInspeccion === 'No Conforme') {
+    status = 'no-conforme';
+  } else if (estadoInspeccion.includes('Observacion')) {
+    status = 'observaciones';
+  }
+
+  // Extraer información del inspector
+  // Primero intentamos con el campo expandido, luego con campos simples
+  const inspectorNombre = extractUser(item.Inspector) || 
+                         String(item.InspectorNombre || item.Inspector || '');
+  
+  const inspectorEmail = extractUserEmail(item.Inspector) || 
+                        String(item.InspectorEmail || '');
+
+  return {
+    id: String(item.ID || item.Id || Date.now()),
+    date: `${dateStr} - ${timeStr}`,
+    type: extractValue(item.TipoInspeccion) || 'Sin tipo',
+    progress: Number(item.PorcentajeAvance) || 0,
+    status: status,
+    observations: String(item.ObservacionesInspeccion || ''),
+    
+    // Campos adicionales
+    solicitudId: Number(item.SolicitudId),
+    codigoSolicitud: String(item.CodigoSolicitud || ''),
+    inspector: inspectorNombre, // ← CORREGIDO: ahora extrae el DisplayName
+    inspectorEmail: inspectorEmail, // ← CORREGIDO: ahora extrae el Email
+    cantidadFotos: Number(item.CantidadFotos) || 0,
+    solicitaParalizacion: Boolean(item.SolicitaParalizacion),
+    estadoParalizacion: extractValue(item.EstadoParalizacion),
+    observacionesAvance: String(item.ObservacionesAvance || ''),
+    motivoParalizacion: String(item.MotivoParalizacion || ''),
+    latitud: String(item.Latitud || ''),
+    longitud: String(item.Longitud || ''),
+  };
+}
+
+/**
+ * GET /api/inspecciones/solicitud/:solicitudId
+ * Obtener inspecciones de una solicitud
+ */
+router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
+  try {
+    const { solicitudId } = req.params;
+    const userEmail = req.user?.email;
+    
+    console.log(`📋 GET /api/inspecciones/solicitud/${solicitudId} - Usuario: ${userEmail}`);
+    
+    // Validar que ID sea un número
+    if (isNaN(solicitudId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid solicitudId',
+        message: 'solicitudId must be a number',
+      });
+    }
+    
+    // Verificar que la URL del flow está configurada
+    if (!FLOW_INSPECCIONES_LISTAR_URL) {
+      return res.status(500).json({
+        success: false,
+        error: 'Flow URL not configured',
+        message: 'FLOW_INSPECCIONES_LISTAR_URL is missing in .env',
+      });
+    }
+    
+    // Llamar al flow
+    const result = await callFlow(FLOW_INSPECCIONES_LISTAR_URL, {
+      solicitudId: parseInt(solicitudId),
+    });
+    
+    // Mapear items
+    const inspecciones = Array.isArray(result.data) 
+      ? result.data.map(mapInspeccionItem)
+      : [];
+    
+    console.log(`✅ ${inspecciones.length} inspecciones obtenidas para solicitud ${solicitudId}`);
+    
+    res.json({
+      success: true,
+      solicitudId: parseInt(solicitudId),
+      count: inspecciones.length,
+      data: inspecciones,
+    });
+    
+  } catch (error) {
+    console.error(`❌ Error fetching inspecciones for solicitud ${req.params.solicitudId}:`, error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch inspecciones',
+      message: error.message,
+    });
+  }
+});
 
 /**
  * POST /api/inspecciones

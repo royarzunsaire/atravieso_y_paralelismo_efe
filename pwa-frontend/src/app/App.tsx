@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { BottomNav } from './components/BottomNav';
 import { Login } from './components/Login';
 import { AuthCallback } from './components/AuthCallback';
-import { authService } from '../services/auth';
+import { authService } from '@/services/auth';
 import { Profile } from './components/Profile';
 import { SolicitudesDashboard } from './components/SolicitudesDashboard';
 import { SolicitudDetail } from './components/SolicitudDetail';
 import { NewInspection } from './components/NewInspection';
 import { PhotoCapture } from './components/PhotoCapture';
-import { inspeccionesService } from '../services/inspecciones';
+import { inspeccionesService } from '@/services/inspecciones';
 import { Toast } from './components/Toast';
 import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
 

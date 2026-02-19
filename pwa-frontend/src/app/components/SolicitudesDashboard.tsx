@@ -3,8 +3,8 @@ import { Search, RefreshCw, Filter } from 'lucide-react';
 import { Header } from './Header';
 import { SolicitudCard } from './SolicitudCard';
 import { Button } from './Button';
-import { solicitudesService } from '../../services/solicitudes';
-import type { Solicitud, SolicitudStats } from '../../types/solicitud';
+import { solicitudesService } from '@/services/solicitudes';
+import type { Solicitud, SolicitudStats } from '@/types/solicitud.ts';
 
 // ========================================
 // INTERFACES
@@ -42,7 +42,9 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
   // Cargar solicitudes al montar
   useEffect(() => {
     loadSolicitudes();
-    loadStats();
+    if (filterByUser) {
+      loadStats();
+    }
   }, [filterByUser]);
 
   const loadSolicitudes = async () => {
@@ -70,8 +72,11 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
   };
 
   const handleRefresh = async () => {
+    if (filterByUser) {
+      await Promise.all([loadSolicitudes(), loadStats()]);
+      return;
+    }
     await loadSolicitudes();
-    await loadStats();
   };
 
   // Filtrar solicitudes por búsqueda

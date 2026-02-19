@@ -6,6 +6,12 @@ const { verifyToken } = require('./auth');
 // URLs de los flows desde variables de entorno
 const FLOW_SOLICITUD_READ_ALL_URL = process.env.FLOW_SOLICITUD_READ_ALL_URL;
 const FLOW_SOLICITUD_READ_ONE_URL = process.env.FLOW_SOLICITUD_READ_ONE_URL;
+const SOLICITUDES_CACHE_TTL_MS = parseInt(process.env.SOLICITUDES_CACHE_TTL_MS || '15000', 10);
+const solicitudesCache = {
+  data: null,
+  expiresAt: 0,
+  inFlightRequest: null,
+};
 
 /**
  * Función para llamar a Power Automate Flow
@@ -24,6 +30,41 @@ async function callFlow(flowUrl, data = {}) {
     throw new Error(`Flow error: ${error.message}`);
   }
 }
+
+function invalidateSolicitudesCache() {
+  solicitudesCache.data = null;
+  solicitudesCache.expiresAt = 0;
+}
+
+async function getSolicitudesRawData() {
+  const now = Date.now();
+
+  if (solicitudesCache.data && now < solicitudesCache.expiresAt) {
+    return solicitudesCache.data;
+  }
+
+  if (solicitudesCache.inFlightRequest) {
+    return solicitudesCache.inFlightRequest;
+  }
+
+  solicitudesCache.inFlightRequest = callFlow(FLOW_SOLICITUD_READ_ALL_URL)
+      .then((rawData) => {
+        if (Array.isArray(rawData)) {
+          solicitudesCache.data = rawData;
+          solicitudesCache.expiresAt = Date.now() + SOLICITUDES_CACHE_TTL_MS;
+        } else {
+          invalidateSolicitudesCache();
+        }
+
+        return rawData;
+      })
+      .finally(() => {
+        solicitudesCache.inFlightRequest = null;
+      });
+
+  return solicitudesCache.inFlightRequest;
+}
+
 
 /**
  * Mapear item de SharePoint a formato limpio
@@ -116,7 +157,7 @@ router.get('/stats/summary', verifyToken, async (req, res) => {
     console.log(`📊 GET /api/solicitudes/stats/summary - Usuario: ${userEmail}`);
     
     // Obtener todas las solicitudes
-    const rawData = await callFlow(FLOW_SOLICITUD_READ_ALL_URL);
+    const rawData = await getSolicitudesRawData();
     
     if (!Array.isArray(rawData)) {
       return res.status(500).json({
@@ -185,7 +226,7 @@ router.get('/', verifyToken, async (req, res) => {
     console.log(`📥 GET /api/solicitudes - Usuario: ${userEmail}, Filtrar: ${filterByUser}`);
     
     // Llamar al flow para obtener todas las solicitudes
-    const rawData = await callFlow(FLOW_SOLICITUD_READ_ALL_URL);
+    const rawData = await getSolicitudesRawData();
     
     // Verificar que sea un array
     if (!Array.isArray(rawData)) {
