@@ -11,6 +11,7 @@ import { PhotoCapture } from './components/PhotoCapture';
 import { inspeccionesService } from '@/services/inspecciones';
 import { Toast } from './components/Toast';
 import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
+import { fotosService } from '@/services/fotos';
 
 // ========================================
 // TYPES

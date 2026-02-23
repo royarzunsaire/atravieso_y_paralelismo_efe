@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const solicitudesRoutes = require('./routes/solicitudes');
 const archivosRoutes = require('./routes/archivos');
 const inspeccionesRoutes = require('./routes/inspecciones');
+const fotosRouter = require('./routes/fotos');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,7 +19,7 @@ app.use(cors({
   origin: 'http://localhost:5173',
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true }));
 //app.use(cors());
 
@@ -47,6 +48,8 @@ app.use('/api/datos', datosRoutes);
 app.use('/api/solicitudes', solicitudesRoutes);
 app.use('/api/archivos', archivosRoutes);
 app.use('/api/inspecciones', inspeccionesRoutes);
+app.use('/api/fotos', fotosRouter);
+
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(50));
