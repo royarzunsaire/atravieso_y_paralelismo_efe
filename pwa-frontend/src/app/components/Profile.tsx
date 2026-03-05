@@ -13,7 +13,7 @@ export function Profile({ onBack, onLogout }: ProfileProps) {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#F5F7FA] pb-20 md:pb-8">
+      <div className="min-h-screen bg-[#F5F7FA] pb-20">
         <Header title="Mi Perfil" showBackButton onBack={onBack} />
         <div className="p-4">
           <p className="text-[#4A4A4A]">No se pudo cargar la información del usuario</p>
@@ -23,7 +23,7 @@ export function Profile({ onBack, onLogout }: ProfileProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] pb-20 md:pb-8">
+    <div className="min-h-screen bg-[#F5F7FA] pb-20">
       <Header title="Mi Perfil" showBackButton onBack={onBack} />
       
       <div className="p-4 space-y-4">

@@ -11,6 +11,7 @@ const archivosRoutes = require('./routes/archivos');
 const inspeccionesRoutes = require('./routes/inspecciones');
 const fotosRouter = require('./routes/fotos');
 
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 

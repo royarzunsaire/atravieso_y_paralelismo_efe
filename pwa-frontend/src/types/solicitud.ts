@@ -63,7 +63,7 @@ export interface Solicitud {
 }
 
 /**
- * Inspección de una solicitud
+ * Inspección base — campos mínimos para listas y estado local
  */
 export interface Inspection {
   id: string;
@@ -75,7 +75,36 @@ export interface Inspection {
 }
 
 /**
- * Foto adjunta a una inspección
+ * Inspección detallada — todos los campos que retorna mapInspeccionItem()
+ * del backend. Extiende Inspection para mantener compatibilidad.
+ */
+export interface InspeccionDetalle extends Inspection {
+  solicitudId: number;
+  codigoSolicitud: string;
+  inspector: string;
+  inspectorEmail: string;
+  cantidadFotos: number;
+  solicitaParalizacion: boolean;
+  estadoParalizacion: string | null;
+  observacionesAvance: string;
+  motivoParalizacion: string;
+  latitud: string;
+  longitud: string;
+}
+
+/**
+ * Foto individual de una inspección remota (SharePoint)
+ */
+export interface FotoInspeccion {
+  id: string;
+  url: string;
+  description?: string;
+  fileName?: string;
+  created?: string;
+}
+
+/**
+ * Foto adjunta a una inspección (temporal, antes de subir)
  */
 export interface InspectionPhoto {
   id: string;

@@ -155,7 +155,7 @@ export function NewInspection({
   ];
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] pb-20 md:pb-8">
+    <div className="min-h-screen bg-[#F5F7FA] pb-20">
       <Header title="Nueva Inspección" showBackButton onBack={onBack} />
 
       <form onSubmit={handleSubmit} className="p-4 space-y-4">
