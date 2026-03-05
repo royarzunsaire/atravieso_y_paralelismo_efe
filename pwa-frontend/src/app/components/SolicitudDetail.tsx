@@ -8,6 +8,8 @@ import { getEstadoColor, getPrioridadTextColor  } from '@/utils/solicitudUtils.t
 import type { Solicitud, Inspection, Archivo } from '@/types/solicitud.ts';
 import { archivosService } from '@/services/archivos';
 import { getFileIconInfo, getTipoDocumentoColor, getTipoDocumentoBadgeColor } from '@/utils/fileUtils.ts';
+import { fotosService } from '@/services/fotos';
+import { PhotosModal } from './PhotosModal';
 
 // ========================================
 // INTERFACES
@@ -23,6 +25,14 @@ interface SolicitudDetailProps {
 interface InfoRowProps {
   label: string;
   value?: string | number | null;
+}
+
+interface RemotePhoto {
+  id: string;
+  url: string;
+  description?: string;
+  fileName?: string;
+  created?: string;
 }
 
 // ========================================
@@ -46,6 +56,16 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection  }: Solic
   
   // ← NUEVO: Estado para controlar qué tarjetas están expandidas
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+
+  // Fotos por inspección
+  const [isPhotosModalOpen, setIsPhotosModalOpen] = useState(false);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosError, setPhotosError] = useState<string | null>(null);
+  const [currentPhotos, setCurrentPhotos] = useState<RemotePhoto[]>([]);
+  const [currentInspectionForPhotos, setCurrentInspectionForPhotos] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   const [sortBy, setSortBy] = useState<'fecha' | 'nombre' | 'tipo'>('fecha');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -121,6 +141,34 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection  }: Solic
       }
       return newSet;
     });
+  };
+
+  const openPhotosModal = async (inspection: any) => {
+    if (!inspection?.id) return;
+    setCurrentInspectionForPhotos({
+      id: String(inspection.id),
+      title: String(inspection.type || 'Inspección'),
+    });
+    setIsPhotosModalOpen(true);
+    setPhotosLoading(true);
+    setPhotosError(null);
+    try {
+      const data = await fotosService.getByInspeccionId(String(inspection.id));
+      // Se espera que el Flow de listado retorne al menos: id, url, description, fileName, created
+      setCurrentPhotos(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      console.error('Error cargando fotos de inspección:', err);
+      setPhotosError(err.message || 'Error al cargar fotos');
+    } finally {
+      setPhotosLoading(false);
+    }
+  };
+
+  const closePhotosModal = () => {
+    setIsPhotosModalOpen(false);
+    setCurrentPhotos([]);
+    setCurrentInspectionForPhotos(null);
+    setPhotosError(null);
   };
 
   const handleSort = (newSortBy: 'fecha' | 'nombre' | 'tipo') => {
@@ -393,17 +441,30 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection  }: Solic
                         </div>
 
                         {/* Fotos */}
-                        <div className="flex items-center gap-2 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => inspection.cantidadFotos > 0 && openPhotosModal(inspection)}
+                          className={`flex items-center gap-2 flex-1 text-left ${
+                            inspection.cantidadFotos > 0
+                              ? 'cursor-pointer'
+                              : 'opacity-60 cursor-default'
+                          }`}
+                          title={
+                            inspection.cantidadFotos > 0
+                              ? 'Ver fotos de esta inspección'
+                              : 'Sin fotos registradas'
+                          }
+                        >
                           <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
                             <Camera className="w-5 h-5 text-purple-600" />
                           </div>
                           <div>
                             <p className="text-xs text-[#4A4A4A]">Fotos</p>
-                            <p className="text-lg font-bold text-purple-600">
+                            <p className="text-lg font-bold text-purple-600 underline-offset-2">
                               {String(inspection.cantidadFotos || 0)}
                             </p>
                           </div>
-                        </div>
+                        </button>
                       </div>
 
                       {/* Botón Expandir/Colapsar - VERSIÓN BARRA */}
@@ -665,6 +726,18 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection  }: Solic
         icon={<Plus className="w-6 h-6" />}
         label="Inspección"
       />
+
+      {currentInspectionForPhotos && (
+        <PhotosModal
+          isOpen={isPhotosModalOpen}
+          title={`Fotos de ${currentInspectionForPhotos.title}`}
+          inspeccionId={currentInspectionForPhotos.id}
+          photos={currentPhotos}
+          loading={photosLoading}
+          error={photosError}
+          onClose={closePhotosModal}
+        />
+      )}
     </div>
   );
 }

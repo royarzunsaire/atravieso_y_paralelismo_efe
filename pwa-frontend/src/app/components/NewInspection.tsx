@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useEffect, useMemo, useState, FormEvent } from 'react';
 import { Header } from './Header';
 import { Button } from './Button';
 import { Camera, X, CheckCircle2, XCircle, AlertOctagon } from 'lucide-react';
@@ -41,6 +41,8 @@ export function NewInspection({
   tempPhotos,
   onRemovePhoto,
 }: NewInspectionProps) {
+  const draftKey = useMemo(() => `newInspectionDraft:${solicitud.id}`, [solicitud.id]);
+
   const [type, setType] = useState('');
   const [progress, setProgress] = useState(0);
   const [comentariosAvance, setComentariosAvance] = useState('');
@@ -49,6 +51,46 @@ export function NewInspection({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [solicitarParalizacion, setSolicitarParalizacion] = useState(false);
   // const [motivoParalizacion, setMotivoParalizacion] = useState(''); // RESERVADO PARA USO FUTURO
+
+  // ============================================================
+  // Persistencia de borrador (para no perder campos al ir a cámara)
+  // ============================================================
+  const saveDraftToSession = () => {
+    try {
+      sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          type,
+          progress,
+          comentariosAvance,
+          observacionesInspeccion,
+          status,
+          solicitarParalizacion,
+        })
+      );
+    } catch {
+      // Ignorar errores de sessionStorage
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+
+      if (typeof draft.type === 'string') setType(draft.type);
+      if (typeof draft.progress === 'number') setProgress(draft.progress);
+      if (typeof draft.comentariosAvance === 'string') setComentariosAvance(draft.comentariosAvance);
+      if (typeof draft.observacionesInspeccion === 'string')
+        setObservacionesInspeccion(draft.observacionesInspeccion);
+      if (draft.status === 'conforme' || draft.status === 'no-conforme') setStatus(draft.status);
+      if (typeof draft.solicitarParalizacion === 'boolean') setSolicitarParalizacion(draft.solicitarParalizacion);
+    } catch {
+      // Si el draft está corrupto, lo ignoramos silenciosamente
+    }
+    // Solo al cambiar de solicitud/draftKey
+  }, [draftKey]);
 
   const now = new Date();
   const currentDate = now.toLocaleDateString('es-CL', {
@@ -79,6 +121,9 @@ export function NewInspection({
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
+    // Guardar borrador final por si algo falla después del submit
+    saveDraftToSession();
 
     onSave({
       type,
@@ -357,7 +402,11 @@ export function NewInspection({
 
           <button
             type="button"
-            onClick={onAddPhoto}
+            onClick={() => {
+              // Guardar borrador antes de ir a la cámara
+              saveDraftToSession();
+              onAddPhoto();
+            }}
             className="w-full h-11 flex items-center justify-center gap-2 border-2 border-dashed border-[#0066CC] rounded-lg text-[#0066CC] active:bg-[#0066CC]/5 transition-colors mb-3"
           >
             <Camera className="w-5 h-5" />

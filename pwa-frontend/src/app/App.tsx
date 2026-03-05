@@ -128,6 +128,14 @@ useEffect(() => {
     setCurrentScreen({ type: 'newInspection', solicitudId, solicitud }); // ← CAMBIADO
   };
 
+  const handleCancelNewInspection = (solicitudId: number) => {
+    try {
+      sessionStorage.removeItem(`newInspectionDraft:${solicitudId}`);
+    } catch {}
+    setTempPhotos([]);
+    handleBackFromInspection(solicitudId);
+  };
+
   const handleBackFromInspection = (solicitudId: number) => {
     setCurrentScreen({ type: 'solicitudDetail', solicitudId });
   };
@@ -270,12 +278,40 @@ useEffect(() => {
         observacionesInspeccion: inspection.observacionesInspeccion,
         solicitarParalizacion: inspection.solicitarParalizacion || false,
         motivoParalizacion: '',
-        cantidadFotos: inspection.photos.length,
+        // Importante: inicializamos en 0.
+        // La columna CantidadFotos en SharePoint se irá incrementando
+        // desde el Flow de subida de fotos, una vez que cada archivo se crea.
+        cantidadFotos: 0,
         latitud,
         longitud
       };
 
       const result = await inspeccionesService.create(inspeccionData);
+      const inspeccionId = result?.id ? String(result.id) : '';
+
+      // Subir fotos (si hay) a través del backend → Power Automate → SharePoint
+      // Nota: el Flow de subida idealmente actualiza el item de inspección (CantidadFotos, etc.)
+      if (inspection.photos.length > 0) {
+        if (!inspeccionId) {
+          throw new Error('No se pudo obtener el ID de la inspección para asociar las fotos.');
+        }
+
+        const uploadSummary = await fotosService.uploadAll({
+          solicitudId,
+          codigoSolicitud: solicitud?.codigo || `SOL-${solicitudId}`,
+          inspeccionId,
+          photos: inspection.photos,
+        });
+
+        if (uploadSummary.failed > 0) {
+          setToast({
+            isOpen: true,
+            type: 'warning',
+            title: 'Inspección guardada (con advertencias)',
+            message: uploadSummary.errors.slice(0, 2).join(' | ') || 'Algunas fotos no se pudieron subir.',
+          });
+        }
+      }
 
       const now = new Date();
       const dateStr = now.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -310,15 +346,22 @@ useEffect(() => {
 
       setTempPhotos([]);
       setCurrentScreen({ type: 'solicitudDetail', solicitudId });
+      try {
+        sessionStorage.removeItem(`newInspectionDraft:${solicitudId}`);
+      } catch {}
 
       // Toast de éxito
-      setToast({
-        isOpen: true,
-        type: inspection.solicitarParalizacion ? 'warning' : 'success',
-        title: 'Inspección guardada',
-        message: inspection.solicitarParalizacion
-          ? 'La solicitud de paralización fue enviada al supervisor para revisión.'
-          : `${inspection.type} registrada correctamente.`,
+      // Si ya mostramos un toast warning por fotos fallidas, no pisarlo.
+      setToast((prev) => {
+        if (prev.isOpen && prev.type === 'warning') return prev;
+        return {
+          isOpen: true,
+          type: inspection.solicitarParalizacion ? 'warning' : 'success',
+          title: 'Inspección guardada',
+          message: inspection.solicitarParalizacion
+            ? 'La solicitud de paralización fue enviada al supervisor para revisión.'
+            : `${inspection.type} registrada correctamente.`,
+        };
       });
 
     } catch (error: any) {
@@ -388,7 +431,7 @@ useEffect(() => {
       {isAuthenticated && currentScreen.type === 'newInspection' && currentScreen.solicitud && ( // ← CAMBIADO
         <NewInspection
           solicitud={currentScreen.solicitud} // ← CAMBIADO: pasa toda la solicitud
-          onBack={() => handleBackFromInspection(currentScreen.solicitudId)}
+          onBack={() => handleCancelNewInspection(currentScreen.solicitudId)}
           onSave={(inspection) => handleSaveInspection(currentScreen.solicitudId, inspection)}
           onAddPhoto={handleAddPhoto}
           isSaving={isSaving}

@@ -132,4 +132,37 @@ export const fotosService = {
     const result = await response.json();
     return result.data || [];
   },
+
+  /**
+   * Obtener el contenido binario de una foto para mostrarla en UI.
+   * Esto evita usar URLs directas de SharePoint (que pueden dar 401 en <img>).
+   *
+   * @param {Object} params
+   * @param {string} params.inspeccionId
+   * @param {string} params.fileName
+   * @returns {Promise<Blob>}
+   */
+  async getContentBlob({ inspeccionId, fileName }) {
+    const url = new URL(`${API_URL}/api/fotos/content`);
+    url.searchParams.set('inspeccionId', String(inspeccionId));
+    url.searchParams.set('fileName', String(fileName));
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: this.getHeaders().Authorization,
+      },
+    });
+
+    if (response.status === 401) {
+      authService.logout();
+      throw new Error('Sesión expirada.');
+    }
+
+    if (!response.ok) {
+      throw new Error(`Error del servidor: ${response.status}`);
+    }
+
+    return await response.blob();
+  },
 };
