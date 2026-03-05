@@ -43,10 +43,6 @@ function invalidateInspeccionesCache(solicitudId) {
   inspeccionesCache.clear();
 }
 
-/**
- * Mapear inspección de SharePoint a formato frontend.
- * Incluye el campo "desfase" (booleano) y todos los campos previos.
- */
 function mapInspeccionItem(item) {
   const extractValue = (field) => {
     if (!field) return null;
@@ -74,43 +70,17 @@ function mapInspeccionItem(item) {
   let fecha;
   try {
     fecha = new Date(item.FechaInspeccion || item.Created);
-  } catch {
+  } catch (e) {
     fecha = new Date();
   }
 
-  const dateStr = fecha.toLocaleDateString('es-CL', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-  const timeStr = fecha.toLocaleTimeString('es-CL', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const dateStr = fecha.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 
   let status = 'conforme';
   const estadoInspeccion = extractValue(item.EstadoInspeccion) || '';
-  if (estadoInspeccion === 'No Conforme') {
-    status = 'no-conforme';
-  } else if (estadoInspeccion.includes('Observacion')) {
-    status = 'observaciones';
-  }
-
-  const inspectorNombre =
-      extractUser(item.Inspector) || String(item.InspectorNombre || item.Inspector || '');
-  const inspectorEmail =
-      extractUserEmail(item.Inspector) || String(item.InspectorEmail || '');
-
-  // Campo Desfase: puede venir como booleano directo (Yes/No de SharePoint)
-  // o como string 'Sí'/'No'/'Yes'/'No'
-  const rawDesfase = item.Desfase;
-  const desfase =
-      rawDesfase === true ||
-      rawDesfase === 'Sí' ||
-      rawDesfase === 'Si' ||
-      rawDesfase === 'Yes' ||
-      rawDesfase === '1' ||
-      rawDesfase === 1;
+  if (estadoInspeccion === 'No Conforme') status = 'no-conforme';
+  else if (estadoInspeccion.includes('Observacion')) status = 'observaciones';
 
   return {
     id: String(item.ID || item.Id || Date.now()),
@@ -119,13 +89,11 @@ function mapInspeccionItem(item) {
     progress: Number(item.PorcentajeAvance) || 0,
     status,
     observations: String(item.ObservacionesInspeccion || ''),
-
     solicitudId: Number(item.SolicitudId),
     codigoSolicitud: String(item.CodigoSolicitud || ''),
-    inspector: inspectorNombre,
-    inspectorEmail,
+    inspector: extractUser(item.Inspector) || String(item.InspectorNombre || item.Inspector || ''),
+    inspectorEmail: extractUserEmail(item.Inspector) || String(item.InspectorEmail || ''),
     cantidadFotos: Number(item.CantidadFotos) || 0,
-    desfase,                                               // ← NUEVO
     solicitaParalizacion: Boolean(item.SolicitaParalizacion),
     estadoParalizacion: extractValue(item.EstadoParalizacion),
     observacionesAvance: String(item.ObservacionesAvance || ''),
@@ -146,62 +114,38 @@ router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
     console.log(`📋 GET /api/inspecciones/solicitud/${solicitudId} - Usuario: ${userEmail}`);
 
     if (isNaN(solicitudId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid solicitudId',
-        message: 'solicitudId must be a number',
-      });
+      return res.status(400).json({ success: false, error: 'Invalid solicitudId', message: 'solicitudId must be a number' });
     }
 
     if (!FLOW_INSPECCIONES_LISTAR_URL) {
-      return res.status(500).json({
-        success: false,
-        error: 'Flow URL not configured',
-        message: 'FLOW_INSPECCIONES_LISTAR_URL is missing in .env',
-      });
+      return res.status(500).json({ success: false, error: 'Flow URL not configured', message: 'FLOW_INSPECCIONES_LISTAR_URL is missing in .env' });
     }
 
-    const normalizedSolicitudId = parseInt(solicitudId, 10);
-    const cacheKey = String(normalizedSolicitudId);
-    const cachedResult = getCacheEntry(cacheKey);
+    const normalizedId = parseInt(solicitudId, 10);
+    const cacheKey = String(normalizedId);
+    const cached = getCacheEntry(cacheKey);
+    if (cached) return res.json(cached);
 
-    if (cachedResult) {
-      return res.json(cachedResult);
-    }
-
-    const result = await callFlow(FLOW_INSPECCIONES_LISTAR_URL, {
-      solicitudId: normalizedSolicitudId,
-    });
-
-    const inspecciones = Array.isArray(result.data)
-        ? result.data.map(mapInspeccionItem)
-        : [];
+    const result = await callFlow(FLOW_INSPECCIONES_LISTAR_URL, { solicitudId: normalizedId });
+    const inspecciones = Array.isArray(result.data) ? result.data.map(mapInspeccionItem) : [];
 
     console.log(`✅ ${inspecciones.length} inspecciones obtenidas para solicitud ${solicitudId}`);
 
-    const responsePayload = {
-      success: true,
-      solicitudId: normalizedSolicitudId,
-      count: inspecciones.length,
-      data: inspecciones,
-    };
-
-    setCacheEntry(cacheKey, responsePayload);
-    res.json(responsePayload);
+    const payload = { success: true, solicitudId: normalizedId, count: inspecciones.length, data: inspecciones };
+    setCacheEntry(cacheKey, payload);
+    res.json(payload);
 
   } catch (error) {
-    console.error(`❌ Error fetching inspecciones for solicitud ${req.params.solicitudId}:`, error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch inspecciones',
-      message: error.message,
-    });
+    console.error(`❌ Error fetching inspecciones:`, error);
+    res.status(500).json({ success: false, error: 'Failed to fetch inspecciones', message: error.message });
   }
 });
 
 /**
  * POST /api/inspecciones
- * Acepta fechaInspeccion desde el cliente (fecha elegida por el usuario).
+ * Crea una nueva inspección.
+ * CAMBIO: usa fechaInspeccion enviada por el cliente (respeta zona horaria del usuario).
+ *         Si no viene, usa la fecha del servidor como fallback.
  */
 router.post('/', verifyToken, async (req, res) => {
   try {
@@ -209,7 +153,7 @@ router.post('/', verifyToken, async (req, res) => {
       solicitudId,
       codigoSolicitud,
       tipoInspeccion,
-      fechaInspeccion,       // ← ahora viene del cliente
+      fechaInspeccion,       // ← NUEVO: viene del frontend (datetime-local → ISO string)
       porcentajeAvance,
       estadoInspeccion,
       observacionesAvance,
@@ -226,6 +170,7 @@ router.post('/', verifyToken, async (req, res) => {
 
     console.log(`📝 POST /api/inspecciones - Solicitud ${solicitudId} - Usuario: ${userEmail}`);
 
+    // Validaciones
     if (!solicitudId || !tipoInspeccion || !estadoInspeccion || typeof porcentajeAvance !== 'number') {
       return res.status(400).json({
         success: false,
@@ -235,39 +180,31 @@ router.post('/', verifyToken, async (req, res) => {
     }
 
     if (porcentajeAvance < 0 || porcentajeAvance > 100) {
-      return res.status(400).json({
-        success: false,
-        error: 'Porcentaje inválido',
-        message: 'El porcentaje de avance debe estar entre 0 y 100',
-      });
+      return res.status(400).json({ success: false, error: 'Porcentaje inválido', message: 'El porcentaje debe estar entre 0 y 100' });
     }
 
-    if (
-        estadoInspeccion === 'No Conforme' &&
-        (!observacionesInspeccion || observacionesInspeccion.trim().length < 10)
-    ) {
-      return res.status(400).json({
-        success: false,
-        error: 'Observaciones requeridas',
-        message: 'Las observaciones son obligatorias para inspecciones "No Conforme"',
-      });
+    if (estadoInspeccion === 'No Conforme' && (!observacionesInspeccion || observacionesInspeccion.trim().length < 10)) {
+      return res.status(400).json({ success: false, error: 'Observaciones requeridas', message: 'Las observaciones son obligatorias para "No Conforme"' });
     }
 
     if (!FLOW_INSPECCIONES_CREAR_URL) {
       return res.status(500).json({ success: false, error: 'Flow URL not configured' });
     }
 
-    // Usar la fecha elegida por el usuario; si no viene, usar ahora
-    const fechaFinal =
-        fechaInspeccion && !isNaN(new Date(fechaInspeccion).getTime())
-            ? new Date(fechaInspeccion).toISOString()
-            : new Date().toISOString();
+    // Fecha: usar la enviada por el cliente. Si no viene o es inválida, usar servidor.
+    let fechaFinal;
+    if (fechaInspeccion) {
+      const parsed = new Date(fechaInspeccion);
+      fechaFinal = isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+    } else {
+      fechaFinal = new Date().toISOString();
+    }
 
     const payload = {
       solicitudId: parseInt(solicitudId),
       codigoSolicitud: codigoSolicitud || '',
       tipoInspeccion,
-      fechaInspeccion: fechaFinal,
+      fechaInspeccion: fechaFinal,  // ← ahora usa la fecha del usuario
       inspectorEmail: userEmail || '',
       inspectorNombre: userNombre || '',
       porcentajeAvance: parseInt(porcentajeAvance),
@@ -284,19 +221,14 @@ router.post('/', verifyToken, async (req, res) => {
     };
 
     const result = await callFlow(FLOW_INSPECCIONES_CREAR_URL, payload);
-
     invalidateInspeccionesCache(solicitudId);
 
     console.log(`✅ Inspección creada con ID: ${result.data?.id}`);
     res.status(201).json(result);
 
   } catch (error) {
-    console.error('❌ Error creando inspección:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create inspection',
-      message: error.message,
-    });
+    console.error(`❌ Error creando inspección:`, error);
+    res.status(500).json({ success: false, error: 'Failed to create inspection', message: error.message });
   }
 });
 

@@ -1,158 +1,398 @@
-/**
- * App.tsx
- *
- * ARQUITECTURA DE PROVIDERS (orden de afuera hacia adentro):
- *
- *   <CatalogsProvider>       ← catálogos globales (tiposInspeccion, etc.)
- *     <SolicitudProvider>    ← datos de la solicitud activa
- *       <AppContent />       ← UI + routing
- *     </SolicitudProvider>
- *   </CatalogsProvider>
- *
- * CatalogsProvider carga sus datos EN PARALELO al montar la app (Level 2).
- * SolicitudProvider carga sus datos cuando el usuario abre una solicitud.
- * Los componentes solo leen del contexto — NUNCA llaman servicios directamente.
- */
-
-import { useState } from 'react';
-import { CatalogsProvider } from '@/context/CatalogsContext';
-import { SolicitudProvider, useSolicitud } from '@/context/SolicitudContext';
+import { useState, useEffect } from 'react';
+import { BottomNav } from './components/BottomNav';
 import { Login } from './components/Login';
-import { Dashboard } from './components/Dashboard';
+import { AuthCallback } from './components/AuthCallback';
+import { authService } from '@/services/auth';
+import { Profile } from './components/Profile';
 import { SolicitudesDashboard } from './components/SolicitudesDashboard';
 import { SolicitudDetail } from './components/SolicitudDetail';
 import { NewInspection } from './components/NewInspection';
 import { PhotoCapture } from './components/PhotoCapture';
-import { Profile } from './components/Profile';
-import { BottomNav } from './components/BottomNav';
-import type { User, Solicitud, InspectionPhoto } from '../types/solicitud';
+import { inspeccionesService } from '@/services/inspecciones';
+import { Toast } from './components/Toast';
+import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
+import { fotosService } from '@/services/fotos';
+import { CatalogsProvider } from '@/context/CatalogsContext'; // ← NUEVO
+
+// ========================================
+// TYPES
+// ========================================
 
 type Screen =
-    | 'login' | 'dashboard' | 'solicitudes'
-    | 'solicitud-detail' | 'new-inspection' | 'photo-capture' | 'profile';
+    | { type: 'login' }
+    | { type: 'authCallback' }
+    | { type: 'profile' }
+    | { type: 'solicitudesDashboard' }
+    | { type: 'solicitudDetail'; solicitudId: number }
+    | { type: 'newInspection'; solicitudId: number; solicitud: Solicitud }
+    | { type: 'photoCapture' };
 
-// ══════════════════════════════════════════════════════════════
-// APP CONTENT
-// ══════════════════════════════════════════════════════════════
+// ========================================
+// APP INTERNO (separado para poder envolver con CatalogsProvider)
+// ========================================
 
 function AppContent() {
-  const { solicitudActual, inspecciones, cargarSolicitud, recargarInspecciones } = useSolicitud();
-
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
-  const [previousScreen, setPreviousScreen] = useState<Screen>('dashboard');
-  const [activeTab, setActiveTab] = useState<'home' | 'solicitudes' | 'profile'>('home');
+  const [currentScreen, setCurrentScreen] = useState<Screen>({ type: 'login' });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [bottomNavTab, setBottomNavTab] = useState<'home' | 'reports' | 'camera' | 'profile'>('home');
   const [tempPhotos, setTempPhotos] = useState<InspectionPhoto[]>([]);
+
+  const [inspections, setInspections] = useState<{ [solicitudId: number]: Inspection[] }>({});
+  const [photos, setPhotos] = useState<{ [solicitudId: number]: Photo[] }>({});
+  const [currentSolicitud, setCurrentSolicitud] = useState<Solicitud | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [toast, setToast] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'warning';
+    title: string;
+    message?: string;
+  }>({ isOpen: false, type: 'success', title: '' });
 
-  const navigate = (screen: Screen) => {
-    setPreviousScreen(currentScreen);
-    setCurrentScreen(screen);
+  // ========================================
+  // EFFECTS
+  // ========================================
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (window.location.pathname === '/auth/callback') {
+        setCurrentScreen({ type: 'authCallback' });
+        return;
+      }
+      const isAuth = authService.isAuthenticated();
+      setIsAuthenticated(isAuth);
+      setCurrentScreen(isAuth ? { type: 'solicitudesDashboard' } : { type: 'login' });
+    };
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    if (currentScreen.type === 'newInspection') {
+      sessionStorage.setItem('lastSolicitudScreen', currentScreen.solicitudId.toString());
+      sessionStorage.setItem('currentSolicitud', JSON.stringify(currentScreen.solicitud));
+    }
+    return () => {
+      if (currentScreen.type !== 'newInspection' && currentScreen.type !== 'photoCapture') {
+        sessionStorage.removeItem('lastSolicitudScreen');
+        sessionStorage.removeItem('currentSolicitud');
+      }
+    };
+  }, [currentScreen]);
+
+  // ========================================
+  // HANDLERS - AUTHENTICATION
+  // ========================================
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    setCurrentScreen({ type: 'solicitudesDashboard' });
   };
 
-  const handleLogin = (user: User) => { setCurrentUser(user); navigate('dashboard'); };
-
-  const handleTabChange = (tab: 'home' | 'solicitudes' | 'profile') => {
-    setActiveTab(tab);
-    if (tab === 'home') navigate('dashboard');
-    else if (tab === 'solicitudes') navigate('solicitudes');
-    else navigate('profile');
+  const handleLogout = () => {
+    authService.logout();
+    setIsAuthenticated(false);
+    setCurrentScreen({ type: 'login' });
+    setBottomNavTab('home');
   };
 
-  const handleOpenSolicitud = (solicitud: Solicitud) => {
-    void cargarSolicitud(solicitud.id);
-    navigate('solicitud-detail');
+  // ========================================
+  // HANDLERS - NAVIGATION
+  // ========================================
+
+  const handleBackToDashboard = () => {
+    setCurrentScreen({ type: 'solicitudesDashboard' });
+    setBottomNavTab('home');
   };
 
-  const handleNewInspection = () => { setTempPhotos([]); navigate('new-inspection'); };
+  const handleSolicitudSelect = (solicitudId: number) => {
+    setCurrentScreen({ type: 'solicitudDetail', solicitudId });
+  };
 
-  const handleSaveInspection = async (inspectionData: {
-    type: string; progress: number; comentariosAvance: string;
-    observacionesInspeccion: string; status: 'conforme' | 'no-conforme';
-    photos: InspectionPhoto[]; solicitarParalizacion?: boolean; fechaInspeccion: string;
+  const handleBackToSolicitudes = () => {
+    setCurrentScreen({ type: 'solicitudesDashboard' });
+  };
+
+  const handleNewInspection = (solicitudId: number, solicitud: Solicitud) => {
+    setCurrentSolicitud(solicitud);
+    setTempPhotos([]);
+    setCurrentScreen({ type: 'newInspection', solicitudId, solicitud });
+  };
+
+  const handleCancelNewInspection = (solicitudId: number) => {
+    try { sessionStorage.removeItem(`newInspectionDraft:${solicitudId}`); } catch {}
+    setTempPhotos([]);
+    setCurrentScreen({ type: 'solicitudDetail', solicitudId });
+  };
+
+  const handleBottomNavChange = (tab: 'home' | 'reports' | 'camera' | 'profile') => {
+    setBottomNavTab(tab);
+    if (tab === 'home') setCurrentScreen({ type: 'solicitudesDashboard' });
+    else if (tab === 'reports') setCurrentScreen({ type: 'solicitudesDashboard' });
+    else if (tab === 'profile') setCurrentScreen({ type: 'profile' });
+    else if (tab === 'camera') setCurrentScreen({ type: 'solicitudesDashboard' });
+  };
+
+  // ========================================
+  // HANDLERS - PHOTOS
+  // ========================================
+
+  const handleAddPhoto = () => {
+    if (currentScreen.type === 'newInspection') {
+      sessionStorage.setItem('lastSolicitudScreen', currentScreen.solicitudId.toString());
+      sessionStorage.setItem('currentSolicitud', JSON.stringify(currentScreen.solicitud));
+    }
+    setCurrentScreen({ type: 'photoCapture' });
+  };
+
+  const handlePhotoConfirm = (photo: { url: string; description: string }) => {
+    const newPhoto: InspectionPhoto = {
+      id: Date.now().toString(),
+      url: photo.url,
+      description: photo.description,
+    };
+    setTempPhotos([...tempPhotos, newPhoto]);
+
+    if (currentScreen.type === 'photoCapture') {
+      const lastScreen = sessionStorage.getItem('lastSolicitudScreen');
+      const solicitudData = sessionStorage.getItem('currentSolicitud');
+      if (lastScreen && solicitudData) {
+        try {
+          const solicitudId = parseInt(lastScreen, 10);
+          const solicitud: Solicitud = JSON.parse(solicitudData);
+          if (!isNaN(solicitudId) && solicitud) {
+            setCurrentScreen({ type: 'newInspection', solicitudId, solicitud });
+          }
+        } catch {
+          setCurrentScreen({ type: 'solicitudesDashboard' });
+        }
+      }
+    }
+  };
+
+  const handleRemovePhoto = (photoId: string) => {
+    setTempPhotos(tempPhotos.filter(p => p.id !== photoId));
+  };
+
+  const handleBackFromPhotoCapture = () => {
+    const lastScreen = sessionStorage.getItem('lastSolicitudScreen');
+    const solicitudData = sessionStorage.getItem('currentSolicitud');
+    if (lastScreen && solicitudData) {
+      try {
+        const solicitudId = parseInt(lastScreen, 10);
+        const solicitud: Solicitud = JSON.parse(solicitudData);
+        if (!isNaN(solicitudId) && solicitud) {
+          setCurrentScreen({ type: 'newInspection', solicitudId, solicitud });
+          return;
+        }
+      } catch {}
+    }
+    setCurrentScreen({ type: 'solicitudesDashboard' });
+  };
+
+  // ========================================
+  // HANDLERS - INSPECTIONS
+  // ========================================
+
+  const handleSaveInspection = async (solicitudId: number, inspection: {
+    type: string;
+    progress: number;
+    comentariosAvance: string;
+    observacionesInspeccion: string;
+    status: 'conforme' | 'no-conforme';
+    photos: InspectionPhoto[];
+    solicitarParalizacion?: boolean;
+    fechaInspeccion?: string; // ← NUEVO: fecha elegida por el usuario
   }) => {
-    if (!solicitudActual || !currentUser) return;
     setIsSaving(true);
     try {
-      const { inspeccionesService } = await import('@/services/inspecciones');
-      await inspeccionesService.create({
-        solicitudId: solicitudActual.id,
-        codigoSolicitud: solicitudActual.codigo,
-        tipoInspeccion: inspectionData.type,
-        fechaInspeccion: inspectionData.fechaInspeccion,
-        porcentajeAvance: inspectionData.progress,
-        estadoInspeccion: inspectionData.status === 'conforme' ? 'Conforme' : 'No Conforme',
-        observacionesAvance: inspectionData.comentariosAvance,
-        observacionesInspeccion: inspectionData.observacionesInspeccion,
-        solicitarParalizacion: inspectionData.solicitarParalizacion,
-        cantidadFotos: inspectionData.photos.length,
+      const solicitud = currentSolicitud;
+
+      let latitud = '';
+      let longitud = '';
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 0 });
+          });
+          latitud = position.coords.latitude.toString();
+          longitud = position.coords.longitude.toString();
+        } catch {
+          console.log('Geolocalización no disponible');
+        }
+      }
+
+      const inspeccionData = {
+        solicitudId,
+        codigoSolicitud: solicitud?.codigo || null,
+        tipoInspeccion: inspection.type,
+        fechaInspeccion: inspection.fechaInspeccion || new Date().toISOString(), // ← NUEVO
+        porcentajeAvance: inspection.progress,
+        estadoInspeccion: inspection.status === 'conforme' ? 'Conforme' : 'No Conforme',
+        observacionesAvance: inspection.comentariosAvance,
+        observacionesInspeccion: inspection.observacionesInspeccion,
+        solicitarParalizacion: inspection.solicitarParalizacion || false,
+        motivoParalizacion: '',
+        cantidadFotos: 0,
+        latitud,
+        longitud,
+      };
+
+      const result = await inspeccionesService.create(inspeccionData);
+      const inspeccionId = result?.id ? String(result.id) : '';
+
+      if (inspection.photos.length > 0) {
+        if (!inspeccionId) throw new Error('No se pudo obtener el ID de la inspección para asociar las fotos.');
+
+        const uploadSummary = await fotosService.uploadAll({
+          solicitudId,
+          codigoSolicitud: solicitud?.codigo || `SOL-${solicitudId}`,
+          inspeccionId,
+          photos: inspection.photos,
+        });
+
+        if (uploadSummary.failed > 0) {
+          setToast({
+            isOpen: true,
+            type: 'warning',
+            title: 'Inspección guardada (con advertencias)',
+            message: uploadSummary.errors.slice(0, 2).join(' | ') || 'Algunas fotos no se pudieron subir.',
+          });
+        }
+      }
+
+      // Usar la fecha elegida por el usuario para mostrar en la lista local
+      const fechaDisplay = inspection.fechaInspeccion
+          ? new Date(inspection.fechaInspeccion)
+          : new Date();
+      const dateStr = fechaDisplay.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const timeStr = fechaDisplay.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+
+      const newInspection: Inspection = {
+        id: result.id?.toString() || Date.now().toString(),
+        date: `${dateStr} - ${timeStr}`,
+        type: inspection.type,
+        progress: inspection.progress,
+        status: inspection.status,
+        observations: inspection.observacionesInspeccion,
+      };
+
+      setInspections(prev => ({
+        ...prev,
+        [solicitudId]: [newInspection, ...(prev[solicitudId] || [])],
+      }));
+
+      if (inspection.photos.length > 0) {
+        const newPhotos: Photo[] = inspection.photos.map(p => ({
+          id: p.id,
+          url: p.url,
+          description: p.description,
+          date: dateStr,
+        }));
+        setPhotos(prev => ({
+          ...prev,
+          [solicitudId]: [...newPhotos, ...(prev[solicitudId] || [])],
+        }));
+      }
+
+      setTempPhotos([]);
+      setCurrentScreen({ type: 'solicitudDetail', solicitudId });
+      try { sessionStorage.removeItem(`newInspectionDraft:${solicitudId}`); } catch {}
+
+      setToast((prev) => {
+        if (prev.isOpen && prev.type === 'warning') return prev;
+        return {
+          isOpen: true,
+          type: inspection.solicitarParalizacion ? 'warning' : 'success',
+          title: 'Inspección guardada',
+          message: inspection.solicitarParalizacion
+              ? 'La solicitud de paralización fue enviada al supervisor para revisión.'
+              : `${inspection.type} registrada correctamente.`,
+        };
       });
-      void recargarInspecciones(solicitudActual.id);
-      navigate('solicitud-detail');
-    } catch (err) {
-      console.error('Error guardando inspección:', err);
+
+    } catch (error: any) {
+      console.error('❌ Error guardando inspección:', error);
+      setToast({ isOpen: true, type: 'error', title: 'Error al guardar', message: error.message });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handlePhotoCapture = (photo: InspectionPhoto) => {
-    setTempPhotos(prev => [...prev, photo]);
-    navigate('new-inspection');
-  };
-
-  if (currentScreen === 'login') return <Login onLogin={handleLogin} />;
+  // ========================================
+  // RENDER
+  // ========================================
 
   return (
       <div className="min-h-screen bg-[#F5F7FA]">
-        {currentScreen === 'dashboard' && (
-            <Dashboard currentUser={currentUser} onOpenSolicitud={handleOpenSolicitud} />
+        {currentScreen.type === 'login' && (
+            <Login onLoginSuccess={handleLoginSuccess} />
         )}
-        {currentScreen === 'solicitudes' && (
-            <SolicitudesDashboard onOpenSolicitud={handleOpenSolicitud} />
+
+        {currentScreen.type === 'authCallback' && (
+            <AuthCallback onSuccess={handleLoginSuccess} />
         )}
-        {currentScreen === 'solicitud-detail' && solicitudActual && (
-            <SolicitudDetail
-                solicitud={solicitudActual}
-                inspecciones={inspecciones}
-                onBack={() => navigate(previousScreen === 'solicitudes' ? 'solicitudes' : 'dashboard')}
-                onNewInspection={handleNewInspection}
-            />
+
+        {isAuthenticated && currentScreen.type === 'solicitudesDashboard' && (
+            <>
+              <SolicitudesDashboard onSolicitudSelect={handleSolicitudSelect} onLogout={handleLogout} />
+              <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
+            </>
         )}
-        {currentScreen === 'new-inspection' && solicitudActual && (
+
+        {isAuthenticated && currentScreen.type === 'solicitudDetail' && (
+            <>
+              <SolicitudDetail
+                  solicitudId={currentScreen.solicitudId}
+                  inspections={inspections[currentScreen.solicitudId] || []}
+                  onBack={handleBackToSolicitudes}
+                  onNewInspection={(solicitud) => handleNewInspection(currentScreen.solicitudId, solicitud)}
+              />
+              <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
+            </>
+        )}
+
+        {isAuthenticated && currentScreen.type === 'profile' && (
+            <>
+              <Profile onBack={handleBackToDashboard} onLogout={handleLogout} />
+              <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
+            </>
+        )}
+
+        {isAuthenticated && currentScreen.type === 'newInspection' && currentScreen.solicitud && (
             <NewInspection
-                solicitud={solicitudActual}
-                onBack={() => navigate('solicitud-detail')}
+                solicitud={currentScreen.solicitud}
+                onBack={() => handleCancelNewInspection(currentScreen.solicitudId)}
+                onSave={(inspection) => handleSaveInspection(currentScreen.solicitudId, inspection)}
+                onAddPhoto={handleAddPhoto}
                 isSaving={isSaving}
-                onSave={handleSaveInspection}
-                onAddPhoto={() => navigate('photo-capture')}
                 tempPhotos={tempPhotos}
-                onRemovePhoto={(id) => setTempPhotos(prev => prev.filter(p => p.id !== id))}
+                onRemovePhoto={handleRemovePhoto}
             />
         )}
-        {currentScreen === 'photo-capture' && (
-            <PhotoCapture onBack={() => navigate('new-inspection')} onPhotoCapture={handlePhotoCapture} />
+
+        {isAuthenticated && currentScreen.type === 'photoCapture' && (
+            <PhotoCapture onBack={handleBackFromPhotoCapture} onPhotoConfirm={handlePhotoConfirm} />
         )}
-        {currentScreen === 'profile' && currentUser && (
-            <Profile currentUser={currentUser} onBack={() => navigate('dashboard')} />
-        )}
-        {currentScreen !== 'login' && (
-            <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
-        )}
+
+        <Toast
+            isOpen={toast.isOpen}
+            type={toast.type}
+            title={toast.title}
+            message={toast.message}
+            onClose={() => setToast(prev => ({ ...prev, isOpen: false }))}
+        />
       </div>
   );
 }
 
-// ══════════════════════════════════════════════════════════════
-// APP ROOT
-// ══════════════════════════════════════════════════════════════
+// ========================================
+// APP ROOT — CatalogsProvider envuelve toda la app
+// Los catálogos se cargan UNA VEZ aquí, en paralelo, al iniciar.
+// ========================================
 
 export default function App() {
   return (
       <CatalogsProvider>
-        <SolicitudProvider>
-          <AppContent />
-        </SolicitudProvider>
+        <AppContent />
       </CatalogsProvider>
   );
 }
