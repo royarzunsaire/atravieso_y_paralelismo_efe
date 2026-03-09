@@ -2,9 +2,6 @@
 // INTERFACES COMPARTIDAS - SOLICITUDES
 // ========================================
 
-/**
- * Información de una persona (responsable o autor)
- */
 export interface Persona {
   nombre: string;
   email: string;
@@ -13,15 +10,9 @@ export interface Persona {
   foto?: string;
 }
 
-/**
- * Alias más específicos para claridad
- */
 export type Responsable = Persona;
 export type Autor = Persona;
 
-/**
- * Solicitud completa con todos sus campos
- */
 export interface Solicitud {
   id: number;
   title: string;
@@ -63,7 +54,7 @@ export interface Solicitud {
 }
 
 /**
- * Inspección base — campos mínimos para listas y estado local
+ * Inspección resumida — usada en los estados locales de App.tsx
  */
 export interface Inspection {
   id: string;
@@ -75,10 +66,16 @@ export interface Inspection {
 }
 
 /**
- * Inspección detallada — todos los campos que retorna mapInspeccionItem()
- * del backend. Extiende Inspection para mantener compatibilidad.
+ * Inspección con todos los campos — usada por SolicitudContext y SolicitudDetail
  */
-export interface InspeccionDetalle extends Inspection {
+export interface InspeccionDetalle {
+  id: string;
+  date: string;
+  type: string;
+  progress: number;
+  status: 'conforme' | 'observaciones' | 'no-conforme';
+  observations: string;
+  // Campos adicionales del backend
   solicitudId: number;
   codigoSolicitud: string;
   inspector: string;
@@ -93,18 +90,18 @@ export interface InspeccionDetalle extends Inspection {
 }
 
 /**
- * Foto individual de una inspección remota (SharePoint)
+ * Foto de una inspección — usada por SolicitudContext y PhotosModal
  */
 export interface FotoInspeccion {
   id: string;
-  url: string;
+  url?: string;
   description?: string;
   fileName?: string;
   created?: string;
 }
 
 /**
- * Foto adjunta a una inspección (temporal, antes de subir)
+ * Foto adjunta en el formulario de nueva inspección (local, antes de subir)
  */
 export interface InspectionPhoto {
   id: string;
@@ -113,7 +110,7 @@ export interface InspectionPhoto {
 }
 
 /**
- * Foto con información completa
+ * Foto con información completa (ya subida, vista en galería)
  */
 export interface Photo {
   id: string;
@@ -122,9 +119,6 @@ export interface Photo {
   date: string;
 }
 
-/**
- * Estadísticas de solicitudes
- */
 export interface SolicitudStats {
   total: number;
   porEstado: Record<string, number>;

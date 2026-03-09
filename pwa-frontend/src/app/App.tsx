@@ -12,7 +12,8 @@ import { inspeccionesService } from '@/services/inspecciones';
 import { Toast } from './components/Toast';
 import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
 import { fotosService } from '@/services/fotos';
-import { CatalogsProvider } from '@/context/CatalogsContext'; // ← NUEVO
+import { CatalogsProvider } from '@/context/CatalogsContext';
+import { SolicitudProvider } from '@/context/SolicitudContext';
 
 // ========================================
 // TYPES
@@ -28,7 +29,7 @@ type Screen =
     | { type: 'photoCapture' };
 
 // ========================================
-// APP INTERNO (separado para poder envolver con CatalogsProvider)
+// APP CONTENT (lógica y UI)
 // ========================================
 
 function AppContent() {
@@ -36,7 +37,6 @@ function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [bottomNavTab, setBottomNavTab] = useState<'home' | 'reports' | 'camera' | 'profile'>('home');
   const [tempPhotos, setTempPhotos] = useState<InspectionPhoto[]>([]);
-
   const [inspections, setInspections] = useState<{ [solicitudId: number]: Inspection[] }>({});
   const [photos, setPhotos] = useState<{ [solicitudId: number]: Photo[] }>({});
   const [currentSolicitud, setCurrentSolicitud] = useState<Solicitud | null>(null);
@@ -48,21 +48,16 @@ function AppContent() {
     message?: string;
   }>({ isOpen: false, type: 'success', title: '' });
 
-  // ========================================
-  // EFFECTS
-  // ========================================
+  // ── Auth check al montar ─────────────────────────────────────
 
   useEffect(() => {
-    const checkAuth = async () => {
-      if (window.location.pathname === '/auth/callback') {
-        setCurrentScreen({ type: 'authCallback' });
-        return;
-      }
-      const isAuth = authService.isAuthenticated();
-      setIsAuthenticated(isAuth);
-      setCurrentScreen(isAuth ? { type: 'solicitudesDashboard' } : { type: 'login' });
-    };
-    checkAuth();
+    if (window.location.pathname === '/auth/callback') {
+      setCurrentScreen({ type: 'authCallback' });
+      return;
+    }
+    const isAuth = authService.isAuthenticated();
+    setIsAuthenticated(isAuth);
+    setCurrentScreen(isAuth ? { type: 'solicitudesDashboard' } : { type: 'login' });
   }, []);
 
   useEffect(() => {
@@ -78,9 +73,7 @@ function AppContent() {
     };
   }, [currentScreen]);
 
-  // ========================================
-  // HANDLERS - AUTHENTICATION
-  // ========================================
+  // ── Handlers: auth ───────────────────────────────────────────
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
@@ -94,21 +87,11 @@ function AppContent() {
     setBottomNavTab('home');
   };
 
-  // ========================================
-  // HANDLERS - NAVIGATION
-  // ========================================
+  // ── Handlers: nav ────────────────────────────────────────────
 
   const handleBackToDashboard = () => {
     setCurrentScreen({ type: 'solicitudesDashboard' });
     setBottomNavTab('home');
-  };
-
-  const handleSolicitudSelect = (solicitudId: number) => {
-    setCurrentScreen({ type: 'solicitudDetail', solicitudId });
-  };
-
-  const handleBackToSolicitudes = () => {
-    setCurrentScreen({ type: 'solicitudesDashboard' });
   };
 
   const handleNewInspection = (solicitudId: number, solicitud: Solicitud) => {
@@ -125,15 +108,14 @@ function AppContent() {
 
   const handleBottomNavChange = (tab: 'home' | 'reports' | 'camera' | 'profile') => {
     setBottomNavTab(tab);
-    if (tab === 'home') setCurrentScreen({ type: 'solicitudesDashboard' });
-    else if (tab === 'reports') setCurrentScreen({ type: 'solicitudesDashboard' });
-    else if (tab === 'profile') setCurrentScreen({ type: 'profile' });
-    else if (tab === 'camera') setCurrentScreen({ type: 'solicitudesDashboard' });
+    if (tab === 'profile') {
+      setCurrentScreen({ type: 'profile' });
+    } else {
+      setCurrentScreen({ type: 'solicitudesDashboard' });
+    }
   };
 
-  // ========================================
-  // HANDLERS - PHOTOS
-  // ========================================
+  // ── Handlers: fotos ──────────────────────────────────────────
 
   const handleAddPhoto = () => {
     if (currentScreen.type === 'newInspection') {
@@ -144,32 +126,26 @@ function AppContent() {
   };
 
   const handlePhotoConfirm = (photo: { url: string; description: string }) => {
-    const newPhoto: InspectionPhoto = {
-      id: Date.now().toString(),
-      url: photo.url,
-      description: photo.description,
-    };
-    setTempPhotos([...tempPhotos, newPhoto]);
+    const newPhoto: InspectionPhoto = { id: Date.now().toString(), url: photo.url, description: photo.description };
+    setTempPhotos(prev => [...prev, newPhoto]);
 
-    if (currentScreen.type === 'photoCapture') {
-      const lastScreen = sessionStorage.getItem('lastSolicitudScreen');
-      const solicitudData = sessionStorage.getItem('currentSolicitud');
-      if (lastScreen && solicitudData) {
-        try {
-          const solicitudId = parseInt(lastScreen, 10);
-          const solicitud: Solicitud = JSON.parse(solicitudData);
-          if (!isNaN(solicitudId) && solicitud) {
-            setCurrentScreen({ type: 'newInspection', solicitudId, solicitud });
-          }
-        } catch {
-          setCurrentScreen({ type: 'solicitudesDashboard' });
+    const lastScreen = sessionStorage.getItem('lastSolicitudScreen');
+    const solicitudData = sessionStorage.getItem('currentSolicitud');
+    if (lastScreen && solicitudData) {
+      try {
+        const solicitudId = parseInt(lastScreen, 10);
+        const solicitud: Solicitud = JSON.parse(solicitudData);
+        if (!isNaN(solicitudId) && solicitud) {
+          setCurrentScreen({ type: 'newInspection', solicitudId, solicitud });
+          return;
         }
-      }
+      } catch {}
     }
+    setCurrentScreen({ type: 'solicitudesDashboard' });
   };
 
   const handleRemovePhoto = (photoId: string) => {
-    setTempPhotos(tempPhotos.filter(p => p.id !== photoId));
+    setTempPhotos(prev => prev.filter(p => p.id !== photoId));
   };
 
   const handleBackFromPhotoCapture = () => {
@@ -188,9 +164,7 @@ function AppContent() {
     setCurrentScreen({ type: 'solicitudesDashboard' });
   };
 
-  // ========================================
-  // HANDLERS - INSPECTIONS
-  // ========================================
+  // ── Handler: guardar inspección ──────────────────────────────
 
   const handleSaveInspection = async (solicitudId: number, inspection: {
     type: string;
@@ -200,7 +174,7 @@ function AppContent() {
     status: 'conforme' | 'no-conforme';
     photos: InspectionPhoto[];
     solicitarParalizacion?: boolean;
-    fechaInspeccion?: string; // ← NUEVO: fecha elegida por el usuario
+    fechaInspeccion?: string;
   }) => {
     setIsSaving(true);
     try {
@@ -215,16 +189,14 @@ function AppContent() {
           });
           latitud = position.coords.latitude.toString();
           longitud = position.coords.longitude.toString();
-        } catch {
-          console.log('Geolocalización no disponible');
-        }
+        } catch { /* no disponible */ }
       }
 
       const inspeccionData = {
         solicitudId,
         codigoSolicitud: solicitud?.codigo || null,
         tipoInspeccion: inspection.type,
-        fechaInspeccion: inspection.fechaInspeccion || new Date().toISOString(), // ← NUEVO
+        fechaInspeccion: inspection.fechaInspeccion || new Date().toISOString(),
         porcentajeAvance: inspection.progress,
         estadoInspeccion: inspection.status === 'conforme' ? 'Conforme' : 'No Conforme',
         observacionesAvance: inspection.comentariosAvance,
@@ -241,28 +213,18 @@ function AppContent() {
 
       if (inspection.photos.length > 0) {
         if (!inspeccionId) throw new Error('No se pudo obtener el ID de la inspección para asociar las fotos.');
-
         const uploadSummary = await fotosService.uploadAll({
           solicitudId,
           codigoSolicitud: solicitud?.codigo || `SOL-${solicitudId}`,
           inspeccionId,
           photos: inspection.photos,
         });
-
         if (uploadSummary.failed > 0) {
-          setToast({
-            isOpen: true,
-            type: 'warning',
-            title: 'Inspección guardada (con advertencias)',
-            message: uploadSummary.errors.slice(0, 2).join(' | ') || 'Algunas fotos no se pudieron subir.',
-          });
+          setToast({ isOpen: true, type: 'warning', title: 'Inspección guardada (con advertencias)', message: uploadSummary.errors.slice(0, 2).join(' | ') || 'Algunas fotos no se pudieron subir.' });
         }
       }
 
-      // Usar la fecha elegida por el usuario para mostrar en la lista local
-      const fechaDisplay = inspection.fechaInspeccion
-          ? new Date(inspection.fechaInspeccion)
-          : new Date();
+      const fechaDisplay = inspection.fechaInspeccion ? new Date(inspection.fechaInspeccion) : new Date();
       const dateStr = fechaDisplay.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const timeStr = fechaDisplay.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 
@@ -275,29 +237,20 @@ function AppContent() {
         observations: inspection.observacionesInspeccion,
       };
 
-      setInspections(prev => ({
-        ...prev,
-        [solicitudId]: [newInspection, ...(prev[solicitudId] || [])],
-      }));
+      setInspections(prev => ({ ...prev, [solicitudId]: [newInspection, ...(prev[solicitudId] || [])] }));
 
       if (inspection.photos.length > 0) {
         const newPhotos: Photo[] = inspection.photos.map(p => ({
-          id: p.id,
-          url: p.url,
-          description: p.description,
-          date: dateStr,
+          id: p.id, url: p.url, description: p.description, date: dateStr,
         }));
-        setPhotos(prev => ({
-          ...prev,
-          [solicitudId]: [...newPhotos, ...(prev[solicitudId] || [])],
-        }));
+        setPhotos(prev => ({ ...prev, [solicitudId]: [...newPhotos, ...(prev[solicitudId] || [])] }));
       }
 
       setTempPhotos([]);
       setCurrentScreen({ type: 'solicitudDetail', solicitudId });
       try { sessionStorage.removeItem(`newInspectionDraft:${solicitudId}`); } catch {}
 
-      setToast((prev) => {
+      setToast(prev => {
         if (prev.isOpen && prev.type === 'warning') return prev;
         return {
           isOpen: true,
@@ -317,9 +270,7 @@ function AppContent() {
     }
   };
 
-  // ========================================
-  // RENDER
-  // ========================================
+  // ── Render ───────────────────────────────────────────────────
 
   return (
       <div className="min-h-screen bg-[#F5F7FA]">
@@ -333,7 +284,10 @@ function AppContent() {
 
         {isAuthenticated && currentScreen.type === 'solicitudesDashboard' && (
             <>
-              <SolicitudesDashboard onSolicitudSelect={handleSolicitudSelect} onLogout={handleLogout} />
+              <SolicitudesDashboard
+                  onSolicitudSelect={(id) => setCurrentScreen({ type: 'solicitudDetail', solicitudId: id })}
+                  onLogout={handleLogout}
+              />
               <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
             </>
         )}
@@ -342,8 +296,7 @@ function AppContent() {
             <>
               <SolicitudDetail
                   solicitudId={currentScreen.solicitudId}
-                  inspections={inspections[currentScreen.solicitudId] || []}
-                  onBack={handleBackToSolicitudes}
+                  onBack={() => setCurrentScreen({ type: 'solicitudesDashboard' })}
                   onNewInspection={(solicitud) => handleNewInspection(currentScreen.solicitudId, solicitud)}
               />
               <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
@@ -385,14 +338,20 @@ function AppContent() {
 }
 
 // ========================================
-// APP ROOT — CatalogsProvider envuelve toda la app
-// Los catálogos se cargan UNA VEZ aquí, en paralelo, al iniciar.
+// APP ROOT
+//
+// Jerarquía de providers (de afuera hacia adentro):
+//   CatalogsProvider  — tipos de inspección y futuros catálogos (carga 1 vez al iniciar)
+//   SolicitudProvider — datos de la solicitud activa (solicitud, inspecciones, archivos, fotos)
+//   AppContent        — toda la UI
 // ========================================
 
 export default function App() {
   return (
       <CatalogsProvider>
-        <AppContent />
+        <SolicitudProvider>
+          <AppContent />
+        </SolicitudProvider>
       </CatalogsProvider>
   );
 }
