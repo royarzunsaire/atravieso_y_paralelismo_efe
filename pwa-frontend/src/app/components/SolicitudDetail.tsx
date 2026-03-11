@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Header } from './Header';
 import { FloatingActionButton } from './FloatingActionButton';
 import {
@@ -8,7 +8,6 @@ import {
   Loader2,
   Plus,
   CheckCircle2,
-  AlertTriangle,
   XCircle,
   Eye,
   ArrowUpDown,
@@ -20,6 +19,9 @@ import {
   ChevronDown,
   ChevronUp,
   User,
+  X,
+  Search,
+  AlertTriangle,
 } from 'lucide-react';
 import { getEstadoColor, getPrioridadTextColor } from '@/utils/solicitudUtils';
 import type { Solicitud, InspeccionDetalle, Archivo, FotoInspeccion } from '@/types/solicitud';
@@ -44,6 +46,23 @@ interface InfoRowProps {
   value?: string | number | null;
 }
 
+// Filtros para el tab de inspecciones
+interface InspeccionFiltros {
+  texto: string;
+  tipoInspeccion: string;   // '' = todos
+  estado: string;           // '' | 'conforme' | 'no-conforme' | 'observaciones'
+  desfase: string;          // '' | '1' | '0'
+  solicitaParalizacion: boolean | null; // null = todos
+}
+
+const FILTROS_INICIALES: InspeccionFiltros = {
+  texto: '',
+  tipoInspeccion: '',
+  estado: '',
+  desfase: '',
+  solicitaParalizacion: null,
+};
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -51,10 +70,10 @@ interface InfoRowProps {
 function InfoRow({ label, value }: InfoRowProps) {
   if (!value) return null;
   return (
-      <div>
-        <p className="text-sm text-[#4A4A4A] mb-1">{label}</p>
-        <p className="text-[#1A1A1A]">{value}</p>
-      </div>
+    <div>
+      <p className="text-sm text-[#4A4A4A] mb-1">{label}</p>
+      <p className="text-[#1A1A1A]">{value}</p>
+    </div>
   );
 }
 
@@ -90,7 +109,6 @@ const STATUS_CONFIG = {
 // ============================================================
 
 export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: SolicitudDetailProps) {
-  // ── Context: datos globales y acciones ─────────────────────
   const {
     solicitudActual,
     inspecciones,
@@ -108,36 +126,82 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
     recargarArchivos,
   } = useSolicitudContext();
 
-  // Derivar los datos del context indexados por solicitudId
   const solicitud = solicitudActual;
   const inspeccionesList: InspeccionDetalle[] = inspecciones[solicitudId] ?? [];
   const archivosList: Archivo[] = archivos[solicitudId] ?? [];
 
-  // ── Estado local: solo UI ───────────────────────────────────
+  // ── UI state ─────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<TabId>('info');
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'fecha' | 'nombre' | 'tipo'>('fecha');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Modal de fotos — solo guarda qué inspección está activa;
-  // las fotos vienen directo del context (ya pre-cargadas)
+  const [filtros, setFiltros] = useState<InspeccionFiltros>(FILTROS_INICIALES);
+  const [showEstadoMenu, setShowEstadoMenu] = useState(false);
+  const [showTipoMenu, setShowTipoMenu] = useState(false);
+  const [showDesfaseMenu, setShowDesfaseMenu] = useState(false);
+  const [showParalizacionMenu, setShowParalizacionMenu] = useState(false);
+
+  // Modal de fotos
   const [isPhotosModalOpen, setIsPhotosModalOpen] = useState(false);
   const [currentInspectionForPhotos, setCurrentInspectionForPhotos] = useState<{
     id: string;
     title: string;
   } | null>(null);
 
-  // ── Efecto principal: cargar todo al montar o cambiar solicitud ──
   useEffect(() => {
     cargarSolicitud(solicitudId);
-    // Resetear UI local al cambiar de solicitud
     setActiveTab('info');
     setExpandedCards(new Set());
+    setFiltros(FILTROS_INICIALES);
+
   }, [solicitudId, cargarSolicitud]);
 
-  // ============================================================
-  // HANDLERS
-  // ============================================================
+  // ── Tipos únicos para el selector de filtro ──────────────
+  const tiposUnicos = useMemo(() => {
+    const tipos = inspeccionesList.map(i => i.type).filter(Boolean);
+    return Array.from(new Set(tipos)).sort();
+  }, [inspeccionesList]);
+
+  // ── Inspecciones filtradas ────────────────────────────────
+  const inspeccionesFiltradas = useMemo(() => {
+    return inspeccionesList.filter(i => {
+      // Texto libre: busca en tipo, inspector, observaciones
+      if (filtros.texto.trim()) {
+        const q = filtros.texto.toLowerCase();
+        const match =
+          i.type?.toLowerCase().includes(q) ||
+          i.inspector?.toLowerCase().includes(q) ||
+          i.observations?.toLowerCase().includes(q) ||
+          i.observacionesAvance?.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      // Tipo de inspección
+      if (filtros.tipoInspeccion && i.type !== filtros.tipoInspeccion) return false;
+      // Estado
+      if (filtros.estado && i.status !== filtros.estado) return false;
+      // Desfase
+      if (filtros.desfase && i.desfase !== filtros.desfase) return false;
+      // Solicitud de paralización
+      if (filtros.solicitaParalizacion !== null && i.solicitaParalizacion !== filtros.solicitaParalizacion) return false;
+      return true;
+    });
+  }, [inspeccionesList, filtros]);
+
+  // Cuenta de filtros activos (para mostrar badge)
+  const filtrosActivos = useMemo(() => {
+    let n = 0;
+    if (filtros.texto.trim()) n++;
+    if (filtros.tipoInspeccion) n++;
+    if (filtros.estado) n++;
+    if (filtros.desfase) n++;
+    if (filtros.solicitaParalizacion !== null) n++;
+    return n;
+  }, [filtros]);
+
+  const limpiarFiltros = () => setFiltros(FILTROS_INICIALES);
+
+  // ── Handlers ─────────────────────────────────────────────
 
   const toggleCard = (inspectionId: string) => {
     setExpandedCards(prev => {
@@ -160,15 +224,9 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
     return [...archivosList].sort((a, b) => {
       let cmp = 0;
       switch (sortBy) {
-        case 'fecha':
-          cmp = new Date(a.modified).getTime() - new Date(b.modified).getTime();
-          break;
-        case 'nombre':
-          cmp = a.fileName.localeCompare(b.fileName);
-          break;
-        case 'tipo':
-          cmp = a.tipoDocumento.localeCompare(b.tipoDocumento);
-          break;
+        case 'fecha': cmp = new Date(a.modified).getTime() - new Date(b.modified).getTime(); break;
+        case 'nombre': cmp = a.fileName.localeCompare(b.fileName); break;
+        case 'tipo': cmp = a.tipoDocumento.localeCompare(b.tipoDocumento); break;
       }
       return sortOrder === 'asc' ? cmp : -cmp;
     });
@@ -176,10 +234,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
 
   const openPhotosModal = (inspection: InspeccionDetalle) => {
     if (!inspection?.id) return;
-    setCurrentInspectionForPhotos({
-      id: String(inspection.id),
-      title: String(inspection.type),
-    });
+    setCurrentInspectionForPhotos({ id: String(inspection.id), title: String(inspection.type) });
     setIsPhotosModalOpen(true);
   };
 
@@ -189,36 +244,33 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
   };
 
   // ============================================================
-  // LOADING / ERROR STATES
+  // LOADING / ERROR
   // ============================================================
 
   if (loadingSolicitud) {
     return (
-        <div className="min-h-screen bg-[#F5F7FA]">
-          <Header title="Cargando..." showBackButton onBack={onBack} />
-          <div className="flex items-center justify-center h-[calc(100vh-56px)]">
-            <Loader2 className="w-12 h-12 text-[#0066CC] animate-spin" />
-          </div>
+      <div className="min-h-screen bg-[#F5F7FA]">
+        <Header title="Cargando..." showBackButton onBack={onBack} />
+        <div className="flex items-center justify-center h-[calc(100vh-56px)]">
+          <Loader2 className="w-12 h-12 text-[#0066CC] animate-spin" />
         </div>
+      </div>
     );
   }
 
   if (errorSolicitud || !solicitud) {
     return (
-        <div className="min-h-screen bg-[#F5F7FA]">
-          <Header title="Error" showBackButton onBack={onBack} />
-          <div className="p-4">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-800">{errorSolicitud ?? 'Solicitud no encontrada'}</p>
-              <button
-                  onClick={() => cargarSolicitud(solicitudId)}
-                  className="mt-3 text-sm text-[#0066CC] hover:underline"
-              >
-                Reintentar
-              </button>
-            </div>
+      <div className="min-h-screen bg-[#F5F7FA]">
+        <Header title="Error" showBackButton onBack={onBack} />
+        <div className="p-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800">{errorSolicitud ?? 'Solicitud no encontrada'}</p>
+            <button onClick={() => cargarSolicitud(solicitudId)} className="mt-3 text-sm text-[#0066CC] hover:underline">
+              Reintentar
+            </button>
           </div>
         </div>
+      </div>
     );
   }
 
@@ -233,435 +285,818 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
   ];
 
   return (
-      <div className="min-h-screen bg-[#F5F7FA] pb-20">
-        <Header
-            title={`Solicitud #${solicitud.codigo ?? solicitud.id}`}
-            showBackButton
-            onBack={onBack}
-        />
+    <div className="min-h-screen bg-[#F5F7FA] pb-20">
+      <Header
+        title={`Solicitud #${solicitud.codigo ?? solicitud.id}`}
+        showBackButton
+        onBack={onBack}
+      />
 
-        {/* Tabs */}
-        <div className="sticky top-14 z-40 bg-white border-b border-[#003D7A]/10 shadow-sm">
-          <div className="flex">
-            {tabs.map(tab => (
-                <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex-1 h-12 transition-colors ${
-                        activeTab === tab.id
-                            ? 'text-[#0066CC] border-b-2 border-[#0066CC]'
-                            : 'text-[#4A4A4A] border-b-2 border-transparent'
-                    }`}
-                >
-                  {tab.label}
-                </button>
-            ))}
-          </div>
+      {/* Tabs */}
+      <div className="sticky top-14 z-40 bg-white border-b border-[#003D7A]/10 shadow-sm">
+        <div className="flex">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 h-12 transition-colors ${activeTab === tab.id
+                  ? 'text-[#0066CC] border-b-2 border-[#0066CC]'
+                  : 'text-[#4A4A4A] border-b-2 border-transparent'
+                }`}
+            >
+              {tab.label}
+              {tab.id === 'inspections' && filtrosActivos > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0066CC] text-white text-[10px]">
+                  {filtrosActivos}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
+      </div>
 
-        <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4">
 
-          {/* ====================================================
-            TAB: INFORMACIÓN (datos críticos, ya cargados)
-            ==================================================== */}
-          {activeTab === 'info' && (
-              <div className="space-y-4">
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <div>
-                    <p className="text-sm text-[#4A4A4A] mb-1">Etapa</p>
-                    <p className={`font-medium ${getEstadoColor(solicitud.etapa)}`}>{solicitud.etapa}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mt-3">
-                    <div>
-                      <p className="text-sm text-[#4A4A4A] mb-1">Estado</p>
-                      <p className="text-[#0066CC] font-medium">{solicitud.estadoSolicitud}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-[#4A4A4A] mb-1">Prioridad</p>
-                      <p className={`font-medium ${getPrioridadTextColor(solicitud.prioridad)}`}>
-                        {solicitud.prioridad ?? 'Sin prioridad'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <h3 className="text-[#003D7A] mb-3 flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Datos del Proyecto
-                  </h3>
-                  <div className="space-y-3">
-                    <InfoRow label="Descripción" value={solicitud.descripcion} />
-                    <InfoRow label="Empresa Mandante" value={solicitud.cliente} />
-                    <InfoRow label="Inspector Técnico / Constructora" value={solicitud.consultor} />
-                    <InfoRow label="Tipo de Proyecto" value={solicitud.tipoProyecto} />
-                    <InfoRow label="Tipo de Obra" value={solicitud.tipoObra} />
-                    <InfoRow label="Tipo de Servicio" value={solicitud.tipoServicio} />
-                    <InfoRow label="P. Kilometraje" value={solicitud.kilometraje ? `${solicitud.kilometraje} Km` : null} />
-                    <InfoRow label="Observación" value={solicitud.observacion} />
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <h3 className="text-[#003D7A] mb-3 flex items-center gap-2">
-                    <MapPin className="w-5 h-5" />
-                    Ubicación
-                  </h3>
-                  <div className="space-y-3">
-                    <InfoRow label="Región" value={solicitud.region} />
-                    <InfoRow label="Comuna" value={solicitud.comuna} />
-                    <InfoRow label="Ramal" value={solicitud.ramal} />
-                  </div>
-                </div>
-
-                {solicitud.rolAsignado && (
-                    <div className="bg-white rounded-lg p-4 shadow-sm">
-                      <h3 className="text-[#003D7A] mb-3 flex items-center gap-2">
-                        <Building2 className="w-5 h-5" />
-                        Asignación
-                      </h3>
-                      <InfoRow label="Rol Asignado" value={solicitud.rolAsignado} />
-                    </div>
-                )}
+        {/* ── TAB: INFORMACIÓN ─────────────────────────────── */}
+        {activeTab === 'info' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg p-4 shadow-sm">
+              <div>
+                <p className="text-sm text-[#4A4A4A] mb-1">Etapa</p>
+                <p className={`font-medium ${getEstadoColor(solicitud.etapa)}`}>{solicitud.etapa}</p>
               </div>
-          )}
+              <div className="grid grid-cols-2 gap-4 mt-3">
+                <div>
+                  <p className="text-sm text-[#4A4A4A] mb-1">Estado</p>
+                  <p className="text-[#0066CC] font-medium">{solicitud.estadoSolicitud}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#4A4A4A] mb-1">Prioridad</p>
+                  <p className={`font-medium ${getPrioridadTextColor(solicitud.prioridad)}`}>
+                    {solicitud.prioridad ?? 'Sin prioridad'}
+                  </p>
+                </div>
+              </div>
+            </div>
 
-          {/* ====================================================
-            TAB: INSPECCIONES (carga async en segundo plano)
-            ==================================================== */}
-          {activeTab === 'inspections' && (
-              <div className="space-y-4">
-                {loadingInspecciones ? (
-                    <div className="bg-white rounded-lg p-8 text-center">
-                      <Loader2 className="w-12 h-12 text-[#0066CC] animate-spin mx-auto mb-4" />
-                      <p className="text-[#4A4A4A]">Cargando inspecciones...</p>
-                    </div>
-                ) : errorInspecciones ? (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <p className="text-sm text-red-800">{errorInspecciones}</p>
-                      <button
-                          onClick={() => recargarInspecciones(solicitudId)}
-                          className="mt-3 text-sm text-[#0066CC] hover:underline"
-                      >
-                        Reintentar
-                      </button>
-                    </div>
-                ) : inspeccionesList.length > 0 ? (
-                    inspeccionesList.map((inspection) => {
-                      const config = STATUS_CONFIG[inspection.status] ?? STATUS_CONFIG['conforme'];
-                      const isExpanded = expandedCards.has(inspection.id);
+            <div className="bg-white rounded-lg p-4 shadow-sm">
+              <h3 className="text-[#003D7A] mb-3 flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Datos del Proyecto
+              </h3>
+              <div className="space-y-3">
+                <InfoRow label="Descripción" value={solicitud.descripcion} />
+                <InfoRow label="Empresa Mandante" value={solicitud.cliente} />
+                <InfoRow label="Inspector Técnico / Constructora" value={solicitud.consultor} />
+                <InfoRow label="Tipo de Proyecto" value={solicitud.tipoProyecto} />
+                <InfoRow label="Tipo de Obra" value={solicitud.tipoObra} />
+                <InfoRow label="Tipo de Servicio" value={solicitud.tipoServicio} />
+                <InfoRow label="P. Kilometraje" value={solicitud.kilometraje ? `${solicitud.kilometraje} Km` : null} />
+                <InfoRow label="Observación" value={solicitud.observacion} />
+              </div>
+            </div>
 
-                      return (
-                          <div
-                              key={inspection.id}
-                              className={`bg-white rounded-xl shadow-md border-l-4 ${config.borderColor} overflow-hidden`}
-                          >
-                            {/* Header siempre visible */}
-                            <div className={`${config.bgColor} p-4 border-b ${config.borderColor}`}>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                  <div className={config.iconColor}>{config.icon}</div>
-                                  <div className="flex-1 min-w-0">
-                                    <h4 className="text-[#003D7A] font-semibold text-base truncate">
-                                      {inspection.type}
-                                    </h4>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <Clock className="w-3 h-3 text-[#4A4A4A]" />
-                                      <span className="text-xs text-[#4A4A4A]">{inspection.date}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${config.badgeColor} whitespace-nowrap`}>
-                          {config.label}
-                        </span>
-                              </div>
-                            </div>
+            <div className="bg-white rounded-lg p-4 shadow-sm">
+              <h3 className="text-[#003D7A] mb-3 flex items-center gap-2">
+                <MapPin className="w-5 h-5" />
+                Ubicación
+              </h3>
+              <div className="space-y-3">
+                <InfoRow label="Región" value={solicitud.region} />
+                <InfoRow label="Comuna" value={solicitud.comuna} />
+                <InfoRow label="Ramal" value={solicitud.ramal} />
+              </div>
+            </div>
 
-                            {/* Resumen compacto */}
-                            <div className="p-4 space-y-3">
-                              {inspection.inspector && (
-                                  <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg border border-blue-100">
-                                    <User className="w-4 h-4 text-[#0066CC] flex-shrink-0" />
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-xs text-[#4A4A4A]">Inspector</p>
-                                      <p className="text-sm text-[#003D7A] font-medium truncate">
-                                        {inspection.inspector}
-                                      </p>
-                                    </div>
-                                  </div>
-                              )}
+            {solicitud.rolAsignado && (
+              <div className="bg-white rounded-lg p-4 shadow-sm">
+                <h3 className="text-[#003D7A] mb-3 flex items-center gap-2">
+                  <Building2 className="w-5 h-5" />
+                  Asignación
+                </h3>
+                <InfoRow label="Rol Asignado" value={solicitud.rolAsignado} />
+              </div>
+            )}
+          </div>
+        )}
 
-                              <div className="flex items-center gap-3">
-                                {/* Avance */}
-                                <div className="flex items-center gap-2 flex-1">
-                                  <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
-                                    <TrendingUp className="w-5 h-5 text-[#0066CC]" />
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-[#4A4A4A]">Avance</p>
-                                    <p className="text-lg font-bold text-[#0066CC]">{inspection.progress}%</p>
-                                  </div>
-                                </div>
+        {/* ── TAB: INSPECCIONES ────────────────────────────── */}
+        {activeTab === 'inspections' && (
+          <div className="space-y-3">
 
-                                {/* Fotos */}
-                                <button
-                                    type="button"
-                                    onClick={() => inspection.cantidadFotos > 0 && openPhotosModal(inspection)}
-                                    disabled={inspection.cantidadFotos === 0}
-                                    className={`flex items-center gap-2 flex-1 text-left ${
-                                        inspection.cantidadFotos > 0
-                                            ? 'cursor-pointer'
-                                            : 'opacity-60 cursor-default'
-                                    }`}
-                                    title={inspection.cantidadFotos > 0 ? 'Ver fotos' : 'Sin fotos'}
-                                >
-                                  <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
-                                    <Camera className="w-5 h-5 text-purple-600" />
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-[#4A4A4A]">Fotos</p>
-                                    <p className="text-lg font-bold text-purple-600">
-                                      {inspection.cantidadFotos ?? 0}
-                                    </p>
-                                  </div>
-                                </button>
-                              </div>
+            {/* ── Filtros (mobile-first, chips) ── */}
+            {!loadingInspecciones && !errorInspecciones && inspeccionesList.length > 0 && (
+              <div className="space-y-2">
 
-                              {/* Botón expandir */}
-                              <div className="relative mt-3">
-                                <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                                  <div className="w-full border-t border-gray-200" />
-                                </div>
-                                <div className="relative flex justify-center">
+                {/* Barra de búsqueda — siempre visible */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#4A4A4A]" />
+                  <input
+                    type="text"
+                    placeholder="Buscar inspector, tipo..."
+                    value={filtros.texto}
+                    onChange={e => setFiltros(f => ({ ...f, texto: e.target.value }))}
+                    className="w-full h-12 pl-11 pr-10 bg-white rounded-xl border border-[#003D7A]/10 text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC] placeholder:text-[#999]"
+                  />
+                  {filtros.texto && (
+                    <button
+                      onClick={() => setFiltros(f => ({ ...f, texto: '' }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200"
+                    >
+                      <X className="w-4 h-4 text-[#4A4A4A]" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Selector de estado — botón que abre lista desplegable */}
+                <div className="relative">
+                  {(() => {
+                    const ESTADO_OPTIONS = [
+                      { value: '', label: 'Todos los estados', icon: <Eye className="w-5 h-5" />, chipColors: 'bg-gray-100 text-[#4A4A4A] border-gray-300', listColors: 'bg-gray-50 hover:bg-gray-100 text-[#4A4A4A]' },
+                      { value: 'conforme', label: 'Conforme', icon: <CheckCircle2 className="w-5 h-5" />, chipColors: 'bg-green-600 text-white border-green-600', listColors: 'bg-green-50 hover:bg-green-100 text-green-800' },
+                      { value: 'no-conforme', label: 'No Conforme', icon: <XCircle className="w-5 h-5" />, chipColors: 'bg-[#E30613] text-white border-[#E30613]', listColors: 'bg-red-50 hover:bg-red-100 text-red-800' },
+                      { value: 'observaciones', label: 'Con Observaciones', chipColors: 'bg-orange-500 text-white border-orange-500', listColors: 'bg-orange-50 hover:bg-orange-100 text-orange-800' },
+                    ];
+                    const current = ESTADO_OPTIONS.find(o => o.value === filtros.estado) || ESTADO_OPTIONS[0];
+                    return (
+                      <>
+                        <button
+                          onClick={() => setShowEstadoMenu(v => !v)}
+                          className={`w-full flex items-center justify-between h-12 px-4 rounded-xl border-2 text-base font-medium transition-all active:scale-[0.98] shadow-sm ${current.chipColors}`}
+                        >
+                          <span className="flex items-center gap-2">
+                            {current.icon}
+                            {current.label}
+                          </span>
+                          <ChevronDown className={`w-5 h-5 transition-transform ${showEstadoMenu ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {showEstadoMenu && (
+                          <>
+                            {/* Fondo para cerrar al tocar fuera */}
+                            <div
+                              className="fixed inset-0 z-40"
+                              onClick={() => setShowEstadoMenu(false)}
+                            />
+                            {/* Lista desplegable */}
+                            <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                              {ESTADO_OPTIONS.map(opt => {
+                                const isSelected = filtros.estado === opt.value;
+                                return (
                                   <button
-                                      onClick={() => toggleCard(inspection.id)}
-                                      className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium shadow-sm bg-white border transition-all ${
-                                          isExpanded
-                                              ? 'text-gray-600 border-gray-300 hover:border-gray-400'
-                                              : 'text-[#0066CC] border-blue-200 hover:border-blue-300 hover:bg-blue-50'
+                                    key={opt.value}
+                                    onClick={() => {
+                                      setFiltros(f => ({ ...f, estado: opt.value }));
+                                      setShowEstadoMenu(false);
+                                    }}
+                                    className={`w-full flex items-center gap-3 py-4 px-5 text-left text-base font-medium transition-colors border-b border-gray-100 last:border-b-0 active:scale-[0.98] ${isSelected
+                                        ? `${opt.listColors} font-semibold`
+                                        : 'bg-white text-[#4A4A4A] hover:bg-gray-50'
                                       }`}
                                   >
-                                    {isExpanded ? (
-                                        <><ChevronUp className="w-3.5 h-3.5" /><span>Ocultar</span></>
-                                    ) : (
-                                        <><span>Ver más</span><ChevronDown className="w-3.5 h-3.5" /></>
-                                    )}
+                                    {opt.icon && <span className="flex-shrink-0">{opt.icon}</span>}
+                                    <span className="flex-1">{opt.label}</span>
+                                    {isSelected && <CheckCircle2 className="w-5 h-5 text-[#0066CC] flex-shrink-0" />}
                                   </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Desfase y Paralización — mismos patrones de selector, en la misma fila */}
+                <div className="flex gap-3 -mx-4 px-4">
+                  {/* Selector Desfase */}
+                  <div className="relative flex-1">
+                    {(() => {
+                      const DESFASE_OPTIONS = [
+                        {
+                          value: '',
+                          label: 'Todos (desfase)',
+                          chipColors: 'bg-amber-50 text-amber-700 border-amber-200',
+                          listColors: 'bg-amber-50 hover:bg-amber-100 text-amber-800',
+                        },
+                        {
+                          value: '1',
+                          label: 'Con desfase',
+                          chipColors: 'bg-amber-500 text-white border-amber-500',
+                          listColors: 'bg-amber-50 hover:bg-amber-100 text-amber-800',
+                        },
+                        {
+                          value: '0',
+                          label: 'Sin desfase',
+                          chipColors: 'bg-gray-100 text-gray-800 border-gray-300',
+                          listColors: 'bg-gray-50 hover:bg-gray-100 text-gray-800',
+                        },
+                      ];
+                      const current =
+                        DESFASE_OPTIONS.find(o => o.value === filtros.desfase) ?? DESFASE_OPTIONS[0];
+
+                      return (
+                        <>
+                          <button
+                            onClick={() => setShowDesfaseMenu(v => !v)}
+                            className={`w-full flex items-center justify-between h-12 px-4 rounded-xl border-2 text-sm font-medium transition-all active:scale-[0.98] shadow-sm ${current.chipColors}`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Clock className="w-4 h-4" />
+                              {current.label}
+                            </span>
+                            <ChevronDown
+                              className={`w-5 h-5 transition-transform ${
+                                showDesfaseMenu ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </button>
+
+                          {showDesfaseMenu && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setShowDesfaseMenu(false)}
+                              />
+                              <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                                {DESFASE_OPTIONS.map(opt => {
+                                  const isSelected = filtros.desfase === opt.value;
+                                  return (
+                                    <button
+                                      key={opt.value}
+                                      onClick={() => {
+                                        setFiltros(f => ({ ...f, desfase: opt.value }));
+                                        setShowDesfaseMenu(false);
+                                      }}
+                                      className={`w-full flex items-center gap-3 py-3 px-5 text-left text-sm font-medium transition-colors border-b border-gray-100 last:border-b-0 active:scale-[0.98] ${
+                                        isSelected
+                                          ? `${opt.listColors} font-semibold`
+                                          : 'bg-white text-[#4A4A4A] hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      <span className="flex-1">{opt.label}</span>
+                                      {isSelected && (
+                                        <CheckCircle2 className="w-5 h-5 text-[#0066CC] flex-shrink-0" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Selector Paralización */}
+                  <div className="relative flex-1">
+                    {(() => {
+                      const PARALIZACION_OPTIONS = [
+                        {
+                          value: null,
+                          label: 'Todas (paralización)',
+                          chipColors: 'bg-orange-50 text-orange-700 border-orange-200',
+                          listColors: 'bg-orange-50 hover:bg-orange-100 text-orange-800',
+                        },
+                        {
+                          value: true,
+                          label: 'Con paralización',
+                          chipColors: 'bg-orange-600 text-white border-orange-600',
+                          listColors: 'bg-orange-50 hover:bg-orange-100 text-orange-800',
+                        },
+                        {
+                          value: false,
+                          label: 'Sin paralización',
+                          chipColors: 'bg-gray-100 text-gray-800 border-gray-300',
+                          listColors: 'bg-gray-50 hover:bg-gray-100 text-gray-800',
+                        },
+                      ] as const;
+
+                      const current =
+                        PARALIZACION_OPTIONS.find(o => o.value === filtros.solicitaParalizacion) ??
+                        PARALIZACION_OPTIONS[0];
+
+                      return (
+                        <>
+                          <button
+                            onClick={() => setShowParalizacionMenu(v => !v)}
+                            className={`w-full flex items-center justify-between h-12 px-4 rounded-xl border-2 text-sm font-medium transition-all active:scale-[0.98] shadow-sm ${current.chipColors}`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <AlertOctagon className="w-4 h-4" />
+                              {current.label}
+                            </span>
+                            <ChevronDown
+                              className={`w-5 h-5 transition-transform ${
+                                showParalizacionMenu ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </button>
+
+                          {showParalizacionMenu && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setShowParalizacionMenu(false)}
+                              />
+                              <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                                {PARALIZACION_OPTIONS.map(opt => {
+                                  const isSelected = filtros.solicitaParalizacion === opt.value;
+                                  return (
+                                    <button
+                                      key={String(opt.value)}
+                                      onClick={() => {
+                                        setFiltros(f => ({
+                                          ...f,
+                                          solicitaParalizacion: opt.value,
+                                        }));
+                                        setShowParalizacionMenu(false);
+                                      }}
+                                      className={`w-full flex items-center gap-3 py-3 px-5 text-left text-sm font-medium transition-colors border-b border-gray-100 last:border-b-0 active:scale-[0.98] ${
+                                        isSelected
+                                          ? `${opt.listColors} font-semibold`
+                                          : 'bg-white text-[#4A4A4A] hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      <span className="flex-1">{opt.label}</span>
+                                      {isSelected && (
+                                        <CheckCircle2 className="w-5 h-5 text-[#0066CC] flex-shrink-0" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Selector de tipo — réplica del comportamiento de estados */}
+                {tiposUnicos.length > 1 && (
+                  <div className="relative">
+                    {(() => {
+                      const TIPO_OPTIONS = [
+                        {
+                          value: '',
+                          label: 'Todos los tipos',
+                          chipColors: 'bg-blue-100 text-[#003D7A] border-blue-200',
+                          listColors: 'bg-blue-50 hover:bg-blue-100 text-[#003D7A]',
+                        },
+                        ...tiposUnicos.map(tipo => ({
+                          value: tipo,
+                          label: tipo,
+                          chipColors: 'bg-[#003D7A] text-white border-[#003D7A]',
+                          listColors: 'bg-blue-50 hover:bg-blue-100 text-[#003D7A]',
+                        })),
+                      ];
+
+                      const current =
+                        TIPO_OPTIONS.find(o => o.value === filtros.tipoInspeccion) ?? TIPO_OPTIONS[0];
+
+                      return (
+                        <>
+                          <button
+                            onClick={() => setShowTipoMenu(v => !v)}
+                            className={`w-full flex items-center justify-between h-12 px-4 rounded-xl border-2 text-base font-medium transition-all active:scale-[0.98] shadow-sm ${current.chipColors}`}
+                          >
+                            <span className="flex items-center gap-2">
+                              {current.label}
+                            </span>
+                            <ChevronDown
+                              className={`w-5 h-5 transition-transform ${
+                                showTipoMenu ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </button>
+
+                          {showTipoMenu && (
+                            <>
+                              {/* Fondo para cerrar al tocar fuera */}
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setShowTipoMenu(false)}
+                              />
+                              {/* Lista desplegable */}
+                              <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                                {TIPO_OPTIONS.map(opt => {
+                                  const isSelected = filtros.tipoInspeccion === opt.value;
+                                  return (
+                                    <button
+                                      key={opt.value}
+                                      onClick={() => {
+                                        setFiltros(f => ({ ...f, tipoInspeccion: opt.value }));
+                                        setShowTipoMenu(false);
+                                      }}
+                                      className={`w-full flex items-center gap-3 py-3 px-5 text-left text-base font-medium transition-colors border-b border-gray-100 last:border-b-0 active:scale-[0.98] ${
+                                        isSelected
+                                          ? `${opt.listColors} font-semibold`
+                                          : 'bg-white text-[#4A4A4A] hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      <span className="flex-1">{opt.label}</span>
+                                      {isSelected && (
+                                        <CheckCircle2 className="w-5 h-5 text-[#0066CC] flex-shrink-0" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Botón limpiar filtros si hay algo aplicado (al final de todos los filtros) */}
+                {filtrosActivos > 0 && (
+                  <div className="-mx-4 px-4 pt-1">
+                    <button
+                      onClick={limpiarFiltros}
+                      className="mt-2 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-medium border whitespace-nowrap transition-all active:scale-95 bg-red-50 text-[#E30613] border-red-200 active:bg-red-100 w-full"
+                    >
+                      <X className="w-4 h-4" />
+                      Limpiar filtros
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Contador de resultados */}
+            {!loadingInspecciones && !errorInspecciones && filtrosActivos > 0 && (
+              <p className="text-xs text-[#4A4A4A] px-1">
+                Mostrando {inspeccionesFiltradas.length} de {inspeccionesList.length} inspecciones
+              </p>
+            )}
+
+            {/* Lista */}
+            {loadingInspecciones ? (
+              <div className="bg-white rounded-lg p-8 text-center">
+                <Loader2 className="w-12 h-12 text-[#0066CC] animate-spin mx-auto mb-4" />
+                <p className="text-[#4A4A4A]">Cargando inspecciones...</p>
+              </div>
+            ) : errorInspecciones ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm text-red-800">{errorInspecciones}</p>
+                <button onClick={() => recargarInspecciones(solicitudId)} className="mt-3 text-sm text-[#0066CC] hover:underline">
+                  Reintentar
+                </button>
+              </div>
+            ) : inspeccionesFiltradas.length > 0 ? (
+              inspeccionesFiltradas.map((inspection) => {
+                const config = STATUS_CONFIG[inspection.status] ?? STATUS_CONFIG['conforme'];
+                const isExpanded = expandedCards.has(inspection.id);
+
+                return (
+                  <div
+                    key={inspection.id}
+                    className={`bg-white rounded-xl shadow-md border-l-4 ${config.borderColor} overflow-hidden`}
+                  >
+                    {/* Header */}
+                    <div className={`${config.bgColor} p-4 border-b ${config.borderColor}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={config.iconColor}>{config.icon}</div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-[#003D7A] font-semibold text-base truncate">
+                              {inspection.type}
+                            </h4>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-[#4A4A4A]" />
+                                <span className="text-xs text-[#4A4A4A]">{inspection.date}</span>
+                              </div>
+                              {/* Badge de desfase */}
+                              {inspection.desfase === '1' && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300">
+                                  Desfase
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${config.badgeColor} whitespace-nowrap`}>
+                          {config.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Resumen */}
+                    <div className="p-4 space-y-3">
+                      {inspection.inspector && (
+                        <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg border border-blue-100">
+                          <User className="w-4 h-4 text-[#0066CC] flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-[#4A4A4A]">Inspector</p>
+                            <p className="text-sm text-[#003D7A] font-medium truncate">{inspection.inspector}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-3">
+                        {/* Avance */}
+                        <div className="flex items-center gap-2 flex-1">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
+                            <TrendingUp className="w-5 h-5 text-[#0066CC]" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-[#4A4A4A]">Avance</p>
+                            <p className="text-lg font-bold text-[#0066CC]">{inspection.progress}%</p>
+                          </div>
+                        </div>
+
+                        {/* Fotos */}
+                        <button
+                          type="button"
+                          onClick={() => inspection.cantidadFotos > 0 && openPhotosModal(inspection)}
+                          disabled={inspection.cantidadFotos === 0}
+                          className={`flex items-center gap-2 flex-1 text-left ${inspection.cantidadFotos > 0 ? 'cursor-pointer' : 'opacity-60 cursor-default'
+                            }`}
+                        >
+                          <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
+                            <Camera className="w-5 h-5 text-purple-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-[#4A4A4A]">Fotos</p>
+                            <p className="text-lg font-bold text-purple-600">{inspection.cantidadFotos ?? 0}</p>
+                          </div>
+                        </button>
+                      </div>
+
+                      {/* Botón expandir */}
+                      <div className="relative mt-3">
+                        <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                          <div className="w-full border-t border-gray-200" />
+                        </div>
+                        <div className="relative flex justify-center">
+                          <button
+                            onClick={() => toggleCard(inspection.id)}
+                            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium shadow-sm bg-white border transition-all ${isExpanded
+                                ? 'text-gray-600 border-gray-300'
+                                : 'text-[#0066CC] border-blue-200 hover:bg-blue-50'
+                              }`}
+                          >
+                            {isExpanded
+                              ? <><ChevronUp className="w-3.5 h-3.5" /><span>Ocultar</span></>
+                              : <><span>Ver más</span><ChevronDown className="w-3.5 h-3.5" /></>
+                            }
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Detalles expandibles */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 -mt-6 space-y-4">
+                        {/* Barra de progreso */}
+                        <div className="pt-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-[#4A4A4A]">Progreso de obra</span>
+                            <span className="text-xs font-bold text-[#0066CC]">{inspection.progress}%</span>
+                          </div>
+                          <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-[#0066CC] to-[#0052A3] rounded-full transition-all duration-500"
+                              style={{ width: `${inspection.progress}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Desfase */}
+                        {inspection.desfase !== null && (
+                          <div className={`rounded-lg border overflow-hidden ${inspection.desfase === '1'
+                              ? 'bg-amber-50 border-amber-200'
+                              : 'bg-gray-50 border-gray-200'
+                            }`}>
+                            <div className="flex items-center gap-2 px-3 py-2">
+                              <span className={`text-sm font-medium ${inspection.desfase === '1' ? 'text-amber-700' : 'text-gray-600'
+                                }`}>
+                                Desfase: {inspection.desfase === '1' ? 'Sí' : 'No'}
+                              </span>
+                            </div>
+                            {inspection.desfase === '1' && inspection.fechaInspeccion && inspection.fechaCreacion && (
+                              <div className="px-3 pb-2 space-y-1">
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span className="text-amber-600 font-medium w-32">Fecha inspección:</span>
+                                  <span className="text-amber-800">
+                                    {new Date(inspection.fechaInspeccion).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
+                                    {new Date(inspection.fechaInspeccion).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span className="text-amber-600 font-medium w-32">Fecha registro:</span>
+                                  <span className="text-amber-800">
+                                    {new Date(inspection.fechaCreacion).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
+                                    {new Date(inspection.fechaCreacion).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
                                 </div>
                               </div>
-                            </div>
-
-                            {/* Detalles expandibles */}
-                            {isExpanded && (
-                                <div className="px-4 pb-4 -mt-6 space-y-4">
-                                  {/* Barra de progreso */}
-                                  <div className="pt-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="text-xs font-medium text-[#4A4A4A]">Progreso de obra</span>
-                                      <span className="text-xs font-bold text-[#0066CC]">{inspection.progress}%</span>
-                                    </div>
-                                    <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
-                                      <div
-                                          className="h-full bg-gradient-to-r from-[#0066CC] to-[#0052A3] rounded-full transition-all duration-500"
-                                          style={{ width: `${inspection.progress}%` }}
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {/* Comentarios de avance */}
-                                  {inspection.observacionesAvance?.trim() && (
-                                      <div className="space-y-2">
-                                        <div className="flex items-center gap-2">
-                                          <MessageSquare className="w-4 h-4 text-[#0066CC]" />
-                                          <h5 className="text-sm font-semibold text-[#003D7A]">Comentarios de Avance</h5>
-                                        </div>
-                                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                          <p className="text-sm text-[#1A1A1A] leading-relaxed whitespace-pre-wrap">
-                                            {inspection.observacionesAvance}
-                                          </p>
-                                        </div>
-                                      </div>
-                                  )}
-
-                                  {/* Observaciones de inspección */}
-                                  {inspection.observations?.trim() && (
-                                      <div className="space-y-2">
-                                        <div className="flex items-center gap-2">
-                                          <FileText className="w-4 h-4 text-orange-500" />
-                                          <h5 className="text-sm font-semibold text-[#003D7A]">Observaciones de Inspección</h5>
-                                        </div>
-                                        <div className={`p-3 rounded-lg border ${
-                                            inspection.status === 'no-conforme'
-                                                ? 'bg-red-50 border-red-200'
-                                                : 'bg-orange-50 border-orange-200'
-                                        }`}>
-                                          <p className="text-sm text-[#1A1A1A] leading-relaxed whitespace-pre-wrap">
-                                            {inspection.observations}
-                                          </p>
-                                        </div>
-                                      </div>
-                                  )}
-
-                                  {/* Alerta de paralización */}
-                                  {inspection.solicitaParalizacion && (
-                                      <div className="p-3 bg-orange-50 border-l-4 border-orange-500 rounded-r-lg">
-                                        <div className="flex items-start gap-3">
-                                          <AlertOctagon className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
-                                          <div className="flex-1">
-                                            <p className="text-sm font-semibold text-orange-900 mb-1">
-                                              Solicitud de Paralización
-                                            </p>
-                                            <p className="text-xs text-orange-700">
-                                              Estado: {inspection.estadoParalizacion ?? 'Pendiente de revisión'}
-                                            </p>
-                                            {inspection.motivoParalizacion?.trim() && (
-                                                <p className="text-sm text-orange-800 mt-2 leading-relaxed">
-                                                  {inspection.motivoParalizacion}
-                                                </p>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                  )}
-
-                                  {/* Email inspector */}
-                                  {inspection.inspectorEmail && (
-                                      <div className="pt-3 border-t border-gray-100">
-                                        <p className="text-xs text-[#4A4A4A] mb-1">Contacto del inspector</p>
-                                        <a
-                                            href={`mailto:${inspection.inspectorEmail}`}
-                                            className="text-sm text-[#0066CC] hover:underline"
-                                        >
-                                          {inspection.inspectorEmail}
-                                        </a>
-                                      </div>
-                                  )}
-                                </div>
                             )}
                           </div>
-                      );
-                    })
-                ) : (
-                    <div className="bg-white rounded-lg p-8 text-center">
-                      <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FileText className="w-10 h-10 text-gray-400" />
-                      </div>
-                      <p className="text-[#003D7A] font-medium mb-2">No hay inspecciones registradas</p>
-                      <p className="text-sm text-[#4A4A4A]">Presiona el botón + para crear una nueva inspección</p>
-                    </div>
-                )}
-              </div>
-          )}
+                        )}
 
-          {/* ====================================================
-            TAB: DOCUMENTOS (carga async en segundo plano)
-            ==================================================== */}
-          {activeTab === 'documentos' && (
-              <div className="space-y-4">
-                {/* Controles de orden */}
-                {!loadingArchivos && !errorArchivos && archivosList.length > 0 && (
-                    <div className="bg-white rounded-lg p-3 shadow-sm">
-                      <p className="text-sm text-[#4A4A4A] mb-2">Ordenar por:</p>
-                      <div className="flex gap-2">
-                        {(['fecha', 'nombre', 'tipo'] as const).map(field => (
-                            <button
-                                key={field}
-                                onClick={() => handleSort(field)}
-                                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm capitalize transition-colors ${
-                                    sortBy === field ? 'bg-[#0066CC] text-white' : 'bg-gray-100 text-[#4A4A4A]'
-                                }`}
-                            >
-                              {field}
-                              {sortBy === field && <ArrowUpDown className="w-4 h-4" />}
-                            </button>
-                        ))}
-                      </div>
-                    </div>
-                )}
+                        {/* Comentarios de avance */}
+                        {inspection.observacionesAvance?.trim() && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <MessageSquare className="w-4 h-4 text-[#0066CC]" />
+                              <h5 className="text-sm font-semibold text-[#003D7A]">Comentarios de Avance</h5>
+                            </div>
+                            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                              <p className="text-sm text-[#1A1A1A] leading-relaxed whitespace-pre-wrap">
+                                {inspection.observacionesAvance}
+                              </p>
+                            </div>
+                          </div>
+                        )}
 
-                {loadingArchivos ? (
-                    <div className="bg-white rounded-lg p-8 text-center">
-                      <Loader2 className="w-12 h-12 text-[#0066CC] animate-spin mx-auto mb-4" />
-                      <p className="text-[#4A4A4A]">Cargando documentos...</p>
-                    </div>
-                ) : errorArchivos ? (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <p className="text-sm text-red-800">{errorArchivos}</p>
-                      <button
-                          onClick={() => recargarArchivos(solicitudId)}
-                          className="mt-3 text-sm text-[#0066CC] hover:underline"
-                      >
-                        Reintentar
-                      </button>
-                    </div>
-                ) : archivosList.length > 0 ? (
-                    getSortedArchivos().map(archivo => {
-                      const badgeColor = getTipoDocumentoBadgeColor(archivo.tipoDocumento);
-                      const iconInfo = getFileIconInfo(archivo.fileName);
-                      return (
-                          <div key={archivo.id} className="bg-white rounded-lg p-4 shadow-sm">
+                        {/* Observaciones */}
+                        {inspection.observations?.trim() && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-orange-500" />
+                              <h5 className="text-sm font-semibold text-[#003D7A]">Observaciones de Inspección</h5>
+                            </div>
+                            <div className={`p-3 rounded-lg border ${inspection.status === 'no-conforme'
+                                ? 'bg-red-50 border-red-200'
+                                : 'bg-orange-50 border-orange-200'
+                              }`}>
+                              <p className="text-sm text-[#1A1A1A] leading-relaxed whitespace-pre-wrap">
+                                {inspection.observations}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Paralización */}
+                        {inspection.solicitaParalizacion && (
+                          <div className="p-3 bg-orange-50 border-l-4 border-orange-500 rounded-r-lg">
                             <div className="flex items-start gap-3">
-                              <div className={`w-12 h-14 flex flex-col items-center justify-center ${iconInfo.bg} rounded-lg shadow-sm flex-shrink-0`}>
-                                <div className={`w-8 h-1 ${iconInfo.color} rounded-t mb-1`} />
-                                <span className="text-[10px] font-bold text-gray-700">{iconInfo.text}</span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-[#003D7A] font-medium truncate mb-2">{archivo.fileName}</h4>
-                                <span className={`inline-block px-2 py-1 rounded-md text-xs font-medium border ${badgeColor}`}>
-                          {archivo.tipoDocumento}
-                        </span>
-                                <p className="text-xs text-[#4A4A4A] mt-2">
-                                  Modificado: {new Date(archivo.modified).toLocaleDateString('es-CL')} por {archivo.modifiedBy}
+                              <AlertOctagon className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-orange-900 mb-1">Solicitud de Paralización</p>
+                                <p className="text-xs text-orange-700">
+                                  Estado: {inspection.estadoParalizacion ?? 'Pendiente de revisión'}
                                 </p>
-                                {archivo.estado && (
-                                    <p className="text-xs text-[#4A4A4A] mt-1">Estado: {archivo.estado}</p>
+                                {inspection.motivoParalizacion?.trim() && (
+                                  <p className="text-sm text-orange-800 mt-2 leading-relaxed">
+                                    {inspection.motivoParalizacion}
+                                  </p>
                                 )}
-                              </div>
-                              <div className="flex-shrink-0">
-                                <a
-                                    href={archivo.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center justify-center w-10 h-10 bg-[#0066CC] rounded-lg text-white active:scale-95 transition-transform"
-                                    title="Abrir en SharePoint"
-                                >
-                                  <Eye className="w-5 h-5" />
-                                </a>
                               </div>
                             </div>
                           </div>
-                      );
-                    })
+                        )}
+
+                        {/* Email inspector */}
+                        {inspection.inspectorEmail && (
+                          <div className="pt-3 border-t border-gray-100">
+                            <p className="text-xs text-[#4A4A4A] mb-1">Contacto del inspector</p>
+                            <a href={`mailto:${inspection.inspectorEmail}`} className="text-sm text-[#0066CC] hover:underline">
+                              {inspection.inspectorEmail}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="bg-white rounded-lg p-8 text-center">
+                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  {filtrosActivos > 0
+                    ? <Search className="w-10 h-10 text-gray-400" />
+                    : <FileText className="w-10 h-10 text-gray-400" />
+                  }
+                </div>
+                <p className="text-[#003D7A] font-medium mb-2">
+                  {filtrosActivos > 0
+                    ? 'Sin resultados para los filtros aplicados'
+                    : 'No hay inspecciones registradas'
+                  }
+                </p>
+                {filtrosActivos > 0 ? (
+                  <button onClick={limpiarFiltros} className="text-sm text-[#0066CC] hover:underline">
+                    Limpiar filtros
+                  </button>
                 ) : (
-                    <div className="bg-white rounded-lg p-8 text-center">
-                      <FileText className="w-16 h-16 text-[#4A4A4A] opacity-30 mx-auto mb-4" />
-                      <p className="text-[#4A4A4A] mb-2">No hay documentos adjuntos</p>
-                      <p className="text-sm text-[#4A4A4A]">Los documentos de esta solicitud aparecerán aquí</p>
-                    </div>
+                  <p className="text-sm text-[#4A4A4A]">Presiona el botón + para crear una nueva inspección</p>
                 )}
               </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
-        {/* FAB - Nueva Inspección */}
-        <FloatingActionButton
-            onClick={() => onNewInspection(solicitud)}
-            icon={<Plus className="w-6 h-6" />}
-            label="Inspección"
-        />
+        {/* ── TAB: DOCUMENTOS ──────────────────────────────── */}
+        {activeTab === 'documentos' && (
+          <div className="space-y-4">
+            {!loadingArchivos && !errorArchivos && archivosList.length > 0 && (
+              <div className="bg-white rounded-lg p-3 shadow-sm">
+                <p className="text-sm text-[#4A4A4A] mb-2">Ordenar por:</p>
+                <div className="flex gap-2">
+                  {(['fecha', 'nombre', 'tipo'] as const).map(field => (
+                    <button
+                      key={field}
+                      onClick={() => handleSort(field)}
+                      className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm capitalize transition-colors ${sortBy === field ? 'bg-[#0066CC] text-white' : 'bg-gray-100 text-[#4A4A4A]'
+                        }`}
+                    >
+                      {field}
+                      {sortBy === field && <ArrowUpDown className="w-4 h-4" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Modal de fotos — datos ya pre-cargados desde el context */}
-        {currentInspectionForPhotos && (
-            <PhotosModal
-                isOpen={isPhotosModalOpen}
-                title={`Fotos de ${currentInspectionForPhotos.title}`}
-                inspeccionId={currentInspectionForPhotos.id}
-                photos={(fotos[currentInspectionForPhotos.id] ?? []) as FotoInspeccion[]}
-                loading={fotosLoadingIds.has(currentInspectionForPhotos.id)}
-                error={null}
-                onClose={closePhotosModal}
-            />
+            {loadingArchivos ? (
+              <div className="bg-white rounded-lg p-8 text-center">
+                <Loader2 className="w-12 h-12 text-[#0066CC] animate-spin mx-auto mb-4" />
+                <p className="text-[#4A4A4A]">Cargando documentos...</p>
+              </div>
+            ) : errorArchivos ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm text-red-800">{errorArchivos}</p>
+                <button onClick={() => recargarArchivos(solicitudId)} className="mt-3 text-sm text-[#0066CC] hover:underline">
+                  Reintentar
+                </button>
+              </div>
+            ) : archivosList.length > 0 ? (
+              getSortedArchivos().map(archivo => {
+                const badgeColor = getTipoDocumentoBadgeColor(archivo.tipoDocumento);
+                const iconInfo = getFileIconInfo(archivo.fileName);
+                return (
+                  <div key={archivo.id} className="bg-white rounded-lg p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-12 h-14 flex flex-col items-center justify-center ${iconInfo.bg} rounded-lg shadow-sm flex-shrink-0`}>
+                        <div className={`w-8 h-1 ${iconInfo.color} rounded-t mb-1`} />
+                        <span className="text-[10px] font-bold text-gray-700">{iconInfo.text}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-[#003D7A] font-medium truncate mb-2">{archivo.fileName}</h4>
+                        <span className={`inline-block px-2 py-1 rounded-md text-xs font-medium border ${badgeColor}`}>
+                          {archivo.tipoDocumento}
+                        </span>
+                        <p className="text-xs text-[#4A4A4A] mt-2">
+                          Modificado: {new Date(archivo.modified).toLocaleDateString('es-CL')} por {archivo.modifiedBy}
+                        </p>
+                        {archivo.estado && (
+                          <p className="text-xs text-[#4A4A4A] mt-1">Estado: {archivo.estado}</p>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0">
+                        <a
+                          href={archivo.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center w-10 h-10 bg-[#0066CC] rounded-lg text-white active:scale-95 transition-transform"
+                          title="Abrir en SharePoint"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="bg-white rounded-lg p-8 text-center">
+                <FileText className="w-16 h-16 text-[#4A4A4A] opacity-30 mx-auto mb-4" />
+                <p className="text-[#4A4A4A] mb-2">No hay documentos adjuntos</p>
+                <p className="text-sm text-[#4A4A4A]">Los documentos de esta solicitud aparecerán aquí</p>
+              </div>
+            )}
+          </div>
         )}
       </div>
+
+      {/* FAB */}
+      <FloatingActionButton
+        onClick={() => onNewInspection(solicitud)}
+        icon={<Plus className="w-6 h-6" />}
+        label="Inspección"
+      />
+
+      {/* Modal fotos */}
+      {currentInspectionForPhotos && (
+        <PhotosModal
+          isOpen={isPhotosModalOpen}
+          title={`Fotos de ${currentInspectionForPhotos.title}`}
+          inspeccionId={currentInspectionForPhotos.id}
+          photos={(fotos[currentInspectionForPhotos.id] ?? []) as FotoInspeccion[]}
+          loading={fotosLoadingIds.has(currentInspectionForPhotos.id)}
+          error={null}
+          onClose={closePhotosModal}
+        />
+      )}
+    </div>
   );
 }

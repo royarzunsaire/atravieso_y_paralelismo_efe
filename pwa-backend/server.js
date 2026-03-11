@@ -59,6 +59,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`✓ Flow CREATE: ${process.env.FLOW_CREATE_URL ? 'Configurado' : '❌ NO'}`);
   console.log(`✓ Flow ARCHIVOS: ${process.env.FLOW_ARCHIVOS_LISTAR_URL ? 'Configurado' : '❌ NO'}`);
   console.log(`✓ Flow INSPECCIONES: ${process.env.FLOW_INSPECCIONES_CREAR_URL ? 'Configurado' : '❌ NO'}`);
+  console.log(`✓ Flow Tipos de INSPECCION: ${process.env.FLOW_TIPOS_INSPECCION_URL ? 'Configurado' : '❌ NO'}`);
   console.log(`✓ Auth Microsoft: ${process.env.AZURE_AD_CLIENT_ID ? 'Configurado' : '❌ NO'}`);
   console.log(`✓ JWT Secret: ${process.env.JWT_SECRET ? 'Configurado' : '❌ NO'}`);
   console.log('='.repeat(50));

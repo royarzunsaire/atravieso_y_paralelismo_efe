@@ -22,9 +22,8 @@ const TIPOS_FALLBACK = [
     { id: 6, titulo: 'Verificación Técnica' },
 ];
 
-async function callFlow(flowUrl, data = {}) {
-    const response = await axios.post(flowUrl, data, {
-        headers: { 'Content-Type': 'application/json' },
+async function callFlow(flowUrl) {
+    const response = await axios.get(flowUrl, {
         timeout: 30000,
     });
     return response.data;
@@ -52,7 +51,7 @@ router.get('/', verifyToken, async (req, res) => {
         console.log('📋 GET /api/tipos-inspeccion - consultando SharePoint');
 
         const result = await callFlow(FLOW_TIPOS_INSPECCION_URL);
-        const tipos = Array.isArray(result.data) ? result.data : Array.isArray(result) ? result : [];
+        const tipos = Array.isArray(result.data?.body) ? result.data.body : [];
 
         // Guardar en caché
         tiposCache = { data: tipos, expiresAt: now + TIPOS_CACHE_TTL_MS };
@@ -61,8 +60,12 @@ router.get('/', verifyToken, async (req, res) => {
         res.json({ success: true, data: tipos });
 
     } catch (error) {
-        console.error('❌ Error obteniendo tipos de inspección:', error.message);
-        // Ante error, devolver fallback para no romper el formulario
+        console.error('❌ Error completo:', {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data,
+            url: FLOW_TIPOS_INSPECCION_URL?.substring(0, 80) + '...'
+        });
         res.json({ success: true, data: TIPOS_FALLBACK, source: 'fallback' });
     }
 });

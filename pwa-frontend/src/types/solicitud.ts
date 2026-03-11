@@ -87,6 +87,9 @@ export interface InspeccionDetalle {
   motivoParalizacion: string;
   latitud: string;
   longitud: string;
+  desfase: '1' | '0' | null;
+  fechaCreacion: string | null;
+  fechaInspeccion: string | null;
 }
 
 /**

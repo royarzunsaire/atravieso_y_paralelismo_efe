@@ -82,6 +82,15 @@ function mapInspeccionItem(item) {
   if (estadoInspeccion === 'No Conforme') status = 'no-conforme';
   else if (estadoInspeccion.includes('Observacion')) status = 'observaciones';
 
+  // Mapear campo Desfase — SharePoint retorna "1", "0" o null (como string)
+  const desfaseRaw = item.Desfase;
+  let desfase = null;
+  if (desfaseRaw != null) {
+    const val = String(desfaseRaw).trim();
+    if (val === '1' || val === 'true') desfase = '1';
+    else if (val === '0' || val === 'false') desfase = '0';
+  }
+
   return {
     id: String(item.ID || item.Id || Date.now()),
     date: `${dateStr} - ${timeStr}`,
@@ -100,6 +109,9 @@ function mapInspeccionItem(item) {
     motivoParalizacion: String(item.MotivoParalizacion || ''),
     latitud: String(item.Latitud || ''),
     longitud: String(item.Longitud || ''),
+    desfase,
+    fechaCreacion: item.Created || null,
+    fechaInspeccion: item.FechaInspeccion || null,
   };
 }
 
@@ -114,11 +126,11 @@ router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
     console.log(`📋 GET /api/inspecciones/solicitud/${solicitudId} - Usuario: ${userEmail}`);
 
     if (isNaN(solicitudId)) {
-      return res.status(400).json({ success: false, error: 'Invalid solicitudId', message: 'solicitudId must be a number' });
+      return res.status(400).json({ success: false, error: 'Invalid solicitudId' });
     }
 
     if (!FLOW_INSPECCIONES_LISTAR_URL) {
-      return res.status(500).json({ success: false, error: 'Flow URL not configured', message: 'FLOW_INSPECCIONES_LISTAR_URL is missing in .env' });
+      return res.status(500).json({ success: false, error: 'Flow URL not configured' });
     }
 
     const normalizedId = parseInt(solicitudId, 10);
@@ -143,9 +155,6 @@ router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
 
 /**
  * POST /api/inspecciones
- * Crea una nueva inspección.
- * CAMBIO: usa fechaInspeccion enviada por el cliente (respeta zona horaria del usuario).
- *         Si no viene, usa la fecha del servidor como fallback.
  */
 router.post('/', verifyToken, async (req, res) => {
   try {
@@ -153,7 +162,7 @@ router.post('/', verifyToken, async (req, res) => {
       solicitudId,
       codigoSolicitud,
       tipoInspeccion,
-      fechaInspeccion,       // ← NUEVO: viene del frontend (datetime-local → ISO string)
+      fechaInspeccion,
       porcentajeAvance,
       estadoInspeccion,
       observacionesAvance,
@@ -170,7 +179,6 @@ router.post('/', verifyToken, async (req, res) => {
 
     console.log(`📝 POST /api/inspecciones - Solicitud ${solicitudId} - Usuario: ${userEmail}`);
 
-    // Validaciones
     if (!solicitudId || !tipoInspeccion || !estadoInspeccion || typeof porcentajeAvance !== 'number') {
       return res.status(400).json({
         success: false,
@@ -180,18 +188,17 @@ router.post('/', verifyToken, async (req, res) => {
     }
 
     if (porcentajeAvance < 0 || porcentajeAvance > 100) {
-      return res.status(400).json({ success: false, error: 'Porcentaje inválido', message: 'El porcentaje debe estar entre 0 y 100' });
+      return res.status(400).json({ success: false, error: 'Porcentaje inválido' });
     }
 
     if (estadoInspeccion === 'No Conforme' && (!observacionesInspeccion || observacionesInspeccion.trim().length < 10)) {
-      return res.status(400).json({ success: false, error: 'Observaciones requeridas', message: 'Las observaciones son obligatorias para "No Conforme"' });
+      return res.status(400).json({ success: false, error: 'Observaciones requeridas' });
     }
 
     if (!FLOW_INSPECCIONES_CREAR_URL) {
       return res.status(500).json({ success: false, error: 'Flow URL not configured' });
     }
 
-    // Fecha: usar la enviada por el cliente. Si no viene o es inválida, usar servidor.
     let fechaFinal;
     if (fechaInspeccion) {
       const parsed = new Date(fechaInspeccion);
@@ -204,7 +211,7 @@ router.post('/', verifyToken, async (req, res) => {
       solicitudId: parseInt(solicitudId),
       codigoSolicitud: codigoSolicitud || '',
       tipoInspeccion,
-      fechaInspeccion: fechaFinal,  // ← ahora usa la fecha del usuario
+      fechaInspeccion: fechaFinal,
       inspectorEmail: userEmail || '',
       inspectorNombre: userNombre || '',
       porcentajeAvance: parseInt(porcentajeAvance),
