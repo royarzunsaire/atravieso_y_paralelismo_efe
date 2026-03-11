@@ -123,6 +123,16 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
     return Array.from(new Set(tipos)).sort();
   }, [inspeccionesList]);
 
+  // Última inspección por fechaInspeccion (fallback a fechaCreacion)
+  const ultimaInspeccion = useMemo(() => {
+    if (!inspeccionesList.length) return null;
+    return [...inspeccionesList].sort((a, b) => {
+      const dateA = new Date(a.fechaInspeccion ?? a.fechaCreacion ?? 0).getTime();
+      const dateB = new Date(b.fechaInspeccion ?? b.fechaCreacion ?? 0).getTime();
+      return dateB - dateA;
+    })[0];
+  }, [inspeccionesList]);
+
   const inspeccionesFiltradas = useMemo(() => {
     return inspeccionesList.filter(i => {
       if (filtros.texto.trim()) {
@@ -262,6 +272,119 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
           {/* ── TAB: INFO ── */}
           {activeTab === 'info' && (
               <div className="space-y-4">
+
+                {/* ── Card de Progreso de Obra — siempre visible ── */}
+                <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                  {/* Header */}
+                  <div className="bg-gradient-to-r from-[#003D7A] to-[#0066CC] px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-white/80" />
+                      <span className="text-sm font-semibold text-white">Progreso de Obra</span>
+                    </div>
+                    {!loadingInspecciones && ultimaInspeccion && (
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                            ultimaInspeccion.status === 'conforme'
+                                ? 'bg-green-400/20 text-green-100 border-green-300/40'
+                                : 'bg-red-400/20 text-red-100 border-red-300/40'
+                        }`}>
+                    {ultimaInspeccion.status === 'conforme' ? 'Conforme' : 'No Conforme'}
+                  </span>
+                    )}
+                  </div>
+
+                  <div className="p-4">
+                    {loadingInspecciones ? (
+                        /* Skeleton mientras carga */
+                        <div className="animate-pulse space-y-3">
+                          <div className="flex items-end gap-4">
+                            <div className="w-24 h-12 bg-gray-200 rounded-lg" />
+                            <div className="flex-1 space-y-2 pb-1">
+                              <div className="h-3 bg-gray-200 rounded-full w-3/4" />
+                              <div className="h-3 bg-gray-200 rounded-full" />
+                            </div>
+                          </div>
+                          <div className="border-t border-gray-100 pt-3 space-y-2">
+                            <div className="h-3 bg-gray-200 rounded w-1/2" />
+                            <div className="h-3 bg-gray-200 rounded w-2/3" />
+                          </div>
+                        </div>
+                    ) : ultimaInspeccion ? (
+                        <>
+                          {/* Con inspecciones — muestra el % real */}
+                          <div className="flex items-end gap-4 mb-4">
+                            <div>
+                        <span className="text-5xl font-bold text-[#0066CC] leading-none tabular-nums">
+                          {ultimaInspeccion.progress}
+                        </span>
+                              <span className="text-2xl font-bold text-[#0066CC]">%</span>
+                            </div>
+                            <div className="flex-1 pb-1">
+                              <div className="flex justify-between text-xs text-[#4A4A4A] mb-1.5">
+                                <span>Avance registrado</span>
+                                <span>{ultimaInspeccion.progress}%</span>
+                              </div>
+                              <div className="h-3 bg-[#F5F7FA] rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full transition-all duration-700 ${
+                                        ultimaInspeccion.progress >= 75
+                                            ? 'bg-gradient-to-r from-[#0066CC] to-green-500'
+                                            : 'bg-gradient-to-r from-[#003D7A] to-[#0066CC]'
+                                    }`}
+                                    style={{ width: `${ultimaInspeccion.progress}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="border-t border-[#003D7A]/10 pt-3 space-y-1.5">
+                            <p className="text-xs text-[#4A4A4A] font-medium uppercase tracking-wide">
+                              Basado en última inspección
+                            </p>
+                            <div className="flex items-center gap-2 text-sm text-[#1A1A1A]">
+                              <Clock className="w-3.5 h-3.5 text-[#0066CC] flex-shrink-0" />
+                              <span>{ultimaInspeccion.date}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-[#1A1A1A]">
+                              <FileText className="w-3.5 h-3.5 text-[#0066CC] flex-shrink-0" />
+                              <span>{ultimaInspeccion.type}</span>
+                            </div>
+                            {ultimaInspeccion.inspector && (
+                                <div className="flex items-center gap-2 text-sm text-[#1A1A1A]">
+                                  <User className="w-3.5 h-3.5 text-[#0066CC] flex-shrink-0" />
+                                  <span>{ultimaInspeccion.inspector}</span>
+                                </div>
+                            )}
+                          </div>
+                        </>
+                    ) : (
+                        <>
+                          {/* Sin inspecciones — muestra 0% explícito */}
+                          <div className="flex items-end gap-4 mb-4">
+                            <div>
+                              <span className="text-5xl font-bold text-[#4A4A4A] leading-none tabular-nums">0</span>
+                              <span className="text-2xl font-bold text-[#4A4A4A]">%</span>
+                            </div>
+                            <div className="flex-1 pb-1">
+                              <div className="flex justify-between text-xs text-[#4A4A4A] mb-1.5">
+                                <span>Avance registrado</span>
+                                <span>0%</span>
+                              </div>
+                              <div className="h-3 bg-[#F5F7FA] rounded-full overflow-hidden">
+                                <div className="h-full w-0 rounded-full bg-gray-300" />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="border-t border-[#003D7A]/10 pt-3">
+                            <p className="text-xs text-[#4A4A4A] font-medium uppercase tracking-wide mb-1">
+                              Sin inspecciones de avance realizadas
+                            </p>
+                            <p className="text-xs text-[#4A4A4A]">
+                              El progreso se actualizará al registrar la primera inspección
+                            </p>
+                          </div>
+                        </>
+                    )}
+                  </div>
+                </div>
                 <div className="bg-white rounded-lg p-4 shadow-sm">
                   <div>
                     <p className="text-sm text-[#4A4A4A] mb-1">Etapa</p>

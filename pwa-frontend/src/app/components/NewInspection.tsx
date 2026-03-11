@@ -3,16 +3,14 @@ import { Header } from './Header';
 import { Button } from './Button';
 import { Camera, X, CheckCircle2, XCircle, AlertOctagon, Loader2, RefreshCw } from 'lucide-react';
 import type { Solicitud, InspectionPhoto } from '../../types/solicitud';
-import { useCatalogs } from '@/context/CatalogsContext'; // ← lee del contexto, cero fetch
+import { useCatalogs } from '@/context/CatalogsContext';
 
-// ── Helper: datetime-local en hora local del usuario ─────────
 function getLocalDateTimeString(): string {
   const now = new Date();
   const offset = now.getTimezoneOffset() * 60000;
   return new Date(now.getTime() - offset).toISOString().slice(0, 16);
 }
 
-// ── Props ────────────────────────────────────────────────────
 interface NewInspectionProps {
   solicitud: Solicitud;
   onBack: () => void;
@@ -25,16 +23,12 @@ interface NewInspectionProps {
     status: 'conforme' | 'no-conforme';
     photos: InspectionPhoto[];
     solicitarParalizacion?: boolean;
-    fechaInspeccion?: string; // ← NUEVO: ISO string en hora local del usuario
+    fechaInspeccion?: string;
   }) => void;
   onAddPhoto: () => void;
   tempPhotos: InspectionPhoto[];
   onRemovePhoto: (photoId: string) => void;
 }
-
-// ════════════════════════════════════════════════════════════
-// COMPONENT
-// ════════════════════════════════════════════════════════════
 
 export function NewInspection({
                                 solicitud,
@@ -47,12 +41,9 @@ export function NewInspection({
                               }: NewInspectionProps) {
   const draftKey = useMemo(() => `newInspectionDraft:${solicitud.id}`, [solicitud.id]);
 
-  // ── Catálogos desde Context — CERO fetches aquí ────────────
-  // Los tipos ya están en memoria desde que CatalogsProvider montó.
   const { tiposInspeccion, tiposInspeccionLoading, tiposInspeccionError, recargarTiposInspeccion } =
       useCatalogs();
 
-  // ── Form state ──────────────────────────────────────────────
   const [type, setType] = useState('');
   const [fechaInspeccion, setFechaInspeccion] = useState(getLocalDateTimeString);
   const [progress, setProgress] = useState(0);
@@ -62,12 +53,12 @@ export function NewInspection({
   const [solicitarParalizacion, setSolicitarParalizacion] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // Refs para scroll hacia el primer campo con error
+  // Refs para scroll al primer campo con error
   const refFecha = useRef<HTMLDivElement>(null);
   const refTipo = useRef<HTMLDivElement>(null);
+  const refComentarios = useRef<HTMLDivElement>(null);
   const refObservaciones = useRef<HTMLDivElement>(null);
 
-  // ── Draft persistence ───────────────────────────────────────
   const saveDraftToSession = () => {
     try {
       sessionStorage.setItem(draftKey, JSON.stringify({
@@ -92,11 +83,11 @@ export function NewInspection({
     } catch { /* ignorar */ }
   }, [draftKey]);
 
-  // ── Validación ──────────────────────────────────────────────
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
-    if (!type) newErrors.type = 'Debe seleccionar un tipo de inspección';
     if (!fechaInspeccion) newErrors.fechaInspeccion = 'La fecha es obligatoria';
+    if (!type) newErrors.type = 'Debe seleccionar un tipo de inspección';
+    if (!comentariosAvance.trim()) newErrors.comentariosAvance = 'Los comentarios de avance son obligatorios';
     if (status === 'no-conforme' && observacionesInspeccion.trim().length < 10)
       newErrors.observacionesInspeccion = 'Las observaciones son obligatorias para "No Conforme" (mínimo 10 caracteres)';
     setErrors(newErrors);
@@ -106,13 +97,13 @@ export function NewInspection({
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!validate()) {
-      // Ir al primer campo con error en orden de aparición en el formulario
       const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) => {
         ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       };
-      // Chequear en el mismo orden en que aparecen en el form
+      // Orden de aparición en el formulario
       if (!fechaInspeccion) { scrollTo(refFecha); return; }
       if (!type) { scrollTo(refTipo); return; }
+      if (!comentariosAvance.trim()) { scrollTo(refComentarios); return; }
       if (status === 'no-conforme' && observacionesInspeccion.trim().length < 10) { scrollTo(refObservaciones); }
       return;
     }
@@ -137,7 +128,7 @@ export function NewInspection({
             <p className="text-[#003D7A]">Solicitud #{solicitud.codigo}</p>
           </div>
 
-          {/* Fecha y hora — editable */}
+          {/* Fecha y hora */}
           <div ref={refFecha} className="bg-white rounded-lg p-4 shadow-sm">
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Fecha y Hora de Inspección <span className="text-[#E30613]">*</span>
@@ -151,12 +142,11 @@ export function NewInspection({
             {errors.fechaInspeccion && <p className="mt-1 text-sm text-[#E30613]">{errors.fechaInspeccion}</p>}
           </div>
 
-          {/* Tipo de inspección — desde CatalogsContext (cero fetch) */}
+          {/* Tipo de inspección */}
           <div ref={refTipo} className="bg-white rounded-lg p-4 shadow-sm">
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Tipo de Inspección <span className="text-[#E30613]">*</span>
             </label>
-
             {tiposInspeccionLoading ? (
                 <div className="flex items-center gap-2 h-11 px-3 bg-[#F5F7FA] rounded-lg border border-[#003D7A]/20">
                   <Loader2 className="w-4 h-4 text-[#0066CC] animate-spin" />
@@ -189,7 +179,9 @@ export function NewInspection({
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm text-[#4A4A4A]">% Avance de Obra</label>
               <div className="flex items-center gap-2">
-                <input type="number" min="0" max="100" value={progress} onChange={(e) => setProgress(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))} className="w-16 h-9 px-2 text-center bg-white border-2 border-[#0066CC] rounded-lg text-[#0066CC] font-bold focus:outline-none" />
+                <input type="number" min="0" max="100" value={progress}
+                       onChange={(e) => setProgress(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                       className="w-16 h-9 px-2 text-center bg-white border-2 border-[#0066CC] rounded-lg text-[#0066CC] font-bold focus:outline-none" />
                 <span className="text-xl text-[#0066CC] font-bold">%</span>
               </div>
             </div>
@@ -202,10 +194,19 @@ export function NewInspection({
             <div className="flex justify-between mt-2 text-xs text-[#4A4A4A]"><span>0%</span><span>50%</span><span>100%</span></div>
           </div>
 
-          {/* Comentarios de Avance */}
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <label className="block text-sm text-[#4A4A4A] mb-2">Comentarios de Avance</label>
-            <textarea value={comentariosAvance} onChange={(e) => setComentariosAvance(e.target.value)} placeholder="Agregue cualquier comentario respecto al avance..." rows={3} className="w-full px-3 py-2 bg-white rounded-lg border border-[#003D7A]/20 focus:outline-none focus:ring-2 focus:ring-[#0066CC] resize-none" />
+          {/* Comentarios de Avance — ahora obligatorio */}
+          <div ref={refComentarios} className="bg-white rounded-lg p-4 shadow-sm">
+            <label className="block text-sm text-[#4A4A4A] mb-2">
+              Comentarios de Avance <span className="text-[#E30613]">*</span>
+            </label>
+            <textarea
+                value={comentariosAvance}
+                onChange={(e) => { setComentariosAvance(e.target.value); setErrors(p => ({ ...p, comentariosAvance: '' })); }}
+                placeholder="Agregue cualquier comentario respecto al avance..."
+                rows={3}
+                className={`w-full px-3 py-2 bg-white rounded-lg border ${errors.comentariosAvance ? 'border-[#E30613]' : 'border-[#003D7A]/20'} focus:outline-none focus:ring-2 focus:ring-[#0066CC] resize-none`}
+            />
+            {errors.comentariosAvance && <p className="mt-1 text-sm text-[#E30613]">{errors.comentariosAvance}</p>}
             <p className="mt-2 text-xs text-[#4A4A4A]">{comentariosAvance.length} caracteres</p>
           </div>
 
@@ -214,7 +215,8 @@ export function NewInspection({
             <label className="block text-sm text-[#4A4A4A] mb-3">Estado General</label>
             <div className="grid grid-cols-1 gap-2">
               {statusOptions.map(option => (
-                  <button key={option.value} type="button" onClick={() => { setStatus(option.value); if (option.value === 'conforme') setSolicitarParalizacion(false); }}
+                  <button key={option.value} type="button"
+                          onClick={() => { setStatus(option.value); if (option.value === 'conforme') setSolicitarParalizacion(false); }}
                           className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${status === option.value ? option.activeColor : option.color}`}>
                     {option.icon}<span>{option.label}</span>
                   </button>
@@ -231,7 +233,9 @@ export function NewInspection({
                     <h3 className="text-[#003D7A] font-medium mb-1">Solicitar Paralización de Obra</h3>
                     <p className="text-sm text-[#4A4A4A] mb-3">Si la situación requiere detener la obra, el supervisor será notificado para su revisión.</p>
                     <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" checked={solicitarParalizacion} onChange={(e) => setSolicitarParalizacion(e.target.checked)} className="w-5 h-5 text-orange-600 border-2 border-orange-400 rounded focus:ring-2 focus:ring-orange-500" />
+                      <input type="checkbox" checked={solicitarParalizacion}
+                             onChange={(e) => setSolicitarParalizacion(e.target.checked)}
+                             className="w-5 h-5 text-orange-600 border-2 border-orange-400 rounded focus:ring-2 focus:ring-orange-500" />
                       <span className="text-sm font-medium text-[#003D7A]">Solicitar paralización de esta obra</span>
                     </label>
                     {solicitarParalizacion && (
@@ -267,7 +271,8 @@ export function NewInspection({
               <label className="text-sm text-[#4A4A4A]">Fotos Adjuntas</label>
               <span className="text-sm text-[#0066CC]">{tempPhotos.length}</span>
             </div>
-            <button type="button" onClick={() => { saveDraftToSession(); onAddPhoto(); }} className="w-full h-11 flex items-center justify-center gap-2 border-2 border-dashed border-[#0066CC] rounded-lg text-[#0066CC] active:bg-[#0066CC]/5 transition-colors mb-3">
+            <button type="button" onClick={() => { saveDraftToSession(); onAddPhoto(); }}
+                    className="w-full h-11 flex items-center justify-center gap-2 border-2 border-dashed border-[#0066CC] rounded-lg text-[#0066CC] active:bg-[#0066CC]/5 transition-colors mb-3">
               <Camera className="w-5 h-5" /> Agregar Foto
             </button>
             {tempPhotos.length > 0 && (
@@ -275,7 +280,8 @@ export function NewInspection({
                   {tempPhotos.map(photo => (
                       <div key={photo.id} className="relative aspect-square">
                         <img src={photo.url} alt={photo.description} className="w-full h-full object-cover rounded-lg" />
-                        <button type="button" onClick={() => onRemovePhoto(photo.id)} className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[#E30613] rounded-full text-white shadow-lg active:scale-95">
+                        <button type="button" onClick={() => onRemovePhoto(photo.id)}
+                                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[#E30613] rounded-full text-white shadow-lg active:scale-95">
                           <X className="w-4 h-4" />
                         </button>
                       </div>
