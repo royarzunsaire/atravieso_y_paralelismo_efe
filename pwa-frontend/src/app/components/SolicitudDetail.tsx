@@ -21,7 +21,6 @@ import {
   User,
   X,
   Search,
-  AlertTriangle,
 } from 'lucide-react';
 import { getEstadoColor, getPrioridadTextColor } from '@/utils/solicitudUtils';
 import type { Solicitud, InspeccionDetalle, Archivo, FotoInspeccion } from '@/types/solicitud';
@@ -85,14 +84,6 @@ const STATUS_CONFIG = {
     borderColor: 'border-green-200',
     iconColor: 'text-green-600',
     badgeColor: 'bg-green-100 text-green-700 border-green-300',
-  },
-  observaciones: {
-    icon: <AlertTriangle className="w-6 h-6" />,
-    label: 'Con Observaciones',
-    bgColor: 'bg-orange-50',
-    borderColor: 'border-orange-200',
-    iconColor: 'text-orange-500',
-    badgeColor: 'bg-orange-100 text-orange-700 border-orange-300',
   },
   'no-conforme': {
     icon: <XCircle className="w-6 h-6" />,
@@ -389,24 +380,24 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
               <div className="space-y-2">
 
                 {/* Barra de búsqueda — siempre visible */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#4A4A4A]" />
-                  <input
-                    type="text"
-                    placeholder="Buscar inspector, tipo..."
-                    value={filtros.texto}
-                    onChange={e => setFiltros(f => ({ ...f, texto: e.target.value }))}
-                    className="w-full h-12 pl-11 pr-10 bg-white rounded-xl border border-[#003D7A]/10 text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC] placeholder:text-[#999]"
-                  />
-                  {filtros.texto && (
-                    <button
-                      onClick={() => setFiltros(f => ({ ...f, texto: '' }))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200"
-                    >
-                      <X className="w-4 h-4 text-[#4A4A4A]" />
-                    </button>
-                  )}
-                </div>
+                {/*<div className="relative">*/}
+                {/*  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#4A4A4A]" />*/}
+                {/*  <input*/}
+                {/*    type="text"*/}
+                {/*    placeholder="Buscar inspector, tipo..."*/}
+                {/*    value={filtros.texto}*/}
+                {/*    onChange={e => setFiltros(f => ({ ...f, texto: e.target.value }))}*/}
+                {/*    className="w-full h-12 pl-11 pr-10 bg-white rounded-xl border border-[#003D7A]/10 text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC] placeholder:text-[#999]"*/}
+                {/*  />*/}
+                {/*  {filtros.texto && (*/}
+                {/*    <button*/}
+                {/*      onClick={() => setFiltros(f => ({ ...f, texto: '' }))}*/}
+                {/*      className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200"*/}
+                {/*    >*/}
+                {/*      <X className="w-4 h-4 text-[#4A4A4A]" />*/}
+                {/*    </button>*/}
+                {/*  )}*/}
+                {/*</div>*/}
 
                 {/* Selector de estado — botón que abre lista desplegable */}
                 <div className="relative">
@@ -415,7 +406,6 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                       { value: '', label: 'Todos los estados', icon: <Eye className="w-5 h-5" />, chipColors: 'bg-gray-100 text-[#4A4A4A] border-gray-300', listColors: 'bg-gray-50 hover:bg-gray-100 text-[#4A4A4A]' },
                       { value: 'conforme', label: 'Conforme', icon: <CheckCircle2 className="w-5 h-5" />, chipColors: 'bg-green-600 text-white border-green-600', listColors: 'bg-green-50 hover:bg-green-100 text-green-800' },
                       { value: 'no-conforme', label: 'No Conforme', icon: <XCircle className="w-5 h-5" />, chipColors: 'bg-[#E30613] text-white border-[#E30613]', listColors: 'bg-red-50 hover:bg-red-100 text-red-800' },
-                      { value: 'observaciones', label: 'Con Observaciones', chipColors: 'bg-orange-500 text-white border-orange-500', listColors: 'bg-orange-50 hover:bg-orange-100 text-orange-800' },
                     ];
                     const current = ESTADO_OPTIONS.find(o => o.value === filtros.estado) || ESTADO_OPTIONS[0];
                     return (
@@ -845,7 +835,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                           >
                             {isExpanded
                               ? <><ChevronUp className="w-3.5 h-3.5" /><span>Ocultar</span></>
-                              : <><span>Ver más</span><ChevronDown className="w-3.5 h-3.5" /></>
+                              : <><span>Ver Detalles</span><ChevronDown className="w-3.5 h-3.5" /></>
                             }
                           </button>
                         </div>

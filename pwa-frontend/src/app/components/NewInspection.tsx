@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, FormEvent } from 'react';
 import { Header } from './Header';
 import { Button } from './Button';
 import { Camera, X, CheckCircle2, XCircle, AlertOctagon, Loader2, RefreshCw } from 'lucide-react';
@@ -62,6 +62,11 @@ export function NewInspection({
   const [solicitarParalizacion, setSolicitarParalizacion] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  // Refs para scroll hacia el primer campo con error
+  const refFecha = useRef<HTMLDivElement>(null);
+  const refTipo = useRef<HTMLDivElement>(null);
+  const refObservaciones = useRef<HTMLDivElement>(null);
+
   // ── Draft persistence ───────────────────────────────────────
   const saveDraftToSession = () => {
     try {
@@ -100,7 +105,17 @@ export function NewInspection({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (!validate()) {
+      // Ir al primer campo con error en orden de aparición en el formulario
+      const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) => {
+        ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      };
+      // Chequear en el mismo orden en que aparecen en el form
+      if (!fechaInspeccion) { scrollTo(refFecha); return; }
+      if (!type) { scrollTo(refTipo); return; }
+      if (status === 'no-conforme' && observacionesInspeccion.trim().length < 10) { scrollTo(refObservaciones); }
+      return;
+    }
     saveDraftToSession();
     onSave({ type, fechaInspeccion, progress, comentariosAvance, observacionesInspeccion, status, photos: tempPhotos, solicitarParalizacion });
   };
@@ -123,7 +138,7 @@ export function NewInspection({
           </div>
 
           {/* Fecha y hora — editable */}
-          <div className="bg-white rounded-lg p-4 shadow-sm">
+          <div ref={refFecha} className="bg-white rounded-lg p-4 shadow-sm">
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Fecha y Hora de Inspección <span className="text-[#E30613]">*</span>
             </label>
@@ -137,7 +152,7 @@ export function NewInspection({
           </div>
 
           {/* Tipo de inspección — desde CatalogsContext (cero fetch) */}
-          <div className="bg-white rounded-lg p-4 shadow-sm">
+          <div ref={refTipo} className="bg-white rounded-lg p-4 shadow-sm">
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Tipo de Inspección <span className="text-[#E30613]">*</span>
             </label>
@@ -230,7 +245,7 @@ export function NewInspection({
           )}
 
           {/* Observaciones de Inspección */}
-          <div className="bg-white rounded-lg p-4 shadow-sm">
+          <div ref={refObservaciones} className="bg-white rounded-lg p-4 shadow-sm">
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Observaciones de Inspección
               {status === 'no-conforme' && <><span className="text-[#E30613]"> *</span><span className="text-xs text-[#E30613] ml-1">(Obligatorio para No Conforme)</span></>}

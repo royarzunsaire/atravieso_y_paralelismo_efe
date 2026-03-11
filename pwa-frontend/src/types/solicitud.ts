@@ -73,7 +73,7 @@ export interface InspeccionDetalle {
   date: string;
   type: string;
   progress: number;
-  status: 'conforme' | 'observaciones' | 'no-conforme';
+  status: 'conforme' | 'no-conforme';
   observations: string;
   // Campos adicionales del backend
   solicitudId: number;
