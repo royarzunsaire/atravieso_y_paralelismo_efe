@@ -20,6 +20,7 @@ interface SolicitudCardProps {
 // ========================================
 
 function getProgressColor(progress: number): string {
+  if (progress === 100) return 'bg-green-500';
   if (progress >= 75) return 'from-[#0066CC] to-green-500';
   return 'from-[#003D7A] to-[#0066CC]';
 }

@@ -326,7 +326,9 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                               <div className="h-3 bg-[#F5F7FA] rounded-full overflow-hidden">
                                 <div
                                     className={`h-full rounded-full transition-all duration-700 ${
-                                        ultimaInspeccion.progress >= 75
+                                        ultimaInspeccion.progress === 100
+                                            ? 'bg-green-500'
+                                        : ultimaInspeccion.progress >= 75
                                             ? 'bg-gradient-to-r from-[#0066CC] to-green-500'
                                             : 'bg-gradient-to-r from-[#003D7A] to-[#0066CC]'
                                     }`}
