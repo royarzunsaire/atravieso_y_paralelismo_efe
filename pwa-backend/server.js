@@ -11,6 +11,7 @@ const archivosRoutes = require('./routes/archivos');
 const inspeccionesRoutes = require('./routes/inspecciones');
 const fotosRouter = require('./routes/fotos');
 const tiposInspeccionRoutes = require('./routes/tiposInspeccion');
+const usuariosRouter = require('./routes/usuarios');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -51,7 +52,7 @@ app.use('/api/archivos', archivosRoutes);
 app.use('/api/inspecciones', inspeccionesRoutes);
 app.use('/api/fotos', fotosRouter);
 app.use('/api/tipos-inspeccion', tiposInspeccionRoutes);
-
+app.use('/api/usuarios', usuariosRouter);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(50));

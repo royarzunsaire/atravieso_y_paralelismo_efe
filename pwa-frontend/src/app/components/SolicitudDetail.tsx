@@ -22,6 +22,7 @@ import {
   X,
   Search,
   Filter,
+  Lock,
 } from 'lucide-react';
 import { getEstadoColor, getPrioridadTextColor } from '@/utils/solicitudUtils';
 import type { Solicitud, InspeccionDetalle, Archivo, FotoInspeccion } from '@/types/solicitud';
@@ -35,6 +36,7 @@ interface SolicitudDetailProps {
   solicitudId: number;
   onBack: () => void;
   onNewInspection: (solicitud: Solicitud) => void;
+  onCierreObra: (solicitud: Solicitud) => void;
 }
 
 interface InfoRowProps {
@@ -87,7 +89,7 @@ const STATUS_CONFIG = {
   },
 } as const;
 
-export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: SolicitudDetailProps) {
+export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierreObra }: SolicitudDetailProps) {
   const {
     solicitudActual, inspecciones, archivos, fotos, fotosLoadingIds,
     loadingSolicitud, loadingInspecciones, loadingArchivos,
@@ -327,10 +329,10 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                                 <div
                                     className={`h-full rounded-full transition-all duration-700 ${
                                         ultimaInspeccion.progress === 100
-                                            ? 'bg-green-500'
-                                        : ultimaInspeccion.progress >= 75
-                                            ? 'bg-gradient-to-r from-[#0066CC] to-green-500'
-                                            : 'bg-gradient-to-r from-[#003D7A] to-[#0066CC]'
+                                            ? 'bg-green-500' // Color cuando está completado
+                                            : ultimaInspeccion.progress >= 75
+                                                ? 'bg-gradient-to-r from-[#0066CC] to-green-500'
+                                                : 'bg-gradient-to-r from-[#003D7A] to-[#0066CC]'
                                     }`}
                                     style={{ width: `${ultimaInspeccion.progress}%` }}
                                 />
@@ -839,7 +841,23 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
           )}
         </div>
 
-        <FloatingActionButton onClick={() => onNewInspection(solicitud)} icon={<Plus className="w-6 h-6" />} label="Inspección" />
+        {/* FAB — cambia a "Cerrar Obra" cuando el avance llega al 100% */}
+        {ultimaInspeccion?.progress === 100 ? (
+            <button
+                onClick={() => onCierreObra(solicitud)}
+                className="fixed bottom-20 right-4 flex items-center gap-2 h-14 px-5 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-full shadow-lg active:scale-95 transition-transform z-30 font-semibold"
+                aria-label="Cerrar Obra"
+            >
+              <Lock className="w-5 h-5 flex-shrink-0" />
+              <span>Cerrar Obra</span>
+            </button>
+        ) : (
+            <FloatingActionButton
+                onClick={() => onNewInspection(solicitud)}
+                icon={<Plus className="w-6 h-6" />}
+                label="Inspección"
+            />
+        )}
 
         {currentInspectionForPhotos && (
             <PhotosModal

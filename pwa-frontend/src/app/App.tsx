@@ -8,12 +8,14 @@ import { SolicitudesDashboard } from './components/SolicitudesDashboard';
 import { SolicitudDetail } from './components/SolicitudDetail';
 import { NewInspection } from './components/NewInspection';
 import { PhotoCapture } from './components/PhotoCapture';
+import { CierreObra } from './components/CierreObra';
 import { inspeccionesService } from '@/services/inspecciones';
 import { Toast } from './components/Toast';
 import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
 import { fotosService } from '@/services/fotos';
 import { CatalogsProvider } from '@/context/CatalogsContext';
 import { SolicitudProvider } from '@/context/SolicitudContext';
+import type { CierreObraData } from './components/CierreObra';
 
 // ========================================
 // TYPES
@@ -26,7 +28,8 @@ type Screen =
     | { type: 'solicitudesDashboard' }
     | { type: 'solicitudDetail'; solicitudId: number }
     | { type: 'newInspection'; solicitudId: number; solicitud: Solicitud }
-    | { type: 'photoCapture' };
+    | { type: 'photoCapture' }
+    | { type: 'cierreObra'; solicitudId: number; solicitud: Solicitud };
 
 // ========================================
 // APP CONTENT (lógica y UI)
@@ -112,6 +115,46 @@ function AppContent() {
       setCurrentScreen({ type: 'profile' });
     } else {
       setCurrentScreen({ type: 'solicitudesDashboard' });
+    }
+  };
+
+  // ── Handlers: cierre de obra ─────────────────────────────────
+
+  const handleCierreObra = (solicitudId: number, solicitud: Solicitud) => {
+    setCurrentSolicitud(solicitud);
+    setCurrentScreen({ type: 'cierreObra', solicitudId, solicitud });
+  };
+
+  const handleSaveCierreObra = async (data: CierreObraData) => {
+    setIsSaving(true);
+    try {
+      // TODO: llamar al endpoint de cierre cuando esté disponible en el backend
+      // await cierreObraService.create(data);
+      console.log('📦 Cierre de obra:', data);
+
+      // Por ahora simulamos éxito con un pequeño delay
+      await new Promise(res => setTimeout(res, 1200));
+
+      setToast({
+        isOpen: true,
+        type: 'success',
+        title: 'Obra cerrada correctamente',
+        message: data.usuariosNotificar.length > 0
+            ? `Se notificará a ${data.usuariosNotificar.length} usuario(s).`
+            : 'El cierre quedó registrado.',
+      });
+
+      setCurrentScreen({ type: 'solicitudDetail', solicitudId: data.solicitudId });
+    } catch (error: any) {
+      console.error('❌ Error cerrando obra:', error);
+      setToast({
+        isOpen: true,
+        type: 'error',
+        title: 'Error al cerrar la obra',
+        message: error.message,
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -298,6 +341,7 @@ function AppContent() {
                   solicitudId={currentScreen.solicitudId}
                   onBack={() => setCurrentScreen({ type: 'solicitudesDashboard' })}
                   onNewInspection={(solicitud) => handleNewInspection(currentScreen.solicitudId, solicitud)}
+                  onCierreObra={(solicitud) => handleCierreObra(currentScreen.solicitudId, solicitud)}
               />
               <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
             </>
@@ -326,6 +370,15 @@ function AppContent() {
             <PhotoCapture onBack={handleBackFromPhotoCapture} onPhotoConfirm={handlePhotoConfirm} />
         )}
 
+        {isAuthenticated && currentScreen.type === 'cierreObra' && currentScreen.solicitud && (
+            <CierreObra
+                solicitud={currentScreen.solicitud}
+                onBack={() => setCurrentScreen({ type: 'solicitudDetail', solicitudId: currentScreen.solicitudId })}
+                onSave={handleSaveCierreObra}
+                isSaving={isSaving}
+            />
+        )}
+
         <Toast
             isOpen={toast.isOpen}
             type={toast.type}
@@ -339,11 +392,6 @@ function AppContent() {
 
 // ========================================
 // APP ROOT
-//
-// Jerarquía de providers (de afuera hacia adentro):
-//   CatalogsProvider  — tipos de inspección y futuros catálogos (carga 1 vez al iniciar)
-//   SolicitudProvider — datos de la solicitud activa (solicitud, inspecciones, archivos, fotos)
-//   AppContent        — toda la UI
 // ========================================
 
 export default function App() {
