@@ -1,4 +1,4 @@
-import { Home, ChartNoAxesCombined, Camera, User } from 'lucide-react';
+import { Home, ChartNoAxesCombined, Camera, User, MonitorCog } from 'lucide-react';
 
 interface BottomNavProps {
   activeTab: 'home' | 'reports' | 'camera' | 'profile';
@@ -8,7 +8,7 @@ interface BottomNavProps {
 const navItems = [
   { id: 'home' as const, label: 'Solicitudes', icon: Home },
   // { id: 'reports' as const, label: 'Proyectos', icon: FileText },
-  { id: 'camera' as const, label: 'Reporteria', icon: ChartNoAxesCombined },
+  { id: 'camera' as const, label: 'SIG', icon: MonitorCog },
   { id: 'profile' as const, label: 'Perfil', icon: User },
 ];
 

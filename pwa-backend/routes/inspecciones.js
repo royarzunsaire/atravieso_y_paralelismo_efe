@@ -29,17 +29,11 @@ function getCacheEntry(cacheKey) {
 }
 
 function setCacheEntry(cacheKey, data) {
-  inspeccionesCache.set(cacheKey, {
-    data,
-    expiresAt: Date.now() + INSPECCIONES_CACHE_TTL_MS,
-  });
+  inspeccionesCache.set(cacheKey, { data, expiresAt: Date.now() + INSPECCIONES_CACHE_TTL_MS });
 }
 
 function invalidateInspeccionesCache(solicitudId) {
-  if (solicitudId) {
-    inspeccionesCache.delete(String(solicitudId));
-    return;
-  }
+  if (solicitudId) { inspeccionesCache.delete(String(solicitudId)); return; }
   inspeccionesCache.clear();
 }
 
@@ -51,7 +45,6 @@ function mapInspeccionItem(item) {
     if (field.Value !== undefined) return field.Value;
     return String(field);
   };
-
   const extractUser = (userField) => {
     if (!userField) return null;
     if (typeof userField === 'string') return userField;
@@ -59,7 +52,6 @@ function mapInspeccionItem(item) {
     if (userField.Title) return userField.Title;
     return null;
   };
-
   const extractUserEmail = (userField) => {
     if (!userField) return null;
     if (typeof userField === 'string') return userField;
@@ -68,11 +60,8 @@ function mapInspeccionItem(item) {
   };
 
   let fecha;
-  try {
-    fecha = new Date(item.FechaInspeccion || item.Created);
-  } catch (e) {
-    fecha = new Date();
-  }
+  try { fecha = new Date(item.FechaInspeccion || item.Created); }
+  catch (e) { fecha = new Date(); }
 
   const dateStr = fecha.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const timeStr = fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
@@ -82,7 +71,6 @@ function mapInspeccionItem(item) {
   if (estadoInspeccion === 'No Conforme') status = 'no-conforme';
   else if (estadoInspeccion.includes('Observacion')) status = 'observaciones';
 
-  // Mapear campo Desfase — SharePoint retorna "1", "0" o null (como string)
   const desfaseRaw = item.Desfase;
   let desfase = null;
   if (desfaseRaw != null) {
@@ -128,7 +116,6 @@ router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
     if (isNaN(solicitudId)) {
       return res.status(400).json({ success: false, error: 'Invalid solicitudId' });
     }
-
     if (!FLOW_INSPECCIONES_LISTAR_URL) {
       return res.status(500).json({ success: false, error: 'Flow URL not configured' });
     }
@@ -155,6 +142,9 @@ router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
 
 /**
  * POST /api/inspecciones
+ *
+ * Acepta usuariosNotificar: [{ id, nombre, correo }]
+ * Se envía al flow junto con el resto del payload.
  */
 router.post('/', verifyToken, async (req, res) => {
   try {
@@ -172,6 +162,7 @@ router.post('/', verifyToken, async (req, res) => {
       cantidadFotos,
       latitud,
       longitud,
+      usuariosNotificar,  // [{ id, nombre, correo }] — opcional
     } = req.body;
 
     const userEmail = req.user?.email;
@@ -207,6 +198,21 @@ router.post('/', verifyToken, async (req, res) => {
       fechaFinal = new Date().toISOString();
     }
 
+    // Normalizar array de usuarios — tolera undefined o null
+    const notificar = Array.isArray(usuariosNotificar)
+        ? usuariosNotificar
+            .filter(u => u && u.correo)
+            .map(u => ({
+              id: u.id ?? null,
+              nombre: String(u.nombre || '').trim(),
+              correo: String(u.correo).trim(),
+            }))
+        : [];
+
+    if (notificar.length > 0) {
+      console.log(`📧 Notificando a ${notificar.length} usuario(s): ${notificar.map(u => u.correo).join(', ')}`);
+    }
+
     const payload = {
       solicitudId: parseInt(solicitudId),
       codigoSolicitud: codigoSolicitud || '',
@@ -225,6 +231,9 @@ router.post('/', verifyToken, async (req, res) => {
       appVersion: req.headers['x-app-version'] || '1.0.0',
       latitud: latitud || '',
       longitud: longitud || '',
+      // ── Notificaciones ──────────────────────────────────────
+      usuariosNotificar: notificar,
+      cantidadNotificados: notificar.length,
     };
 
     const result = await callFlow(FLOW_INSPECCIONES_CREAR_URL, payload);

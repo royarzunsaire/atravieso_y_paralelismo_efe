@@ -218,6 +218,7 @@ function AppContent() {
     photos: InspectionPhoto[];
     solicitarParalizacion?: boolean;
     fechaInspeccion?: string;
+    usuariosNotificar: { id: number; nombre: string; correo: string }[];
   }) => {
     setIsSaving(true);
     try {
@@ -249,6 +250,7 @@ function AppContent() {
         cantidadFotos: 0,
         latitud,
         longitud,
+        usuariosNotificar: inspection.usuariosNotificar ?? [],
       };
 
       const result = await inspeccionesService.create(inspeccionData);
@@ -295,13 +297,16 @@ function AppContent() {
 
       setToast(prev => {
         if (prev.isOpen && prev.type === 'warning') return prev;
+        const notificados = inspection.usuariosNotificar?.length ?? 0;
         return {
           isOpen: true,
           type: inspection.solicitarParalizacion ? 'warning' : 'success',
           title: 'Inspección guardada',
           message: inspection.solicitarParalizacion
               ? 'La solicitud de paralización fue enviada al supervisor para revisión.'
-              : `${inspection.type} registrada correctamente.`,
+              : notificados > 0
+                  ? `${inspection.type} registrada. Se notificará a ${notificados} usuario${notificados > 1 ? 's' : ''}.`
+                  : `${inspection.type} registrada correctamente.`,
         };
       });
 

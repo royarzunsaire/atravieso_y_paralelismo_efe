@@ -849,7 +849,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                 aria-label="Cerrar Obra"
             >
               <Lock className="w-5 h-5 flex-shrink-0" />
-              <span>Cerrar Obra</span>
+              <span>Término de Ejecución de Obra</span>
             </button>
         ) : (
             <FloatingActionButton

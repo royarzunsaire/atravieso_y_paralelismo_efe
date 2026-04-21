@@ -42,13 +42,13 @@ router.get('/', verifyToken, async (req, res) => {
         // El flow retorna array directo o { data: [...] }
         const raw = Array.isArray(result) ? result : (Array.isArray(result?.data) ? result.data : []);
 
-        // Normalizar: garantizar que cada item tenga nombre y correo
+        // Normalizar: el flow retorna Nombre/Correo (mayúscula) o nombre/correo (minúscula)
         const usuarios = raw
-            .filter(u => u.nombre && u.correo)
+            .filter(u => (u.Nombre || u.nombre) && (u.Correo || u.correo))
             .map((u, index) => ({
                 id: u.id ?? index + 1,
-                nombre: String(u.nombre).trim(),
-                correo: String(u.correo).trim(),
+                nombre: String(u.Nombre || u.nombre).trim(),
+                correo: String(u.Correo || u.correo).trim(),
             }));
 
         usuariosCache = { data: usuarios, expiresAt: now + USUARIOS_CACHE_TTL_MS };
