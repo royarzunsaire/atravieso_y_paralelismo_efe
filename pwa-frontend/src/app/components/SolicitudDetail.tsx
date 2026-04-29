@@ -35,7 +35,7 @@ type TabId = 'info' | 'documentos' | 'inspections';
 interface SolicitudDetailProps {
   solicitudId: number;
   onBack: () => void;
-  onNewInspection: (solicitud: Solicitud) => void;
+  onNewInspection: (solicitud: Solicitud, minimoAvance: number) => void;
   onCierreObra: (solicitud: Solicitud) => void;
 }
 
@@ -125,6 +125,9 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
     return Array.from(new Set(tipos)).sort();
   }, [inspeccionesList]);
 
+  // Los archivos ya vienen filtrados por tipo desde el flow de Power Automate
+  const archivosPermitidos = archivosList;
+
   // Última inspección por fechaInspeccion (fallback a fechaCreacion)
   const ultimaInspeccion = useMemo(() => {
     if (!inspeccionesList.length) return null;
@@ -177,7 +180,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   };
 
   const getSortedArchivos = (): Archivo[] => {
-    return [...archivosList].sort((a, b) => {
+    return [...archivosPermitidos].sort((a, b) => {
       let cmp = 0;
       if (sortBy === 'fecha') cmp = new Date(a.modified).getTime() - new Date(b.modified).getTime();
       else if (sortBy === 'nombre') cmp = a.fileName.localeCompare(b.fileName);
@@ -328,11 +331,9 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                               <div className="h-3 bg-[#F5F7FA] rounded-full overflow-hidden">
                                 <div
                                     className={`h-full rounded-full transition-all duration-700 ${
-                                        ultimaInspeccion.progress === 100
-                                            ? 'bg-green-500' // Color cuando está completado
-                                            : ultimaInspeccion.progress >= 75
-                                                ? 'bg-gradient-to-r from-[#0066CC] to-green-500'
-                                                : 'bg-gradient-to-r from-[#003D7A] to-[#0066CC]'
+                                        ultimaInspeccion.progress >= 75
+                                            ? 'bg-gradient-to-r from-[#0066CC] to-green-500'
+                                            : 'bg-gradient-to-r from-[#003D7A] to-[#0066CC]'
                                     }`}
                                     style={{ width: `${ultimaInspeccion.progress}%` }}
                                 />
@@ -779,7 +780,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
           {/* ── TAB: DOCUMENTOS ── */}
           {activeTab === 'documentos' && (
               <div className="space-y-4">
-                {!loadingArchivos && !errorArchivos && archivosList.length > 0 && (
+                {!loadingArchivos && !errorArchivos && archivosPermitidos.length > 0 && (
                     <div className="bg-white rounded-lg p-3 shadow-sm">
                       <p className="text-sm text-[#4A4A4A] mb-2">Ordenar por:</p>
                       <div className="flex gap-2">
@@ -803,7 +804,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                       <p className="text-sm text-red-800">{errorArchivos}</p>
                       <button onClick={() => recargarArchivos(solicitudId)} className="mt-3 text-sm text-[#0066CC] hover:underline">Reintentar</button>
                     </div>
-                ) : archivosList.length > 0 ? (
+                ) : archivosPermitidos.length > 0 ? (
                     getSortedArchivos().map(archivo => {
                       const badgeColor = getTipoDocumentoBadgeColor(archivo.tipoDocumento);
                       const iconInfo = getFileIconInfo(archivo.fileName);
@@ -846,14 +847,14 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
             <button
                 onClick={() => onCierreObra(solicitud)}
                 className="fixed bottom-20 right-4 flex items-center gap-2 h-14 px-5 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-full shadow-lg active:scale-95 transition-transform z-30 font-semibold"
-                aria-label="Cerrar Obra"
+                aria-label="Término de Ejecución de Obra"
             >
               <Lock className="w-5 h-5 flex-shrink-0" />
               <span>Término de Ejecución de Obra</span>
             </button>
         ) : (
             <FloatingActionButton
-                onClick={() => onNewInspection(solicitud)}
+                onClick={() => onNewInspection(solicitud, ultimaInspeccion?.progress ?? 0)}
                 icon={<Plus className="w-6 h-6" />}
                 label="Inspección"
             />

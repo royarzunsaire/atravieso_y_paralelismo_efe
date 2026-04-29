@@ -27,7 +27,7 @@ type Screen =
     | { type: 'profile' }
     | { type: 'solicitudesDashboard' }
     | { type: 'solicitudDetail'; solicitudId: number }
-    | { type: 'newInspection'; solicitudId: number; solicitud: Solicitud }
+    | { type: 'newInspection'; solicitudId: number; solicitud: Solicitud; minimoAvance: number }
     | { type: 'photoCapture' }
     | { type: 'cierreObra'; solicitudId: number; solicitud: Solicitud };
 
@@ -97,10 +97,10 @@ function AppContent() {
     setBottomNavTab('home');
   };
 
-  const handleNewInspection = (solicitudId: number, solicitud: Solicitud) => {
+  const handleNewInspection = (solicitudId: number, solicitud: Solicitud, minimoAvance: number) => {
     setCurrentSolicitud(solicitud);
     setTempPhotos([]);
-    setCurrentScreen({ type: 'newInspection', solicitudId, solicitud });
+    setCurrentScreen({ type: 'newInspection', solicitudId, solicitud, minimoAvance });
   };
 
   const handleCancelNewInspection = (solicitudId: number) => {
@@ -132,17 +132,25 @@ function AppContent() {
       // await cierreObraService.create(data);
       console.log('📦 Cierre de obra:', data);
 
-      // Por ahora simulamos éxito con un pequeño delay
       await new Promise(res => setTimeout(res, 1200));
 
-      setToast({
-        isOpen: true,
-        type: 'success',
-        title: 'Obra cerrada correctamente',
-        message: data.usuariosNotificar.length > 0
-            ? `Se notificará a ${data.usuariosNotificar.length} usuario(s).`
-            : 'El cierre quedó registrado.',
-      });
+      if (data.esCierreCompleto) {
+        setToast({
+          isOpen: true,
+          type: 'success',
+          title: 'Obra cerrada definitivamente',
+          message: data.usuariosNotificar.length > 0
+              ? `Se notificará a ${data.usuariosNotificar.length} usuario(s).`
+              : 'El cierre con informe final quedó registrado.',
+        });
+      } else {
+        setToast({
+          isOpen: true,
+          type: 'warning',
+          title: 'Datos guardados — cierre pendiente',
+          message: 'Falta adjuntar el informe final para confirmar el cierre definitivo.',
+        });
+      }
 
       setCurrentScreen({ type: 'solicitudDetail', solicitudId: data.solicitudId });
     } catch (error: any) {
@@ -150,7 +158,7 @@ function AppContent() {
       setToast({
         isOpen: true,
         type: 'error',
-        title: 'Error al cerrar la obra',
+        title: 'Error al guardar',
         message: error.message,
       });
     } finally {
@@ -345,7 +353,7 @@ function AppContent() {
               <SolicitudDetail
                   solicitudId={currentScreen.solicitudId}
                   onBack={() => setCurrentScreen({ type: 'solicitudesDashboard' })}
-                  onNewInspection={(solicitud) => handleNewInspection(currentScreen.solicitudId, solicitud)}
+                  onNewInspection={(solicitud, minimoAvance) => handleNewInspection(currentScreen.solicitudId, solicitud, minimoAvance)}
                   onCierreObra={(solicitud) => handleCierreObra(currentScreen.solicitudId, solicitud)}
               />
               <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
@@ -366,6 +374,7 @@ function AppContent() {
                 onSave={(inspection) => handleSaveInspection(currentScreen.solicitudId, inspection)}
                 onAddPhoto={handleAddPhoto}
                 isSaving={isSaving}
+                minimoAvance={currentScreen.minimoAvance}
                 tempPhotos={tempPhotos}
                 onRemovePhoto={handleRemovePhoto}
             />

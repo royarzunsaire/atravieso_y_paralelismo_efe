@@ -8,6 +8,7 @@ import {
     Lock,
     MessageSquare,
     Paperclip,
+    Save,
     Users,
     X,
 } from 'lucide-react';
@@ -35,6 +36,8 @@ export interface CierreObraData {
         mimeType: string;
     } | null;
     usuariosNotificar: { id: number; nombre: string; correo: string }[];
+    /** true solo cuando se adjuntó el informe final — habilita el cierre definitivo */
+    esCierreCompleto: boolean;
 }
 
 interface CierreObraProps {
@@ -51,7 +54,7 @@ interface CierreObraProps {
 function getLocalDateString(): string {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+    return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 }
 
 const MIME_LABELS: Record<string, string> = {
@@ -173,6 +176,7 @@ export function CierreObra({ solicitud, onBack, onSave, isSaving = false }: Cier
             comentarios,
             archivoInforme: archivo,
             usuariosNotificar,
+            esCierreCompleto: !!archivo,
         });
     };
 
@@ -204,7 +208,7 @@ export function CierreObra({ solicitud, onBack, onSave, isSaving = false }: Cier
                         Fecha de Cierre <span className="text-[#E30613]">*</span>
                     </label>
                     <input
-                        type="datetime-local"
+                        type="date"
                         value={fechaCierre}
                         onChange={e => { setFechaCierre(e.target.value); setErrors(p => ({ ...p, fechaCierre: '' })); }}
                         className={`w-full h-11 px-3 bg-white rounded-lg border-2 ${errors.fechaCierre ? 'border-[#E30613]' : 'border-[#003D7A]/20'} focus:outline-none focus:ring-2 focus:ring-[#0066CC] transition-shadow`}
@@ -400,31 +404,50 @@ export function CierreObra({ solicitud, onBack, onSave, isSaving = false }: Cier
                     )}
                 </div>
 
-                {/* ── Aviso de acción irreversible ──────────────────── */}
-                <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                    <Lock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-800 leading-relaxed">
-                        <span className="font-semibold">Esta acción es definitiva.</span> Al cerrar la obra se
-                        registrará la fecha y comentarios de cierre y se notificará a los usuarios seleccionados.
-                    </p>
-                </div>
+                {/* ── Aviso — cambia según si hay archivo ──────────────────── */}
+                {archivo ? (
+                    <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                        <Lock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-800 leading-relaxed">
+                            <span className="font-semibold">Esta acción es definitiva.</span> Al cerrar la obra se
+                            registrará la fecha, comentarios e informe de cierre, y se notificará a los usuarios seleccionados.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                        <Save className="w-5 h-5 text-[#0066CC] flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-blue-800 leading-relaxed">
+                            <span className="font-semibold">Informe final pendiente.</span> Adjunta el informe final
+                            de obra para confirmar el cierre definitivo. Por ahora solo se guardarán los datos ingresados.
+                        </p>
+                    </div>
+                )}
 
                 {/* ── Botón guardar ─────────────────────────────────── */}
                 <div className="pt-2">
                     <button
                         type="submit"
                         disabled={isSaving}
-                        className="w-full h-14 rounded-xl bg-gradient-to-r from-green-600 to-green-500 text-white font-semibold text-base shadow-lg active:scale-[0.98] transition-all disabled:opacity-60 disabled:active:scale-100 flex items-center justify-center gap-2"
+                        className={`w-full h-14 rounded-xl text-white font-semibold text-base shadow-lg active:scale-[0.98] transition-all disabled:opacity-60 disabled:active:scale-100 flex items-center justify-center gap-2 ${
+                            archivo
+                                ? 'bg-gradient-to-r from-green-600 to-green-500'
+                                : 'bg-gradient-to-r from-[#003D7A] to-[#0066CC]'
+                        }`}
                     >
                         {isSaving ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                Guardando cierre...
+                                {archivo ? 'Cerrando obra...' : 'Guardando...'}
                             </>
-                        ) : (
+                        ) : archivo ? (
                             <>
                                 <Lock className="w-5 h-5" />
                                 Confirmar Cierre de Obra
+                            </>
+                        ) : (
+                            <>
+                                <Save className="w-5 h-5" />
+                                Guardar Datos de Cierre
                             </>
                         )}
                     </button>

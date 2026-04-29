@@ -32,6 +32,7 @@ interface NewInspectionProps {
   solicitud: Solicitud;
   onBack: () => void;
   isSaving?: boolean;
+  minimoAvance?: number;   // avance de la última inspección — no puede retroceders
   onSave: (inspection: {
     type: string;
     progress: number;
@@ -53,6 +54,7 @@ export function NewInspection({
                                 onBack,
                                 onSave,
                                 isSaving = false,
+                                minimoAvance = 0,
                                 onAddPhoto,
                                 tempPhotos,
                                 onRemovePhoto,
@@ -65,7 +67,7 @@ export function NewInspection({
   // ── Form state ────────────────────────────────────────────
   const [type, setType] = useState('');
   const [fechaInspeccion, setFechaInspeccion] = useState(getLocalDateTimeString);
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState(() => minimoAvance);
   const [comentariosAvance, setComentariosAvance] = useState('');
   const [observacionesInspeccion, setObservacionesInspeccion] = useState('');
   const [status, setStatus] = useState<'conforme' | 'no-conforme'>('conforme');
@@ -139,6 +141,8 @@ export function NewInspection({
     if (!fechaInspeccion) newErrors.fechaInspeccion = 'La fecha es obligatoria';
     if (!type) newErrors.type = 'Debe seleccionar un tipo de inspección';
     if (!comentariosAvance.trim()) newErrors.comentariosAvance = 'Los comentarios de avance son obligatorios';
+    if (progress < minimoAvance)
+      newErrors.progress = `El avance no puede ser menor al registrado anteriormente (${minimoAvance}%)`;
     if (status === 'no-conforme' && observacionesInspeccion.trim().length < 10)
       newErrors.observacionesInspeccion = 'Las observaciones son obligatorias para "No Conforme" (mínimo 10 caracteres)';
     setErrors(newErrors);
@@ -259,25 +263,33 @@ export function NewInspection({
           {/* Slider de avance */}
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <label className="text-sm text-[#4A4A4A]">% Avance de Obra</label>
+              <div>
+                <label className="text-sm text-[#4A4A4A]">% Avance de Obra</label>
+                {minimoAvance > 0 && (
+                    <p className="text-xs text-[#4A4A4A] mt-0.5">Mínimo: {minimoAvance}% (última inspección)</p>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <input
-                    type="number" min="0" max="100" value={progress}
-                    onChange={(e) => setProgress(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                    className="w-16 h-9 px-2 text-center bg-white border-2 border-[#0066CC] rounded-lg text-[#0066CC] font-bold focus:outline-none"
+                    type="number" min={minimoAvance} max="100" value={progress}
+                    onChange={(e) => setProgress(Math.max(minimoAvance, Math.min(100, parseInt(e.target.value) || minimoAvance)))}
+                    className={`w-16 h-9 px-2 text-center bg-white border-2 ${errors.progress ? 'border-[#E30613]' : 'border-[#0066CC]'} rounded-lg text-[#0066CC] font-bold focus:outline-none`}
                 />
                 <span className="text-xl text-[#0066CC] font-bold">%</span>
               </div>
             </div>
             <input
                 type="range" min="0" max="100" step="1" value={progress}
-                onChange={(e) => setProgress(Number(e.target.value))}
-                className="w-full h-2 bg-[#F5F7FA] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#0066CC] [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#0066CC] [&::-moz-range-thumb]:border-0"
-                style={{ background: `linear-gradient(to right, #0066CC 0%, #0066CC ${progress}%, #F5F7FA ${progress}%, #F5F7FA 100%)` }}
+                onChange={(e) => setProgress(Math.max(minimoAvance, Number(e.target.value)))}
+                className="w-full h-2 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#0066CC] [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#0066CC] [&::-moz-range-thumb]:border-0"
+                style={{
+                  background: `linear-gradient(to right, #0066CC 0%, #0066CC ${progress}%, #F5F7FA ${progress}%, #F5F7FA 100%)`,
+                }}
             />
             <div className="flex justify-between mt-2 text-xs text-[#4A4A4A]">
               <span>0%</span><span>50%</span><span>100%</span>
             </div>
+            {errors.progress && <p className="mt-1.5 text-sm text-[#E30613]">{errors.progress}</p>}
           </div>
 
           {/* Comentarios de Avance */}
