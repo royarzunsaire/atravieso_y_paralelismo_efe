@@ -1,4 +1,4 @@
-const supabase = require('./supabase');
+const { supabaseAdmin, supabaseAuth } = require('./supabase');
 
 function normalizeSupabaseError(error) {
   if (!error) return null;
@@ -40,49 +40,34 @@ function mapUsuarioRow(row) {
 
 async function getUserByEmail(email) {
   const data = await maybeSingle(
-    supabase.from('usuarios').select('*').eq('email', email).maybeSingle()
+    supabaseAdmin.from('usuarios').select('*').eq('email', email).maybeSingle()
   );
   return mapUsuarioRow(data);
 }
 
 async function getUserById(id) {
   const data = await maybeSingle(
-    supabase.from('usuarios').select('*').eq('id', id).maybeSingle()
+    supabaseAdmin.from('usuarios').select('*').eq('id', id).maybeSingle()
   );
   return mapUsuarioRow(data);
 }
 
 async function getLocalActiveUserByEmail(email) {
-  try {
-    console.log('📡 Consultando Supabase tabla usuarios...');
-    console.log('   URL:', process.env.SUPABASE_URL ? '✅ configurada' : '❌ falta');
-    console.log('   KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ service_role' : '⚠️ usando fallback');
-
-    const { data, error } = await supabase
+  const data = await maybeSingle(
+    supabaseAdmin
       .from('usuarios')
       .select('*')
       .eq('email', email)
       .eq('auth_type', 'local')
       .eq('activo', true)
-      .maybeSingle();
-
-    console.log('   Data:', JSON.stringify(data));
-    console.log('   Error:', JSON.stringify(error));
-
-    if (error && error.code !== 'PGRST116') {
-      throw normalizeSupabaseError(error);
-    }
-
-    return mapUsuarioRow(data);
-  } catch (err) {
-    console.error('❌ getLocalActiveUserByEmail error:', err.message);
-    throw err;
-  }
+      .maybeSingle()
+  );
+  return mapUsuarioRow(data);
 }
 
 async function updateUserLastLogin(id) {
   const data = await assertSingle(
-    supabase
+    supabaseAdmin
       .from('usuarios')
       .update({ last_login: new Date().toISOString() })
       .eq('id', id)
@@ -94,16 +79,9 @@ async function updateUserLastLogin(id) {
 
 async function createLocalUser({ email, password, nombre, rol = 'usuario' }) {
   const data = await assertSingle(
-    supabase
+    supabaseAdmin
       .from('usuarios')
-      .insert({
-        email,
-        password,
-        nombre,
-        rol,
-        auth_type: 'local',
-        activo: true,
-      })
+      .insert({ email, password, nombre, rol, auth_type: 'local', activo: true })
       .select('*')
       .single()
   );
@@ -111,29 +89,27 @@ async function createLocalUser({ email, password, nombre, rol = 'usuario' }) {
 }
 
 async function createLocalAuthUser({ email, password, nombre }) {
-  const { data, error } = await supabase.auth.admin.createUser({
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
     user_metadata: { nombre },
   });
-  
   if (error) throw normalizeSupabaseError(error);
   return data.user;
 }
 
 async function signInLocalAuthUser({ email, password }) {
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabaseAuth.auth.signInWithPassword({
     email,
     password,
   });
-
   if (error) throw normalizeSupabaseError(error);
   return data.session;
 }
 
 module.exports = {
-  supabase,
+  supabase: supabaseAdmin, // mantener compatibilidad con código existente
   getUserByEmail,
   getUserById,
   getLocalActiveUserByEmail,
