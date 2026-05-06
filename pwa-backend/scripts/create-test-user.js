@@ -1,33 +1,39 @@
 const bcrypt = require('bcryptjs');
-const db = require('../database');
+const usersDb = require('../database');
 
 async function createTestUser() {
   const email = 'admin@efe.cl';
   const password = 'Admin123456'; // Cambiar después
   const nombre = 'Administrador EFE';
   
-  const hashedPassword = await bcrypt.hash(password, 10);
-  
-  const sql = `
-    INSERT INTO usuarios (email, password, nombre, auth_type, rol)
-    VALUES (?, ?, ?, 'local', 'admin')
-  `;
-  
-  db.run(sql, [email, hashedPassword, nombre], function(err) {
-    if (err) {
-      if (err.message.includes('UNIQUE')) {
-        console.log('⚠️  Usuario ya existe');
-      } else {
-        console.error('❌ Error:', err.message);
-      }
-    } else {
-      console.log('✅ Usuario creado:');
-      console.log('   Email:', email);
-      console.log('   Password:', password);
-      console.log('   ID:', this.lastID);
+  try {
+    const existing = await usersDb.getUserByEmail(email);
+    if (existing) {
+      console.log('⚠️  Usuario ya existe');
+      return;
     }
-    db.close();
-  });
+    await usersDb.createLocalAuthUser({
+      email,
+      password,
+      nombre,
+    });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await usersDb.createLocalUser({
+      email,
+      password: hashedPassword,
+      nombre,
+      rol: 'admin',
+    });
+
+    console.log('✅ Usuario creado:');
+    console.log('   Email:', email);
+    console.log('   Password:', password);
+    console.log('   ID:', user.id);
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    process.exitCode = 1;
+  }  
 }
 
 createTestUser();

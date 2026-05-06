@@ -1,14 +1,19 @@
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const bcrypt = require('bcryptjs');
-const db = require('../database');
+const usersDb = require('../database');
+
+const isAzureConfigured = Boolean(
+  process.env.AZURE_AD_CLIENT_ID &&
+  process.env.AZURE_AD_CLIENT_SECRET &&
+  process.env.AZURE_AD_TENANT_ID &&
+  process.env.AZURE_AD_REDIRECT_URI
+);
 
 // ========================================
 // SOLO SI AZURE ESTÁ CONFIGURADO
 // ========================================
-if (process.env.AZURE_AD_CLIENT_ID && 
-    process.env.AZURE_AD_CLIENT_SECRET && 
-    process.env.AZURE_AD_TENANT_ID) {
+if (isAzureConfigured) {
   
   const AzureAdOAuth2Strategy = require('passport-azure-ad').OIDCStrategy;
   
@@ -26,30 +31,19 @@ if (process.env.AZURE_AD_CLIENT_ID &&
   },
   async (iss, sub, profile, accessToken, refreshToken, done) => {
     try {
+
       const email = profile._json.email || profile._json.preferred_username;
       const nombre = profile.displayName || profile._json.name;
       const azureId = profile.oid || sub;
 
-      db.get('SELECT * FROM usuarios WHERE email = ? OR azure_id = ?', [email, azureId], (err, user) => {
-        if (err) return done(err);
-
-        if (user) {
-          db.run('UPDATE usuarios SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
-          return done(null, user);
-        } else {
-          const insertSql = `
-            INSERT INTO usuarios (email, nombre, auth_type, azure_id, password, rol)
-            VALUES (?, ?, 'microsoft', ?, 'MICROSOFT_AUTH', 'usuario')
-          `;
-          db.run(insertSql, [email, nombre, azureId], function(err) {
-            if (err) return done(err);
-            
-            db.get('SELECT * FROM usuarios WHERE id = ?', [this.lastID], (err, newUser) => {
-              done(err, newUser);
-            });
-          });
-        }
+      return done(null, {
+        id: azureId,
+        email,
+        nombre,
+        rol: 'usuario',
+        auth_type: 'microsoft',
       });
+
     } catch (error) {
       done(error);
     }
@@ -69,20 +63,15 @@ passport.use('local', new LocalStrategy({
 },
 async (email, password, done) => {
   try {
-    db.get('SELECT * FROM usuarios WHERE email = ? AND auth_type = "local" AND activo = 1', 
-      [email], 
-      async (err, user) => {
-        if (err) return done(err);
-        if (!user) return done(null, false, { message: 'Usuario no encontrado' });
 
-        const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) return done(null, false, { message: 'Contraseña incorrecta' });
+    const user = await usersDb.getLocalActiveUserByEmail(email);
+    if (!user) return done(null, false, { message: 'Usuario no encontrado' });
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) return done(null, false, { message: 'Contraseña incorrecta' });
+    const updatedUser = await usersDb.updateUserLastLogin(user.id);
 
-        db.run('UPDATE usuarios SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
-        
-        return done(null, user);
-      }
-    );
+    return done(null, updatedUser || user);
+
   } catch (error) {
     return done(error);
   }
@@ -93,10 +82,15 @@ passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
-passport.deserializeUser((id, done) => {
-  db.get('SELECT * FROM usuarios WHERE id = ?', [id], (err, user) => {
-    done(err, user);
-  });
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await usersDb.getUserById(id);
+    done(null, user);
+  } catch (error) {
+    done(error);
+  }
 });
+
+passport.isAzureConfigured = isAzureConfigured;
 
 module.exports = passport;

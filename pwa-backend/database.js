@@ -1,47 +1,129 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const supabase = require('./supabase');
 
-// Crear/conectar a la base de datos
-const db = new sqlite3.Database(path.join(__dirname, 'datos.db'), (err) => {
-  if (err) {
-    console.error('Error al conectar con la base de datos:', err);
-  } else {
-    console.log('Conectado a la base de datos SQLite');
+function normalizeSupabaseError(error) {
+  if (!error) return null;
+  const normalized = new Error(error.message || 'Error de Supabase');
+  normalized.code = error.code;
+  normalized.details = error.details;
+  normalized.hint = error.hint;
+  return normalized;
+}
+
+async function assertSingle(query) {
+  const { data, error } = await query;
+  if (error) throw normalizeSupabaseError(error);
+  return data;
+}
+
+async function maybeSingle(query) {
+  const { data, error } = await query;
+  if (error && error.code !== 'PGRST116') {
+    throw normalizeSupabaseError(error);
   }
-});
+  return data || null;
+}
 
-// Crear tabla si no existe
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS datos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      descripcion TEXT NOT NULL,
-      timestamp TEXT NOT NULL,
-      client_id INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `, (err) => {
-    if (err) {
-      console.error('Error al crear tabla:', err);
-    } else {
-      console.log('Tabla "datos" lista');
-    }
+function mapUsuarioRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    email: row.email,
+    password: row.password,
+    nombre: row.nombre,
+    rol: row.rol,
+    auth_type: row.auth_type,
+    activo: row.activo,
+    created_at: row.created_at,
+    last_login: row.last_login,
+  };
+}
+
+async function getUserByEmail(email) {
+  const data = await maybeSingle(
+    supabase.from('usuarios').select('*').eq('email', email).maybeSingle()
+  );
+  return mapUsuarioRow(data);
+}
+
+async function getUserById(id) {
+  const data = await maybeSingle(
+    supabase.from('usuarios').select('*').eq('id', id).maybeSingle()
+  );
+  return mapUsuarioRow(data);
+}
+
+async function getLocalActiveUserByEmail(email) {
+  const data = await maybeSingle(
+    supabase
+      .from('usuarios')
+      .select('*')
+      .eq('email', email)
+      .eq('auth_type', 'local')
+      .eq('activo', true)
+      .maybeSingle()
+  );
+  return mapUsuarioRow(data);
+}
+
+async function updateUserLastLogin(id) {
+  const data = await assertSingle(
+    supabase
+      .from('usuarios')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single()
+  );
+  return mapUsuarioRow(data);
+}
+
+async function createLocalUser({ email, password, nombre, rol = 'usuario' }) {
+  const data = await assertSingle(
+    supabase
+      .from('usuarios')
+      .insert({
+        email,
+        password,
+        nombre,
+        rol,
+        auth_type: 'local',
+        activo: true,
+      })
+      .select('*')
+      .single()
+  );
+  return mapUsuarioRow(data);
+}
+
+async function createLocalAuthUser({ email, password, nombre }) {
+  const { data, error } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { nombre },
   });
-  db.run(`
-    CREATE TABLE IF NOT EXISTS usuarios (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      nombre TEXT NOT NULL,
-      rol TEXT DEFAULT 'usuario',
-      auth_type TEXT DEFAULT 'local',
-      azure_id TEXT,
-      activo INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      last_login DATETIME
-    )
-  `);
-});
+  
+  if (error) throw normalizeSupabaseError(error);
+  return data.user;
+}
 
-module.exports = db;
+async function signInLocalAuthUser({ email, password }) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw normalizeSupabaseError(error);
+  return data.session;
+}
+
+module.exports = {
+  supabase,
+  getUserByEmail,
+  getUserById,
+  getLocalActiveUserByEmail,
+  updateUserLastLogin,
+  createLocalUser,
+  createLocalAuthUser,
+  signInLocalAuthUser,
+};

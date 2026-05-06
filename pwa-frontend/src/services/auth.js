@@ -19,6 +19,12 @@ export const authService = {
 
     // Guardar token y usuario en localStorage
     localStorage.setItem('token', data.token);
+    if (data.connection_token) {
+      localStorage.setItem('connection_token', data.connection_token);
+    }
+    if (data.supabase_session) {
+      localStorage.setItem('supabase_session', JSON.stringify(data.supabase_session));
+    }
     localStorage.setItem('user', JSON.stringify(data.user));
 
     return data;
@@ -41,6 +47,12 @@ export const authService = {
     }
 
     localStorage.setItem('token', data.token);
+    if (data.connection_token) {
+      localStorage.setItem('connection_token', data.connection_token);
+    }
+    if (data.supabase_session) {
+      localStorage.setItem('supabase_session', JSON.stringify(data.supabase_session));
+    }
     localStorage.setItem('user', JSON.stringify(data.user));
 
     return data;
@@ -69,12 +81,19 @@ export const authService = {
   // Logout
   logout() {
     localStorage.removeItem('token');
+    localStorage.removeItem('connection_token');
+    localStorage.removeItem('supabase_session');
     localStorage.removeItem('user');
   },
 
   // Obtener token
   getToken() {
     return localStorage.getItem('token');
+  },
+
+  // Obtener token de conexión de Supabase para usuarios locales
+  getConnectionToken() {
+    return localStorage.getItem('connection_token');
   },
 
   // Obtener usuario guardado

@@ -57,6 +57,7 @@ app.use('/api/usuarios', usuariosRouter);
 app.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(50));
   console.log(`✓ Servidor en puerto ${PORT}`);
+  console.log(`✓ Supabase: ${process.env.SUPABASE_URL ? 'Configurado' : '❌ NO'}`);
   console.log(`✓ Flow CREATE: ${process.env.FLOW_CREATE_URL ? 'Configurado' : '❌ NO'}`);
   console.log(`✓ Flow ARCHIVOS: ${process.env.FLOW_ARCHIVOS_LISTAR_URL ? 'Configurado' : '❌ NO'}`);
   console.log(`✓ Flow INSPECCIONES: ${process.env.FLOW_INSPECCIONES_CREAR_URL ? 'Configurado' : '❌ NO'}`);
