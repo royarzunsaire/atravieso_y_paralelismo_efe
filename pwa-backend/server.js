@@ -96,6 +96,11 @@ app.get('/health', (req, res) => {
     flow_fotos:        !!process.env.FLOW_FOTOS_SUBIR_URL,
     flow_tipos:        !!process.env.FLOW_TIPOS_INSPECCION_URL,
     flow_usuarios:     !!process.env.FLOW_USUARIOS_URL,
+    supabase_key_type: process.env.SUPABASE_SERVICE_ROLE_KEY 
+      ? 'service_role ✅' 
+      : process.env.SUPABASE_KEY 
+        ? 'SUPABASE_KEY ⚠️' 
+        : 'anon ❌',
   };
 
   const allCriticalOk = checks.supabase && checks.jwt && checks.session;
