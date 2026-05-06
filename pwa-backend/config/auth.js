@@ -63,16 +63,25 @@ passport.use('local', new LocalStrategy({
 },
 async (email, password, done) => {
   try {
-
+    console.log('🔍 Buscando usuario:', email);
+    
     const user = await usersDb.getLocalActiveUserByEmail(email);
+    
+    console.log('👤 Usuario encontrado:', user ? 'SÍ' : 'NO');
+    console.log('📦 Resultado raw:', JSON.stringify(user));
+    
     if (!user) return done(null, false, { message: 'Usuario no encontrado' });
+    
     const isValid = await bcrypt.compare(password, user.password);
+    console.log('🔐 Password válido:', isValid);
+    
     if (!isValid) return done(null, false, { message: 'Contraseña incorrecta' });
+    
     const updatedUser = await usersDb.updateUserLastLogin(user.id);
-
     return done(null, updatedUser || user);
 
   } catch (error) {
+    console.error('❌ Error en LocalStrategy:', error.message);
     return done(error);
   }
 }));

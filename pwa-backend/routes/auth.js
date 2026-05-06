@@ -248,9 +248,14 @@ router.get('/me', verifyToken, async (req, res) => {
 // ========================================
 router.post('/logout', verifyToken, async (req, res) => {
   try {
-    // Cerrar sesión en Supabase Auth también
-    const { error } = await usersDb.supabase.auth.admin.signOut(req.user.id);
-    if (error) console.warn('⚠️  Supabase signOut warning:', error.message);
+    // Obtener la sesión de Supabase desde el header
+    const supabaseToken = req.headers['x-supabase-token'];
+
+    if (supabaseToken) {
+      // Cerrar sesión específica usando el access_token de Supabase
+      const { error } = await usersDb.supabase.auth.admin.signOut(supabaseToken);
+      if (error) console.warn('⚠️  Supabase signOut warning:', error.message);
+    }
   } catch (e) {
     console.warn('⚠️  Error en Supabase signOut:', e.message);
   }

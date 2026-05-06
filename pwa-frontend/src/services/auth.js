@@ -82,19 +82,22 @@ export const authService = {
 async logout() {
   try {
     const token = this.getToken();
+    const supabaseToken = this.getConnectionToken();
+
     if (token) {
       await fetch(`${API_URL}/auth/logout`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
+          // Enviar el token de Supabase para cerrar esa sesión
+          ...(supabaseToken && { 'x-supabase-token': supabaseToken }),
         },
       });
     }
   } catch (e) {
     console.warn('⚠️  Error cerrando sesión en servidor:', e.message);
   } finally {
-    // Siempre limpiar localStorage
     localStorage.removeItem('token');
     localStorage.removeItem('connection_token');
     localStorage.removeItem('supabase_session');
