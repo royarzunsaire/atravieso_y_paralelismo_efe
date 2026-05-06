@@ -79,12 +79,28 @@ export const authService = {
   },
 
   // Logout
-  logout() {
+async logout() {
+  try {
+    const token = this.getToken();
+    if (token) {
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    }
+  } catch (e) {
+    console.warn('⚠️  Error cerrando sesión en servidor:', e.message);
+  } finally {
+    // Siempre limpiar localStorage
     localStorage.removeItem('token');
     localStorage.removeItem('connection_token');
     localStorage.removeItem('supabase_session');
     localStorage.removeItem('user');
-  },
+  }
+},
 
   // Obtener token
   getToken() {

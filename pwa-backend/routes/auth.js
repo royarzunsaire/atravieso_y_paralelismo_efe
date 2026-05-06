@@ -246,8 +246,15 @@ router.get('/me', verifyToken, async (req, res) => {
 // ========================================
 // LOGOUT (simplificado - solo para info)
 // ========================================
-router.post('/logout', verifyToken, (req, res) => {
-  // En este caso, el logout se maneja en el frontend borrando el token
+router.post('/logout', verifyToken, async (req, res) => {
+  try {
+    // Cerrar sesión en Supabase Auth también
+    const { error } = await usersDb.supabase.auth.admin.signOut(req.user.id);
+    if (error) console.warn('⚠️  Supabase signOut warning:', error.message);
+  } catch (e) {
+    console.warn('⚠️  Error en Supabase signOut:', e.message);
+  }
+
   res.json({ success: true, message: 'Sesión cerrada correctamente' });
 });
 
