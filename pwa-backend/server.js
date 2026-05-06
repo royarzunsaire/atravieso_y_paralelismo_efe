@@ -13,6 +13,14 @@ const fotosRouter = require('./routes/fotos');
 const tiposInspeccionRoutes = require('./routes/tiposInspeccion');
 const usuariosRouter = require('./routes/usuarios');
 
+process.on('uncaughtException', (err) => {
+  console.error('💥 uncaughtException:', err.message, err.stack);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 unhandledRejection:', reason);
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 

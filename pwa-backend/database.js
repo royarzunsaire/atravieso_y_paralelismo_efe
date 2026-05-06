@@ -53,16 +53,31 @@ async function getUserById(id) {
 }
 
 async function getLocalActiveUserByEmail(email) {
-  const data = await maybeSingle(
-    supabase
+  try {
+    console.log('📡 Consultando Supabase tabla usuarios...');
+    console.log('   URL:', process.env.SUPABASE_URL ? '✅ configurada' : '❌ falta');
+    console.log('   KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ service_role' : '⚠️ usando fallback');
+
+    const { data, error } = await supabase
       .from('usuarios')
       .select('*')
       .eq('email', email)
       .eq('auth_type', 'local')
       .eq('activo', true)
-      .maybeSingle()
-  );
-  return mapUsuarioRow(data);
+      .maybeSingle();
+
+    console.log('   Data:', JSON.stringify(data));
+    console.log('   Error:', JSON.stringify(error));
+
+    if (error && error.code !== 'PGRST116') {
+      throw normalizeSupabaseError(error);
+    }
+
+    return mapUsuarioRow(data);
+  } catch (err) {
+    console.error('❌ getLocalActiveUserByEmail error:', err.message);
+    throw err;
+  }
 }
 
 async function updateUserLastLogin(id) {
