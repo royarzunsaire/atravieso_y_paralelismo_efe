@@ -13,7 +13,7 @@ import { inspeccionesService } from '@/services/inspecciones';
 import { Toast } from './components/Toast';
 import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
 import { fotosService } from '@/services/fotos';
-import { CatalogsProvider } from '@/context/CatalogsContext';
+import { CatalogsProvider, useCatalogs } from '@/context/CatalogsContext';
 import { SolicitudProvider } from '@/context/SolicitudContext';
 import type { CierreObraData } from './components/CierreObra';
 
@@ -36,6 +36,7 @@ type Screen =
 // ========================================
 
 function AppContent() {
+  const { recargarTiposInspeccion } = useCatalogs();
   const [currentScreen, setCurrentScreen] = useState<Screen>({ type: 'login' });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [bottomNavTab, setBottomNavTab] = useState<'home' | 'reports' | 'camera' | 'profile'>('home');
@@ -81,6 +82,7 @@ function AppContent() {
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
     setCurrentScreen({ type: 'solicitudesDashboard' });
+    void recargarTiposInspeccion();
   };
 
   const handleLogout = () => {

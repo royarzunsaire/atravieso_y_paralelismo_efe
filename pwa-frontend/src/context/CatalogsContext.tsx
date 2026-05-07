@@ -27,6 +27,7 @@ import {
     type ReactNode,
 } from 'react';
 import { tiposInspeccionService } from '@/services/tiposInspeccion';
+import { authService } from '@/services/auth';
 
 // ── Interfaces de catálogos ──────────────────────────────────
 
@@ -105,9 +106,12 @@ export function CatalogsProvider({ children }: { children: ReactNode }) {
     }, []);
 
     // Level 2: carga todos los catálogos en paralelo al montar la app
+    // Solo si el usuario ya está autenticado (evita error en pantalla de login)
     // Añade aquí futuros catálogos: void cargarTiposObra(); etc.
     useEffect(() => {
-        void cargarTipos();
+        if (authService.isAuthenticated()) {
+            void cargarTipos();
+        }
     }, [cargarTipos]);
 
     const value: CatalogsContextValue = {
