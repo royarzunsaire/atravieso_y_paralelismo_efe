@@ -16,9 +16,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Mi App de Sincronización',
-        short_name: 'SyncApp',
-        description: 'App con sincronización offline',
+        name: 'Atravieso y Paralelismo Mobile',
+        short_name: 'AyP Mobile',
+        description: 'App Atravieso y Paralelismo Mobile',
         theme_color: '#ffffff',
         icons: [
           {
