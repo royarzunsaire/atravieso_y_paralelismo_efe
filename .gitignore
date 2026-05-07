@@ -46,6 +46,10 @@ coverage/
 *.tmp
 temp/
 
+# Claude
+*.claude
+.claude/
+
 
 ## MUY IMPORTANTE - Archivos que SÍ debes versionar:
 #```
