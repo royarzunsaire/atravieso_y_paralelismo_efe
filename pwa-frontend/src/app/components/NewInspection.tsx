@@ -298,7 +298,7 @@ export function NewInspection({
               Comentarios de Avance <span className="text-[#E30613]">*</span>
             </label>
             <textarea
-                value={comentariosAvance}
+                value={comentariosAvance ?? ''}
                 onChange={(e) => { setComentariosAvance(e.target.value); setErrors(p => ({ ...p, comentariosAvance: '' })); }}
                 placeholder="Agregue cualquier comentario respecto al avance..."
                 rows={3}
@@ -368,7 +368,7 @@ export function NewInspection({
               )}
             </label>
             <textarea
-                value={observacionesInspeccion}
+                value={observacionesInspeccion ?? ''}
                 onChange={(e) => { setObservacionesInspeccion(e.target.value); setErrors(p => ({ ...p, observacionesInspeccion: '' })); }}
                 placeholder={
                   status === 'no-conforme'

@@ -347,7 +347,7 @@ export function PhotoCapture({ onBack, onPhotoConfirm }: PhotoCaptureProps) {
               Descripción de la foto
             </label>
             <textarea
-              value={description}
+              value={description ?? ''}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Ej: Vista general del avance en el sector norte..."
               rows={2}

@@ -68,6 +68,7 @@ function AppContent() {
     if (currentScreen.type === 'newInspection') {
       sessionStorage.setItem('lastSolicitudScreen', currentScreen.solicitudId.toString());
       sessionStorage.setItem('currentSolicitud', JSON.stringify(currentScreen.solicitud));
+      sessionStorage.setItem('minimoAvance', String(currentScreen.minimoAvance ?? 0));
     }
     return () => {
       if (currentScreen.type !== 'newInspection' && currentScreen.type !== 'photoCapture') {
@@ -188,8 +189,9 @@ function AppContent() {
       try {
         const solicitudId = parseInt(lastScreen, 10);
         const solicitud: Solicitud = JSON.parse(solicitudData);
+        const minimoAvance = parseInt(sessionStorage.getItem('minimoAvance') ?? '0', 10);
         if (!isNaN(solicitudId) && solicitud) {
-          setCurrentScreen({ type: 'newInspection', solicitudId, solicitud });
+          setCurrentScreen({ type: 'newInspection', solicitudId, solicitud, minimoAvance: isNaN(minimoAvance) ? 0 : minimoAvance });
           return;
         }
       } catch {}
@@ -208,8 +210,9 @@ function AppContent() {
       try {
         const solicitudId = parseInt(lastScreen, 10);
         const solicitud: Solicitud = JSON.parse(solicitudData);
+        const minimoAvance = parseInt(sessionStorage.getItem('minimoAvance') ?? '0', 10);
         if (!isNaN(solicitudId) && solicitud) {
-          setCurrentScreen({ type: 'newInspection', solicitudId, solicitud });
+          setCurrentScreen({ type: 'newInspection', solicitudId, solicitud, minimoAvance: isNaN(minimoAvance) ? 0 : minimoAvance });
           return;
         }
       } catch {}
