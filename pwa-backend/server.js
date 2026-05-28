@@ -10,6 +10,7 @@ const solicitudesRoutes = require('./routes/solicitudes');
 const archivosRoutes = require('./routes/archivos');
 const inspeccionesRoutes = require('./routes/inspecciones');
 const fotosRouter = require('./routes/fotos');
+const informesRouter = require('./routes/informes');
 const tiposInspeccionRoutes = require('./routes/tiposInspeccion');
 const usuariosRouter = require('./routes/usuarios');
 
@@ -101,7 +102,7 @@ app.get('/health', (req, res) => {
     flow_solicitudes:  !!process.env.FLOW_SOLICITUD_READ_ALL_URL,
     flow_inspecciones: !!process.env.FLOW_INSPECCIONES_CREAR_URL,
     flow_archivos:     !!process.env.FLOW_ARCHIVOS_LISTAR_URL,
-    flow_fotos:        !!process.env.FLOW_FOTOS_SUBIR_URL,
+    flow_subir_archivos: !!process.env.FLOW_SUBIR_ARCHIVOS_URL,
     flow_tipos:        !!process.env.FLOW_TIPOS_INSPECCION_URL,
     flow_usuarios:     !!process.env.FLOW_USUARIOS_URL,
     supabase_key_type: process.env.SUPABASE_SERVICE_ROLE_KEY 
@@ -131,6 +132,7 @@ app.use('/api/solicitudes', solicitudesRoutes);
 app.use('/api/archivos', archivosRoutes);
 app.use('/api/inspecciones', inspeccionesRoutes);
 app.use('/api/fotos', fotosRouter);
+app.use('/api/informes', informesRouter);
 app.use('/api/tipos-inspeccion', tiposInspeccionRoutes);
 app.use('/api/usuarios', usuariosRouter);
 
@@ -185,7 +187,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  ✓ Solicitudes:        ${process.env.FLOW_SOLICITUD_READ_ALL_URL  ? '✅' : '❌'}`);
   console.log(`  ✓ Inspecciones:       ${process.env.FLOW_INSPECCIONES_CREAR_URL  ? '✅' : '❌'}`);
   console.log(`  ✓ Archivos:           ${process.env.FLOW_ARCHIVOS_LISTAR_URL     ? '✅' : '❌'}`);
-  console.log(`  ✓ Fotos subir:        ${process.env.FLOW_FOTOS_SUBIR_URL         ? '✅' : '❌'}`);
+  console.log(`  ✓ Subir archivos:     ${process.env.FLOW_SUBIR_ARCHIVOS_URL      ? '✅' : '❌'}`);
   console.log(`  ✓ Fotos listar:       ${process.env.FLOW_FOTOS_LISTAR_URL        ? '✅' : '❌'}`);
   console.log(`  ✓ Fotos contenido:    ${process.env.FLOW_FOTOS_CONTENIDO_URL     ? '✅' : '❌'}`);
   console.log(`  ✓ Tipos inspección:   ${process.env.FLOW_TIPOS_INSPECCION_URL    ? '✅' : '❌'}`);

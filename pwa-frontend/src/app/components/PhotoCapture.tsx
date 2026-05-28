@@ -126,19 +126,24 @@ export function PhotoCapture({ onBack, onPhotoConfirm }: PhotoCaptureProps) {
 
     const vw = video.videoWidth || 1280;
     const vh = video.videoHeight || 720;
-    canvas.width = vw;
-    canvas.height = vh;
+
+    // Limitar resolución máxima para que el dataURL no supere ~1 MB
+    // y sea compatible con todos los browsers móviles/PWA
+    const MAX_SIDE = 1600;
+    const ratio = Math.min(1, MAX_SIDE / Math.max(vw, vh));
+    canvas.width = Math.round(vw * ratio);
+    canvas.height = Math.round(vh * ratio);
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     if (facingMode === 'user') {
-      ctx.translate(vw, 0);
+      ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
     }
-    ctx.drawImage(video, 0, 0, vw, vh);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const url = canvas.toDataURL('image/jpeg', 0.85);
+    const url = canvas.toDataURL('image/jpeg', 0.80);
     stopCamera();
     setCapturedImage(url);
   };
@@ -162,10 +167,34 @@ export function PhotoCapture({ onBack, onPhotoConfirm }: PhotoCaptureProps) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const result = ev.target?.result as string;
-      if (result) {
+      if (!result) return;
+
+      // Redimensionar la imagen de galería igual que la de cámara
+      // para mantener dataURLs pequeños y compatibles con PWA/SharePoint
+      const img = new Image();
+      img.onload = () => {
+        const MAX_SIDE = 1600;
+        const ratio = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+        const w = Math.round(img.width * ratio);
+        const h = Math.round(img.height * ratio);
+        const resizeCanvas = document.createElement('canvas');
+        resizeCanvas.width = w;
+        resizeCanvas.height = h;
+        const ctx = resizeCanvas.getContext('2d');
+        if (!ctx) {
+          stopCamera();
+          setCapturedImage(result);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        stopCamera();
+        setCapturedImage(resizeCanvas.toDataURL('image/jpeg', 0.80));
+      };
+      img.onerror = () => {
         stopCamera();
         setCapturedImage(result);
-      }
+      };
+      img.src = result;
     };
     reader.readAsDataURL(file);
     e.target.value = '';

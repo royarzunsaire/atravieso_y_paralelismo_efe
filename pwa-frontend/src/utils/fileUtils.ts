@@ -1,3 +1,18 @@
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif']);
+const DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx']);
+
+/** Devuelve true si el archivo es una imagen por su extensión */
+export function isImageFile(fileName: string): boolean {
+  const ext = fileName?.split('.').pop()?.toLowerCase() ?? '';
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
+/** Devuelve true si el archivo es un documento (PDF/Word) por su extensión */
+export function isDocumentFile(fileName: string): boolean {
+  const ext = fileName?.split('.').pop()?.toLowerCase() ?? '';
+  return DOCUMENT_EXTENSIONS.has(ext);
+}
+
 // Obtener información del icono según extensión
 export const getFileIconInfo = (fileName: string) => {
   const extension = fileName.split('.').pop()?.toLowerCase() || '';

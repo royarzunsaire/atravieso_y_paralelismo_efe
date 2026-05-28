@@ -13,6 +13,7 @@ import { inspeccionesService } from '@/services/inspecciones';
 import { Toast } from './components/Toast';
 import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
 import { fotosService } from '@/services/fotos';
+import { informesService } from '@/services/informes';
 import { CatalogsProvider, useCatalogs } from '@/context/CatalogsContext';
 import { SolicitudProvider } from '@/context/SolicitudContext';
 import type { CierreObraData } from './components/CierreObra';
@@ -232,6 +233,7 @@ function AppContent() {
     solicitarParalizacion?: boolean;
     fechaInspeccion?: string;
     usuariosNotificar: { id: number; nombre: string; correo: string }[];
+    informe?: { fileName: string; fileContentBase64: string; contentType: string; sizeKb: number } | null;
   }) => {
     setIsSaving(true);
     try {
@@ -279,6 +281,22 @@ function AppContent() {
         });
         if (uploadSummary.failed > 0) {
           setToast({ isOpen: true, type: 'warning', title: 'Inspección guardada (con advertencias)', message: uploadSummary.errors.slice(0, 2).join(' | ') || 'Algunas fotos no se pudieron subir.' });
+        }
+      }
+
+      if (inspection.informe && inspeccionId) {
+        try {
+          await informesService.upload({
+            solicitudId,
+            codigoSolicitud: solicitud?.codigo || `SOL-${solicitudId}`,
+            inspeccionId,
+            fileName:          inspection.informe.fileName,
+            fileContentBase64: inspection.informe.fileContentBase64,
+            contentType:       inspection.informe.contentType,
+          });
+        } catch (informeErr: any) {
+          console.error('❌ Error subiendo informe:', informeErr);
+          setToast({ isOpen: true, type: 'warning', title: 'Inspección guardada (con advertencias)', message: `El informe no pudo subirse: ${informeErr.message}` });
         }
       }
 

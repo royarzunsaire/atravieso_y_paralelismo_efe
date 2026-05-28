@@ -26,8 +26,9 @@ import {
 } from 'lucide-react';
 import { getEstadoColor, getPrioridadTextColor } from '@/utils/solicitudUtils';
 import type { Solicitud, InspeccionDetalle, Archivo, FotoInspeccion } from '@/types/solicitud';
-import { getFileIconInfo, getTipoDocumentoBadgeColor } from '@/utils/fileUtils';
+import { getFileIconInfo, getTipoDocumentoBadgeColor, isImageFile, isDocumentFile } from '@/utils/fileUtils';
 import { PhotosModal } from './PhotosModal';
+import { InformesModal } from './InformesModal';
 import { useSolicitudContext } from '@/context/SolicitudContext';
 
 type TabId = 'info' | 'documentos' | 'inspections';
@@ -112,6 +113,8 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   const [showParalizacionMenu, setShowParalizacionMenu] = useState(false);
   const [isPhotosModalOpen, setIsPhotosModalOpen] = useState(false);
   const [currentInspectionForPhotos, setCurrentInspectionForPhotos] = useState<{ id: string; title: string } | null>(null);
+  const [isInformesModalOpen, setIsInformesModalOpen] = useState(false);
+  const [currentInspectionForInformes, setCurrentInspectionForInformes] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     cargarSolicitud(solicitudId);
@@ -196,6 +199,13 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   };
 
   const closePhotosModal = () => { setIsPhotosModalOpen(false); setCurrentInspectionForPhotos(null); };
+
+  const openInformesModal = (inspection: InspeccionDetalle) => {
+    if (!inspection?.id) return;
+    setCurrentInspectionForInformes({ id: String(inspection.id), title: String(inspection.type) });
+    setIsInformesModalOpen(true);
+  };
+  const closeInformesModal = () => { setIsInformesModalOpen(false); setCurrentInspectionForInformes(null); };
 
   if (loadingSolicitud) {
     return (
@@ -599,6 +609,12 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                     inspeccionesFiltradas.map((inspection) => {
                       const config = STATUS_CONFIG[inspection.status] ?? STATUS_CONFIG['conforme'];
                       const isExpanded = expandedCards.has(inspection.id);
+                      const inspeccionIdStr = String(inspection.id);
+                      const fotosList = fotos[inspeccionIdStr] ?? [];
+                      const fotosLoaded = inspeccionIdStr in fotos;
+                      // Si las fotos ya cargaron, derivamos los conteos separados; si no, usamos el total de SharePoint como fallback
+                      const fotosImagenesCount = fotosLoaded ? fotosList.filter(f => isImageFile(f.fileName ?? '')).length : inspection.cantidadFotos;
+                      const fotosInformesCount = fotosLoaded ? fotosList.filter(f => isDocumentFile(f.fileName ?? '')).length : 0;
                       return (
                           <div key={inspection.id} className={`bg-white rounded-xl shadow-md border-l-4 ${config.borderColor} overflow-hidden`}>
                             <div className={`${config.bgColor} p-4 border-b ${config.borderColor}`}>
@@ -632,9 +648,10 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                     </div>
                                   </div>
                               )}
-                              <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 flex-1">
-                                  <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
+                              <div className="grid grid-cols-3 gap-2">
+                                {/* Avance */}
+                                <div className="flex items-center gap-2">
+                                  <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center flex-shrink-0">
                                     <TrendingUp className="w-5 h-5 text-[#0066CC]" />
                                   </div>
                                   <div>
@@ -642,15 +659,32 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                     <p className="text-lg font-bold text-[#0066CC]">{inspection.progress}%</p>
                                   </div>
                                 </div>
-                                <button type="button" onClick={() => inspection.cantidadFotos > 0 && openPhotosModal(inspection)}
-                                        disabled={inspection.cantidadFotos === 0}
-                                        className={`flex items-center gap-2 flex-1 text-left ${inspection.cantidadFotos > 0 ? 'cursor-pointer' : 'opacity-60 cursor-default'}`}>
-                                  <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
+                                {/* Fotos — solo imágenes */}
+                                <button type="button"
+                                        onClick={() => fotosImagenesCount > 0 && openPhotosModal(inspection)}
+                                        disabled={fotosImagenesCount === 0}
+                                        className={`flex items-center gap-2 text-left ${fotosImagenesCount > 0 ? 'cursor-pointer' : 'opacity-60 cursor-default'}`}>
+                                  <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center flex-shrink-0">
                                     <Camera className="w-5 h-5 text-purple-600" />
                                   </div>
                                   <div>
                                     <p className="text-xs text-[#4A4A4A]">Fotos</p>
-                                    <p className="text-lg font-bold text-purple-600">{inspection.cantidadFotos ?? 0}</p>
+                                    <p className="text-lg font-bold text-purple-600">{fotosImagenesCount}</p>
+                                  </div>
+                                </button>
+                                {/* Informes — PDF/Word */}
+                                <button
+                                  type="button"
+                                  onClick={() => fotosInformesCount > 0 && openInformesModal(inspection)}
+                                  disabled={fotosInformesCount === 0}
+                                  className={`flex items-center gap-2 text-left ${fotosInformesCount > 0 ? 'cursor-pointer' : 'opacity-60 cursor-default'}`}
+                                >
+                                  <div className="w-10 h-10 bg-gradient-to-br from-orange-100 to-orange-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <FileText className="w-5 h-5 text-orange-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-[#4A4A4A]">Informes</p>
+                                    <p className="text-lg font-bold text-orange-600">{fotosInformesCount}</p>
                                   </div>
                                 </button>
                               </div>
@@ -865,10 +899,20 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                 isOpen={isPhotosModalOpen}
                 title={`Fotos de ${currentInspectionForPhotos.title}`}
                 inspeccionId={currentInspectionForPhotos.id}
-                photos={(fotos[currentInspectionForPhotos.id] ?? []) as FotoInspeccion[]}
+                photos={(fotos[currentInspectionForPhotos.id] ?? []).filter(f => isImageFile(f.fileName ?? '')) as FotoInspeccion[]}
                 loading={fotosLoadingIds.has(currentInspectionForPhotos.id)}
                 error={null}
                 onClose={closePhotosModal}
+            />
+        )}
+
+        {currentInspectionForInformes && (
+            <InformesModal
+                isOpen={isInformesModalOpen}
+                title={`Informes de ${currentInspectionForInformes.title}`}
+                informes={(fotos[currentInspectionForInformes.id] ?? []).filter(f => isDocumentFile(f.fileName ?? '')) as FotoInspeccion[]}
+                loading={fotosLoadingIds.has(currentInspectionForInformes.id)}
+                onClose={closeInformesModal}
             />
         )}
       </div>

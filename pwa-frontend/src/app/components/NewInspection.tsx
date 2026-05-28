@@ -5,7 +5,9 @@ import {
   AlertOctagon,
   Camera,
   CheckCircle2,
+  FileText,
   Loader2,
+  Paperclip,
   RefreshCw,
   Users,
   X,
@@ -43,6 +45,7 @@ interface NewInspectionProps {
     solicitarParalizacion?: boolean;
     fechaInspeccion?: string;
     usuariosNotificar: { id: number; nombre: string; correo: string }[];
+    informe?: { fileName: string; fileContentBase64: string; contentType: string; sizeKb: number } | null;
   }) => void;
   onAddPhoto: () => void;
   tempPhotos: InspectionPhoto[];
@@ -68,11 +71,22 @@ export function NewInspection({
   const [type, setType] = useState('');
   const [fechaInspeccion, setFechaInspeccion] = useState(getLocalDateTimeString);
   const [progress, setProgress] = useState(() => minimoAvance);
+  const [progressInput, setProgressInput] = useState(() => String(minimoAvance));
   const [comentariosAvance, setComentariosAvance] = useState('');
   const [observacionesInspeccion, setObservacionesInspeccion] = useState('');
   const [status, setStatus] = useState<'conforme' | 'no-conforme'>('conforme');
   const [solicitarParalizacion, setSolicitarParalizacion] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // ── Informe adjunto ───────────────────────────────────────
+  const [informe, setInforme] = useState<{
+    fileName: string;
+    fileContentBase64: string;
+    contentType: string;
+    sizeKb: number;
+  } | null>(null);
+  const [loadingInforme, setLoadingInforme] = useState(false);
+  const informeInputRef = useRef<HTMLInputElement>(null);
 
   // ── Usuarios a notificar ──────────────────────────────────
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -104,7 +118,7 @@ export function NewInspection({
       const draft = JSON.parse(raw);
       if (typeof draft.type === 'string') setType(draft.type);
       if (typeof draft.fechaInspeccion === 'string') setFechaInspeccion(draft.fechaInspeccion);
-      if (typeof draft.progress === 'number') setProgress(draft.progress);
+      if (typeof draft.progress === 'number') { setProgress(draft.progress); setProgressInput(String(draft.progress)); }
       if (typeof draft.comentariosAvance === 'string') setComentariosAvance(draft.comentariosAvance);
       if (typeof draft.observacionesInspeccion === 'string') setObservacionesInspeccion(draft.observacionesInspeccion);
       if (draft.status === 'conforme' || draft.status === 'no-conforme') setStatus(draft.status);
@@ -134,6 +148,50 @@ export function NewInspection({
       u.nombre.toLowerCase().includes(busquedaUsuario.toLowerCase()) ||
       u.correo.toLowerCase().includes(busquedaUsuario.toLowerCase())
   );
+
+  // ── Handler: seleccionar informe ─────────────────────────
+  const handleInformeSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const tiposPermitidos = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    if (!tiposPermitidos.includes(file.type)) {
+      alert('Solo se permiten archivos PDF (.pdf) o Word (.doc, .docx)');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert('El archivo no debe superar los 10 MB');
+      e.target.value = '';
+      return;
+    }
+
+    setLoadingInforme(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      if (!dataUrl) { setLoadingInforme(false); return; }
+      const idx = dataUrl.indexOf(',');
+      const base64 = idx >= 0 ? dataUrl.substring(idx + 1) : dataUrl;
+      setInforme({
+        fileName:          file.name,
+        fileContentBase64: base64,
+        contentType:       file.type,
+        sizeKb:            Math.round(file.size / 1024),
+      });
+      setLoadingInforme(false);
+    };
+    reader.onerror = () => {
+      alert('Error al leer el archivo. Intenta nuevamente.');
+      setLoadingInforme(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // ── Validación ────────────────────────────────────────────
   const validate = () => {
@@ -178,6 +236,7 @@ export function NewInspection({
       photos: tempPhotos,
       solicitarParalizacion,
       usuariosNotificar,
+      informe,
     });
   };
 
@@ -271,8 +330,22 @@ export function NewInspection({
               </div>
               <div className="flex items-center gap-2">
                 <input
-                    type="number" min={minimoAvance} max="100" value={progress}
-                    onChange={(e) => setProgress(Math.max(minimoAvance, Math.min(100, parseInt(e.target.value) || minimoAvance)))}
+                    type="number" min={minimoAvance} max="100"
+                    value={progressInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setProgressInput(val);
+                      const num = parseInt(val, 10);
+                      if (!isNaN(num) && num >= 0 && num <= 100) {
+                        setProgress(num);
+                        setErrors(p => ({ ...p, progress: '' }));
+                      }
+                    }}
+                    onBlur={() => {
+                      const clamped = Math.max(minimoAvance, Math.min(100, parseInt(progressInput, 10) || minimoAvance));
+                      setProgress(clamped);
+                      setProgressInput(String(clamped));
+                    }}
                     className={`w-16 h-9 px-2 text-center bg-white border-2 ${errors.progress ? 'border-[#E30613]' : 'border-[#0066CC]'} rounded-lg text-[#0066CC] font-bold focus:outline-none`}
                 />
                 <span className="text-xl text-[#0066CC] font-bold">%</span>
@@ -280,7 +353,11 @@ export function NewInspection({
             </div>
             <input
                 type="range" min="0" max="100" step="1" value={progress}
-                onChange={(e) => setProgress(Math.max(minimoAvance, Number(e.target.value)))}
+                onChange={(e) => {
+                  const val = Math.max(minimoAvance, Number(e.target.value));
+                  setProgress(val);
+                  setProgressInput(String(val));
+                }}
                 className="w-full h-2 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#0066CC] [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#0066CC] [&::-moz-range-thumb]:border-0"
                 style={{
                   background: `linear-gradient(to right, #0066CC 0%, #0066CC ${progress}%, #F5F7FA ${progress}%, #F5F7FA 100%)`,
@@ -415,6 +492,68 @@ export function NewInspection({
                       </div>
                   ))}
                 </div>
+            )}
+          </div>
+
+          {/* Informe adjunto */}
+          <div className="bg-white rounded-lg p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm text-[#4A4A4A] flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-[#0066CC]" />
+                Informe Adjunto
+              </label>
+              <span className="text-xs text-[#4A4A4A]">PDF o Word · opcional</span>
+            </div>
+
+            {/* Input oculto */}
+            <input
+                ref={informeInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={handleInformeSelect}
+                className="hidden"
+            />
+
+            {informe ? (
+                /* Preview del archivo seleccionado */
+                <div className="flex items-center gap-3 p-3 bg-[#F5F7FA] rounded-lg border border-[#003D7A]/10">
+                  <FileText className="w-8 h-8 text-[#0066CC] flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[#1A1A1A] truncate">{informe.fileName}</p>
+                    <p className="text-xs text-[#4A4A4A]">
+                      {informe.sizeKb < 1024
+                          ? `${informe.sizeKb} KB`
+                          : `${(informe.sizeKb / 1024).toFixed(1)} MB`}
+                    </p>
+                  </div>
+                  <button
+                      type="button"
+                      onClick={() => {
+                        setInforme(null);
+                        if (informeInputRef.current) informeInputRef.current.value = '';
+                      }}
+                      className="w-7 h-7 flex items-center justify-center bg-[#E30613]/10 text-[#E30613] rounded-full active:scale-95 transition-transform flex-shrink-0"
+                      aria-label="Quitar informe"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+            ) : loadingInforme ? (
+                /* Estado cargando */
+                <div className="flex items-center gap-2 h-11 px-3 bg-[#F5F7FA] rounded-lg border border-[#003D7A]/10">
+                  <Loader2 className="w-4 h-4 text-[#0066CC] animate-spin" />
+                  <span className="text-sm text-[#4A4A4A]">Procesando archivo...</span>
+                </div>
+            ) : (
+                /* Botón adjuntar */
+                <button
+                    type="button"
+                    onClick={() => informeInputRef.current?.click()}
+                    className="w-full h-11 flex items-center justify-center gap-2 border-2 border-dashed border-[#003D7A]/25 rounded-lg text-[#4A4A4A] active:bg-[#F5F7FA] transition-colors"
+                >
+                  <Paperclip className="w-5 h-5" />
+                  Adjuntar Informe
+                </button>
             )}
           </div>
 

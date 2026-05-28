@@ -3,7 +3,7 @@ const router = express.Router();
 const axios = require('axios');
 const { verifyToken } = require('./auth');
 
-const FLOW_FOTOS_SUBIR_URL = process.env.FLOW_FOTOS_SUBIR_URL;
+const FLOW_SUBIR_ARCHIVOS_URL = process.env.FLOW_SUBIR_ARCHIVOS_URL;
 const FLOW_FOTOS_LISTAR_URL = process.env.FLOW_FOTOS_LISTAR_URL;
 const FLOW_FOTOS_CONTENIDO_URL = process.env.FLOW_FOTOS_CONTENIDO_URL;
 const MAX_FILE_SIZE_MB = 10;
@@ -16,7 +16,8 @@ async function callFlow(flowUrl, data = {}) {
     const response = await axios.post(flowUrl, data, {
       headers: { 'Content-Type': 'application/json' },
       timeout: 60000, // 60s — subir archivos toma más
-      maxBodyLength: 15 * 1024 * 1024, // 15 MB para axios
+      maxBodyLength: 15 * 1024 * 1024,    // 15 MB límite body de envío
+      maxContentLength: 15 * 1024 * 1024, // 15 MB límite respuesta (contenido de fotos)
     });
     return response.data;
   } catch (error) {
@@ -77,11 +78,11 @@ router.post('/upload', verifyToken, async (req, res) => {
       });
     }
 
-    if (!FLOW_FOTOS_SUBIR_URL) {
+    if (!FLOW_SUBIR_ARCHIVOS_URL) {
       return res.status(500).json({
         success: false,
         error: 'Flow URL not configured',
-        message: 'FLOW_FOTOS_SUBIR_URL is missing in .env',
+        message: 'FLOW_SUBIR_ARCHIVOS_URL is missing in .env',
       });
     }
 
@@ -102,7 +103,7 @@ router.post('/upload', verifyToken, async (req, res) => {
       fechaCaptura: new Date().toISOString(),
     };
 
-    const result = await callFlow(FLOW_FOTOS_SUBIR_URL, payload);
+    const result = await callFlow(FLOW_SUBIR_ARCHIVOS_URL, payload);
 
     console.log(`✅ Foto subida: ${safeFileName} → Inspección ${inspeccionId}`);
 
