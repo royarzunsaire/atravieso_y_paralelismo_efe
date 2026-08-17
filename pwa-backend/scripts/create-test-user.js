@@ -10,20 +10,12 @@ async function createTestUser() {
     // Verificar si ya existe en la tabla usuarios
     const existing = await usersDb.getUserByEmail(email);
     if (existing) {
-      console.log('⚠️  Usuario ya existe en tabla usuarios, eliminando...');
-      // No podemos eliminar desde database.js, hazlo manualmente en Supabase SQL Editor
-      console.log('👉 Ejecuta en Supabase SQL Editor:');
-      console.log(`   delete from usuarios where email = '${email}';`);
-      console.log('   Luego vuelve a ejecutar este script.');
+      console.log('⚠️  Usuario ya existe en tabla usuarios, elimínalo primero si quieres recrearlo.');
+      console.log(`   DELETE /usuarios/${existing.id} en ORDS, o DELETE FROM usuarios WHERE email = '${email}' en Oracle.`);
       return;
     }
 
-    // 1. Crear en Supabase Auth
-    console.log('📝 Creando usuario en Supabase Auth...');
-    await usersDb.createLocalAuthUser({ email, password, nombre });
-    console.log('✅ Usuario creado en Supabase Auth');
-
-    // 2. Crear en tabla usuarios con password hasheado
+    // Crear en tabla usuarios (Oracle) con password hasheado
     console.log('📝 Creando usuario en tabla usuarios...');
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await usersDb.createLocalUser({

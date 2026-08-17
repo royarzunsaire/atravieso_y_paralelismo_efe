@@ -23,6 +23,10 @@ pwa-backend/dist/
 npm-debug.log*
 logs/
 
+# Oracle wallet (credenciales de conexión)
+documentacion/*.zip
+*wallet*.zip
+
 # OS files
 .DS_Store
 Thumbs.db

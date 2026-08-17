@@ -1,120 +1,70 @@
-const { supabaseAdmin, supabaseAuth } = require('./supabase');
-
-function normalizeSupabaseError(error) {
-  if (!error) return null;
-  const normalized = new Error(error.message || 'Error de Supabase');
-  normalized.code = error.code;
-  normalized.details = error.details;
-  normalized.hint = error.hint;
-  return normalized;
-}
-
-async function assertSingle(query) {
-  const { data, error } = await query;
-  if (error) throw normalizeSupabaseError(error);
-  return data;
-}
-
-async function maybeSingle(query) {
-  const { data, error } = await query;
-  if (error && error.code !== 'PGRST116') {
-    throw normalizeSupabaseError(error);
-  }
-  return data || null;
-}
+const { ordsGet, ordsPost } = require('./oracle');
 
 function mapUsuarioRow(row) {
   if (!row) return null;
+  // ORDS devuelve id (RAW) como Base64 en el JSON, pero espera hex en la URL del path.
+  // Normalizamos siempre a hex para poder usarlo en GET/PUT/DELETE /usuarios/{id}.
+  const idHex = row.id ? Buffer.from(row.id, 'base64').toString('hex').toUpperCase() : row.id;
   return {
-    id: row.id,
+    id: idHex,
     email: row.email,
     password: row.password,
     nombre: row.nombre,
     rol: row.rol,
     auth_type: row.auth_type,
-    activo: row.activo,
+    activo: row.activo === 1 || row.activo === true,
     created_at: row.created_at,
     last_login: row.last_login,
   };
 }
 
+async function findOneByQuery(query) {
+  const q = encodeURIComponent(JSON.stringify(query));
+  const data = await ordsGet(`/usuarios/?q=${q}`);
+  const row = data?.items?.[0];
+  return mapUsuarioRow(row || null);
+}
+
 async function getUserByEmail(email) {
-  const data = await maybeSingle(
-    supabaseAdmin.from('usuarios').select('*').eq('email', email).maybeSingle()
-  );
-  return mapUsuarioRow(data);
+  return findOneByQuery({ email: { $eq: email } });
 }
 
 async function getUserById(id) {
-  const data = await maybeSingle(
-    supabaseAdmin.from('usuarios').select('*').eq('id', id).maybeSingle()
-  );
-  return mapUsuarioRow(data);
+  const row = await ordsGet(`/usuarios/${id}`);
+  return mapUsuarioRow(row);
 }
 
 async function getLocalActiveUserByEmail(email) {
-  const data = await maybeSingle(
-    supabaseAdmin
-      .from('usuarios')
-      .select('*')
-      .eq('email', email)
-      .eq('auth_type', 'local')
-      .eq('activo', true)
-      .maybeSingle()
-  );
-  return mapUsuarioRow(data);
+  return findOneByQuery({
+    email: { $eq: email },
+    auth_type: { $eq: 'local' },
+    activo: { $eq: 1 },
+  });
 }
 
 async function updateUserLastLogin(id) {
-  const data = await assertSingle(
-    supabaseAdmin
-      .from('usuarios')
-      .update({ last_login: new Date().toISOString() })
-      .eq('id', id)
-      .select('*')
-      .single()
-  );
-  return mapUsuarioRow(data);
+  // No se envía la fecha por JSON: ORDS rompe (bug interno) el parseo de TIMESTAMP
+  // con timezone en PUT/POST. El endpoint fija last_login = CURRENT_TIMESTAMP en Oracle.
+  await ordsPost(`/usuarios-actions/${id}/last-login`);
+  return getUserById(id);
 }
 
 async function createLocalUser({ email, password, nombre, rol = 'usuario' }) {
-  const data = await assertSingle(
-    supabaseAdmin
-      .from('usuarios')
-      .insert({ email, password, nombre, rol, auth_type: 'local', activo: true })
-      .select('*')
-      .single()
-  );
-  return mapUsuarioRow(data);
-}
-
-async function createLocalAuthUser({ email, password, nombre }) {
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+  // INSERT vía PL/SQL manual: AutoREST POST inserta bien pero ORDS truena (500)
+  // al serializar la respuesta con el created_at que pone el trigger.
+  const result = await ordsPost('/usuarios-actions/register', {
     email,
     password,
-    email_confirm: true,
-    user_metadata: { nombre },
+    nombre,
+    rol,
   });
-  if (error) throw normalizeSupabaseError(error);
-  return data.user;
-}
-
-async function signInLocalAuthUser({ email, password }) {
-  const { data, error } = await supabaseAuth.auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (error) throw normalizeSupabaseError(error);
-  return data.session;
+  return getUserById(result.id_out);
 }
 
 module.exports = {
-  supabase: supabaseAdmin, // mantener compatibilidad con código existente
   getUserByEmail,
   getUserById,
   getLocalActiveUserByEmail,
   updateUserLastLogin,
   createLocalUser,
-  createLocalAuthUser,
-  signInLocalAuthUser,
 };

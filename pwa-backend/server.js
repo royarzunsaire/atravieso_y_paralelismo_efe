@@ -94,7 +94,7 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   const checks = {
-    supabase:          !!process.env.SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    oracle:            !!process.env.ORACLE_ORDS_URL && !!process.env.ORACLE_USER && !!process.env.ORACLE_PASSWORD,
     jwt:               !!process.env.JWT_SECRET,
     session:           !!process.env.SESSION_SECRET,
     frontend_url:      !!process.env.FRONTEND_URL,
@@ -105,14 +105,9 @@ app.get('/health', (req, res) => {
     flow_subir_archivos: !!process.env.FLOW_SUBIR_ARCHIVOS_URL,
     flow_tipos:        !!process.env.FLOW_TIPOS_INSPECCION_URL,
     flow_usuarios:     !!process.env.FLOW_USUARIOS_URL,
-    supabase_key_type: process.env.SUPABASE_SERVICE_ROLE_KEY 
-      ? 'service_role ✅' 
-      : process.env.SUPABASE_KEY 
-        ? 'SUPABASE_KEY ⚠️' 
-        : 'anon ❌',
   };
 
-  const allCriticalOk = checks.supabase && checks.jwt && checks.session;
+  const allCriticalOk = checks.oracle && checks.jwt && checks.session;
   const status = allCriticalOk ? 'ok' : 'degraded';
 
   res.status(allCriticalOk ? 200 : 207).json({
@@ -176,8 +171,9 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  Puerto:       ${PORT}`);
   console.log(separator);
   console.log('  Variables de entorno:');
-  console.log(`  ✓ Supabase URL:       ${process.env.SUPABASE_URL          ? '✅' : '❌ NO CONFIGURADO'}`);
-  console.log(`  ✓ Supabase Key:       ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅' : '❌ NO CONFIGURADO'}`);
+  console.log(`  ✓ Oracle ORDS URL:    ${process.env.ORACLE_ORDS_URL        ? '✅' : '❌ NO CONFIGURADO'}`);
+  console.log(`  ✓ Oracle User:        ${process.env.ORACLE_USER            ? '✅' : '❌ NO CONFIGURADO'}`);
+  console.log(`  ✓ Oracle Password:    ${process.env.ORACLE_PASSWORD        ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ JWT Secret:         ${process.env.JWT_SECRET             ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ Session Secret:     ${process.env.SESSION_SECRET         ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ Frontend URL:       ${process.env.FRONTEND_URL           ? `✅ ${process.env.FRONTEND_URL}` : '⚠️  Solo localhost'}`);

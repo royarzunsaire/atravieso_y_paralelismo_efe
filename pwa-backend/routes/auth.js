@@ -30,7 +30,7 @@ const ensureAzureConfigured = (req, res, next) => {
   return res.status(503).json({
     success: false,
     error: 'Login Microsoft/Azure no configurado',
-    message: 'Faltan AZURE_AD_CLIENT_ID, AZURE_AD_CLIENT_SECRET, AZURE_AD_TENANT_ID o AZURE_AD_REDIRECT_URI. El login local con Supabase sigue disponible.',
+    message: 'Faltan AZURE_AD_CLIENT_ID, AZURE_AD_CLIENT_SECRET, AZURE_AD_TENANT_ID o AZURE_AD_REDIRECT_URI. El login local sigue disponible.',
   });
 };
 
@@ -38,7 +38,7 @@ const ensureAzureConfigured = (req, res, next) => {
 // LOGIN LOCAL (usuario/contraseña)
 // ========================================
 router.post('/login/local', (req, res, next) => {
-  passport.authenticate('local', async (err, user, info) => {
+  passport.authenticate('local', (err, user, info) => {
     if (err) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -46,36 +46,19 @@ router.post('/login/local', (req, res, next) => {
       return res.status(401).json({ success: false, error: info.message || 'Credenciales inválidas' });
     }
 
-    try {
-      const supabaseSession = await usersDb.signInLocalAuthUser({
-        email: req.body.email,
-        password: req.body.password,
-      });
+    const token = generateToken(user);
 
-      const token = generateToken(user);
-      const connectionToken = supabaseSession?.access_token;
-
-      res.json({
-        success: true,
-        token,
-        connection_token: connectionToken,
-        supabase_token: connectionToken,
-        supabase_session: supabaseSession,
-        user: {
-          id: user.id,
-          email: user.email,
-          nombre: user.nombre,
-          rol: user.rol,
-          auth_type: user.auth_type
-        }
-      });
-    } catch (error) {
-      res.status(401).json({
-        success: false,
-        error: 'No se pudo obtener token de conexión de Supabase para el usuario local',
-        message: error.message,
-      });
-    }
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        nombre: user.nombre,
+        rol: user.rol,
+        auth_type: user.auth_type
+      }
+    });
   })(req, res, next);
 });
 
@@ -142,17 +125,10 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Crear credenciales en Supabase Auth para obtener token de conexión
-    await usersDb.createLocalAuthUser({
-      email,
-      password,
-      nombre,
-    });
-
-    // Hash password para mantener el perfil local de la aplicación
+    // Hash password para el perfil local de la aplicación
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insertar perfil local en Supabase
+    // Insertar perfil local en Oracle
     const createdUser = await usersDb.createLocalUser({
       email,
       password: hashedPassword,
@@ -167,16 +143,11 @@ router.post('/register', async (req, res) => {
       auth_type: createdUser.auth_type
     };
 
-    const supabaseSession = await usersDb.signInLocalAuthUser({ email, password });
     const token = generateToken(user);
-    const connectionToken = supabaseSession?.access_token;
 
     res.status(201).json({
       success: true,
       token,
-      connection_token: connectionToken,
-      supabase_token: connectionToken,
-      supabase_session: supabaseSession,
       user
     });
   } catch (error) {
@@ -247,19 +218,6 @@ router.get('/me', verifyToken, async (req, res) => {
 // LOGOUT (simplificado - solo para info)
 // ========================================
 router.post('/logout', verifyToken, async (req, res) => {
-  try {
-    // Obtener la sesión de Supabase desde el header
-    const supabaseToken = req.headers['x-supabase-token'];
-
-    if (supabaseToken) {
-      // Cerrar sesión específica usando el access_token de Supabase
-      const { error } = await usersDb.supabase.auth.admin.signOut(supabaseToken);
-      if (error) console.warn('⚠️  Supabase signOut warning:', error.message);
-    }
-  } catch (e) {
-    console.warn('⚠️  Error en Supabase signOut:', e.message);
-  }
-
   res.json({ success: true, message: 'Sesión cerrada correctamente' });
 });
 
