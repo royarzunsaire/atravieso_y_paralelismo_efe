@@ -4,6 +4,7 @@ import { Login } from './components/Login';
 import { AuthCallback } from './components/AuthCallback';
 import { authService } from '@/services/auth';
 import { Profile } from './components/Profile';
+import { ChangePassword } from './components/ChangePassword';
 import { SolicitudesDashboard } from './components/SolicitudesDashboard';
 import { SolicitudDetail } from './components/SolicitudDetail';
 import { NewInspection } from './components/NewInspection';
@@ -26,6 +27,7 @@ type Screen =
     | { type: 'login' }
     | { type: 'authCallback' }
     | { type: 'profile' }
+    | { type: 'changePassword' }
     | { type: 'solicitudesDashboard' }
     | { type: 'solicitudDetail'; solicitudId: number }
     | { type: 'newInspection'; solicitudId: number; solicitud: Solicitud; minimoAvance: number }
@@ -92,6 +94,19 @@ function AppContent() {
     setIsAuthenticated(false);
     setCurrentScreen({ type: 'login' });
     setBottomNavTab('home');
+  };
+
+  const handleChangePasswordSuccess = () => {
+    authService.logout();
+    setIsAuthenticated(false);
+    setBottomNavTab('home');
+    setCurrentScreen({ type: 'login' });
+    setToast({
+      isOpen: true,
+      type: 'success',
+      title: 'Contraseña actualizada',
+      message: 'Inicia sesión de nuevo con tu nueva contraseña.',
+    });
   };
 
   // ── Handlers: nav ────────────────────────────────────────────
@@ -385,7 +400,21 @@ function AppContent() {
 
         {isAuthenticated && currentScreen.type === 'profile' && (
             <>
-              <Profile onBack={handleBackToDashboard} onLogout={handleLogout} />
+              <Profile
+                  onBack={handleBackToDashboard}
+                  onLogout={handleLogout}
+                  onChangePassword={() => setCurrentScreen({ type: 'changePassword' })}
+              />
+              <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
+            </>
+        )}
+
+        {isAuthenticated && currentScreen.type === 'changePassword' && (
+            <>
+              <ChangePassword
+                  onBack={() => setCurrentScreen({ type: 'profile' })}
+                  onSuccess={handleChangePasswordSuccess}
+              />
               <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
             </>
         )}

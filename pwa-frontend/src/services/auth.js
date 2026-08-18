@@ -58,6 +58,28 @@ export const authService = {
     return data;
   },
 
+  // Cambiar contraseña propia
+  async changePassword(currentPassword, newPassword) {
+    const token = this.getToken();
+
+    const response = await fetch(`${API_URL}/auth/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Error al cambiar la contraseña');
+    }
+
+    return data;
+  },
+
   // Obtener usuario actual
   async getCurrentUser() {
     const token = this.getToken();

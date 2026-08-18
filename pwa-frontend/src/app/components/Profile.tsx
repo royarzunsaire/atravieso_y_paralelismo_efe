@@ -1,14 +1,15 @@
 import { Header } from './Header';
 import { Button } from './Button';
-import { LogOut, User, Shield, Mail, Calendar } from 'lucide-react';
+import { LogOut, User, Shield, Mail, Calendar, KeyRound } from 'lucide-react';
 import { authService } from '../../services/auth';
 
 interface ProfileProps {
   onBack: () => void;
   onLogout: () => void;
+  onChangePassword: () => void;
 }
 
-export function Profile({ onBack, onLogout }: ProfileProps) {
+export function Profile({ onBack, onLogout, onChangePassword }: ProfileProps) {
   const user = authService.getUser();
 
   if (!user) {
@@ -98,8 +99,23 @@ export function Profile({ onBack, onLogout }: ProfileProps) {
           </div>
         </div>
 
+        {/* Botón de cambiar contraseña (solo cuentas locales) */}
+        {user.auth_type === 'local' && (
+          <div className="pt-4">
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              onClick={onChangePassword}
+              icon={<KeyRound className="w-5 h-5" />}
+            >
+              Cambiar Contraseña
+            </Button>
+          </div>
+        )}
+
         {/* Botón de logout */}
-        <div className="pt-4">
+        <div className={user.auth_type === 'local' ? '' : 'pt-4'}>
           <Button
             variant="danger"
             size="lg"
