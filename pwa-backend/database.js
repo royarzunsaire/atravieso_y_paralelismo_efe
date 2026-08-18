@@ -49,6 +49,13 @@ async function updateUserLastLogin(id) {
   return getUserById(id);
 }
 
+async function updateUserPassword(id, hashedPassword) {
+  await ordsPost(`/usuarios-actions/${id}/change-password`, {
+    password: hashedPassword,
+  });
+  return getUserById(id);
+}
+
 async function createLocalUser({ email, password, nombre, rol = 'usuario' }) {
   // INSERT vía PL/SQL manual: AutoREST POST inserta bien pero ORDS truena (500)
   // al serializar la respuesta con el created_at que pone el trigger.
@@ -66,5 +73,6 @@ module.exports = {
   getUserById,
   getLocalActiveUserByEmail,
   updateUserLastLogin,
+  updateUserPassword,
   createLocalUser,
 };

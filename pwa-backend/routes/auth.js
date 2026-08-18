@@ -215,6 +215,89 @@ router.get('/me', verifyToken, async (req, res) => {
 });
 
 // ========================================
+// CAMBIAR CONTRASEÑA (usuario propio)
+// ========================================
+router.post('/change-password', verifyToken, async (req, res) => {
+  try {
+    if (req.user.auth_type !== 'local') {
+      return res.status(400).json({
+        success: false,
+        error: 'Los usuarios Microsoft no tienen contraseña local que cambiar',
+      });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'currentPassword y newPassword son requeridos',
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: 'La nueva contraseña debe tener al menos 8 caracteres',
+      });
+    }
+
+    const user = await usersDb.getUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Contraseña actual incorrecta' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await usersDb.updateUserPassword(user.id, hashedPassword);
+
+    res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ========================================
+// RESETEAR CONTRASEÑA DE OTRO USUARIO (solo admin)
+// ========================================
+router.post('/admin/reset-password/:id', verifyToken, async (req, res) => {
+  try {
+    if (req.user.rol !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Requiere rol admin' });
+    }
+
+    const { newPassword } = req.body;
+
+    if (!newPassword) {
+      return res.status(400).json({ success: false, error: 'newPassword es requerido' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: 'La nueva contraseña debe tener al menos 8 caracteres',
+      });
+    }
+
+    const targetUser = await usersDb.getUserById(req.params.id);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await usersDb.updateUserPassword(targetUser.id, hashedPassword);
+
+    res.json({ success: true, message: `Contraseña de ${targetUser.email} restablecida correctamente` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ========================================
 // LOGOUT (simplificado - solo para info)
 // ========================================
 router.post('/logout', verifyToken, async (req, res) => {
