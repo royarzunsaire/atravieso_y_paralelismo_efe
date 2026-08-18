@@ -95,6 +95,7 @@ antes de asumir un comportamiento de error.
 
 ## Features pendientes (en orden de prioridad)
 1. [ ] Contador de días desde fecha de boleta
-2. [ ] Login Azure AD para usuarios internos EFE
+2. [ ] Login Azure AD para usuarios internos EFE — código comentado en esta fase (ver spec 02-azure-ad-login.md), se retoma en una fase futura, no en el corto plazo
 3. [ ] Perfiles de usuario según rol SharePoint
 4. [ ] Modo offline (lectura + escritura + sync)
+5. [ ] Subida de documentos a carpeta separada: actualmente los documentos se suben junto con las fotos en la carpeta/página `FotosInspecciones`. Se requiere que la subida de documentos ocurra en una carpeta/página distinta llamada `DocumentosInspecciones`. Sin spec aún — ambigüedades a resolver antes de implementar: ¿es una carpeta en SharePoint, un flow de Power Automate distinto, o ambos? ¿el backend necesita una ruta/env var nueva (ej. `FLOW_DOCUMENTOS_SUBIR_URL`) o reutiliza la de fotos con un parámetro de tipo?

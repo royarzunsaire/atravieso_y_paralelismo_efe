@@ -35,9 +35,10 @@ export function Login({ onLoginSuccess }: LoginProps) {
     }
   };
 
-  const handleMicrosoftLogin = () => {
-    window.location.href = 'http://localhost:3001/auth/login/microsoft';
-  };
+  // Azure AD deshabilitado temporalmente — ver spec 02-azure-ad-login.md
+  // const handleMicrosoftLogin = () => {
+  //   window.location.href = 'http://localhost:3001/auth/login/microsoft';
+  // };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#003D7A] via-[#0066CC] to-[#003D7A]">
@@ -202,7 +203,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
             </Button>
           </form>
 
-          {/* Divisor */}
+          {/* Azure AD deshabilitado temporalmente — ver spec 02-azure-ad-login.md
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -215,7 +216,6 @@ export function Login({ onLoginSuccess }: LoginProps) {
               </div>
             </div>
 
-            {/* Botón de Microsoft */}
             <button
               type="button"
               onClick={handleMicrosoftLogin}
@@ -230,6 +230,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
               Cuenta Microsoft
             </button>
           </div>
+          */}
 
           {/* Toggle Login/Registro */}
           <div className="mt-6 text-center">

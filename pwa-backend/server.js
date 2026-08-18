@@ -98,7 +98,8 @@ app.get('/health', (req, res) => {
     jwt:               !!process.env.JWT_SECRET,
     session:           !!process.env.SESSION_SECRET,
     frontend_url:      !!process.env.FRONTEND_URL,
-    azure_ad:          !!(process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_TENANT_ID),
+    // azure_ad: deshabilitado temporalmente — ver spec 02-azure-ad-login.md
+    // azure_ad:          !!(process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_TENANT_ID),
     flow_solicitudes:  !!process.env.FLOW_SOLICITUD_READ_ALL_URL,
     flow_inspecciones: !!process.env.FLOW_INSPECCIONES_CREAR_URL,
     flow_archivos:     !!process.env.FLOW_ARCHIVOS_LISTAR_URL,
@@ -177,7 +178,8 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  ✓ JWT Secret:         ${process.env.JWT_SECRET             ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ Session Secret:     ${process.env.SESSION_SECRET         ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ Frontend URL:       ${process.env.FRONTEND_URL           ? `✅ ${process.env.FRONTEND_URL}` : '⚠️  Solo localhost'}`);
-  console.log(`  ✓ Azure AD:           ${process.env.AZURE_AD_CLIENT_ID     ? '✅' : '⚠️  No configurado (solo login local)'}`);
+  // Azure AD deshabilitado temporalmente — ver spec 02-azure-ad-login.md
+  // console.log(`  ✓ Azure AD:           ${process.env.AZURE_AD_CLIENT_ID     ? '✅' : '⚠️  No configurado (solo login local)'}`);
   console.log(separator);
   console.log('  Flows Power Automate:');
   console.log(`  ✓ Solicitudes:        ${process.env.FLOW_SOLICITUD_READ_ALL_URL  ? '✅' : '❌'}`);

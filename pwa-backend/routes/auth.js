@@ -22,17 +22,18 @@ const generateToken = (user) => {
   );
 };
 
-const ensureAzureConfigured = (req, res, next) => {
-  if (passport.isAzureConfigured) {
-    return next();
-  }
-
-  return res.status(503).json({
-    success: false,
-    error: 'Login Microsoft/Azure no configurado',
-    message: 'Faltan AZURE_AD_CLIENT_ID, AZURE_AD_CLIENT_SECRET, AZURE_AD_TENANT_ID o AZURE_AD_REDIRECT_URI. El login local sigue disponible.',
-  });
-};
+// Azure AD deshabilitado temporalmente — ver spec 02-azure-ad-login.md
+// const ensureAzureConfigured = (req, res, next) => {
+//   if (passport.isAzureConfigured) {
+//     return next();
+//   }
+//
+//   return res.status(503).json({
+//     success: false,
+//     error: 'Login Microsoft/Azure no configurado',
+//     message: 'Faltan AZURE_AD_CLIENT_ID, AZURE_AD_CLIENT_SECRET, AZURE_AD_TENANT_ID o AZURE_AD_REDIRECT_URI. El login local sigue disponible.',
+//   });
+// };
 
 // ========================================
 // LOGIN LOCAL (usuario/contraseña)
@@ -63,28 +64,28 @@ router.post('/login/local', (req, res, next) => {
 });
 
 // ========================================
-// LOGIN MICROSOFT
+// LOGIN MICROSOFT — deshabilitado temporalmente, ver spec 02-azure-ad-login.md
 // ========================================
-router.get('/login/microsoft',
-  ensureAzureConfigured,
-  passport.authenticate('azure', { 
-    failureRedirect: '/auth/login/failed' 
-  })
-);
-
-router.post('/microsoft/callback',
-  ensureAzureConfigured,
-  passport.authenticate('azure', { 
-    failureRedirect: '/auth/login/failed',
-    session: false 
-  }),
-  (req, res) => {
-    const token = generateToken(req.user);
-    
-    // Redireccionar al frontend con el token
-    res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
-  }
-);
+// router.get('/login/microsoft',
+//   ensureAzureConfigured,
+//   passport.authenticate('azure', {
+//     failureRedirect: '/auth/login/failed'
+//   })
+// );
+//
+// router.post('/microsoft/callback',
+//   ensureAzureConfigured,
+//   passport.authenticate('azure', {
+//     failureRedirect: '/auth/login/failed',
+//     session: false
+//   }),
+//   (req, res) => {
+//     const token = generateToken(req.user);
+//
+//     // Redireccionar al frontend con el token
+//     res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
+//   }
+// );
 
 // ========================================
 // REGISTRO LOCAL
