@@ -17,7 +17,8 @@ automáticamente cuando se restablece la conexión.
 ## Stack
 - Frontend: React + TypeScript + Vite (PWA)
 - Backend: Node.js + Express
-- Auth: Supabase (usuarios externos) + Azure AD (usuarios internos EFE)
+- Auth: JWT propio (bcrypt) contra Oracle Autonomous Database vía ORDS REST — Azure AD deshabilitado temporalmente (código comentado, ver spec 02-azure-ad-login.md)
+- Base de datos: Oracle Autonomous Database (ORDS 26.2.2) — ver `references/oracle-ords.md`
 - Integración: Power Automate + SharePoint
 - Deploy: Render (backend) + Vercel (frontend)
 
@@ -36,24 +37,25 @@ Atravieso y Paralelismo/
 │               ├── arquitectura.md
 │               ├── reglas-negocio.md
 │               ├── convenciones.md
+│               ├── oracle-ords.md
 │               └── specs/
 │                   ├── 01-contador-dias.md
 │                   ├── 02-azure-ad-login.md
 │                   ├── 03-perfiles-usuario.md
-│                   └── 04-offline-mode.md
-├── frontend/
+│                   ├── 04-offline-mode.md
+│                   ├── 05-cambio-contrasena.md
+│                   └── 06-documentos-inspecciones.md
+├── pwa-frontend/
 │   └── src/
-│       ├── components/     ← componentes React reutilizables
+│       ├── app/components/ ← componentes React (pantallas y UI)
 │       ├── context/        ← providers de estado global
-│       ├── hooks/          ← hooks personalizados
 │       ├── services/       ← llamadas a API y lógica de datos
-│       ├── types/          ← interfaces y tipos TypeScript
-│       └── utils/          ← funciones utilitarias puras
+│       └── types/           ← interfaces y tipos TypeScript
 └── pwa-backend/
-    └── src/
-        ├── middleware/     ← auth, validación, logging
-        ├── routes/         ← endpoints REST
-        └── utils/          ← helpers del backend
+    ├── config/       ← passport (auth local)
+    ├── routes/       ← endpoints REST
+    ├── database.js   ← acceso a datos (Oracle vía ORDS)
+    └── oracle.js     ← cliente HTTP hacia ORDS
 ```
 
 ---

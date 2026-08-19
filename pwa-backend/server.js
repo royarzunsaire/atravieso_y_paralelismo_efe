@@ -94,7 +94,7 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   const checks = {
-    oracle:            !!process.env.ORACLE_ORDS_URL && !!process.env.ORACLE_USER && !!process.env.ORACLE_PASSWORD,
+    oracle:            !!process.env.ORACLE_ORDS_URL && !!process.env.ORACLE_ORDS_CLIENT_ID && !!process.env.ORACLE_ORDS_CLIENT_SECRET,
     jwt:               !!process.env.JWT_SECRET,
     session:           !!process.env.SESSION_SECRET,
     frontend_url:      !!process.env.FRONTEND_URL,
@@ -174,9 +174,9 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  Puerto:       ${PORT}`);
   console.log(separator);
   console.log('  Variables de entorno:');
-  console.log(`  ✓ Oracle ORDS URL:    ${process.env.ORACLE_ORDS_URL        ? '✅' : '❌ NO CONFIGURADO'}`);
-  console.log(`  ✓ Oracle User:        ${process.env.ORACLE_USER            ? '✅' : '❌ NO CONFIGURADO'}`);
-  console.log(`  ✓ Oracle Password:    ${process.env.ORACLE_PASSWORD        ? '✅' : '❌ NO CONFIGURADO'}`);
+  console.log(`  ✓ Oracle ORDS URL:    ${process.env.ORACLE_ORDS_URL          ? '✅' : '❌ NO CONFIGURADO'}`);
+  console.log(`  ✓ Oracle Client ID:   ${process.env.ORACLE_ORDS_CLIENT_ID     ? '✅' : '❌ NO CONFIGURADO'}`);
+  console.log(`  ✓ Oracle Client Secret: ${process.env.ORACLE_ORDS_CLIENT_SECRET ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ JWT Secret:         ${process.env.JWT_SECRET             ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ Session Secret:     ${process.env.SESSION_SECRET         ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ Frontend URL:       ${process.env.FRONTEND_URL           ? `✅ ${process.env.FRONTEND_URL}` : '⚠️  Solo localhost'}`);
