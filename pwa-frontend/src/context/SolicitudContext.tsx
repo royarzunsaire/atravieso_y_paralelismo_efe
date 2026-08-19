@@ -10,6 +10,7 @@ import { solicitudesService } from '@/services/solicitudes';
 import { inspeccionesService } from '@/services/inspecciones';
 import { archivosService } from '@/services/archivos';
 import { fotosService } from '@/services/fotos';
+import { informesService } from '@/services/informes';
 
 // ============================================================
 // ESTADO
@@ -31,6 +32,14 @@ interface SolicitudState {
      * con cantidadFotos > 0 ya fueron procesadas.
      */
     fotosLoadingIds: Set<string>;
+    /**
+     * Informes (PDF/Word) indexados por inspeccionId, desde la carpeta
+     * DocumentosInspecciones — independiente de fotos (spec 06).
+     * Se cargan para TODAS las inspecciones (no hay campo cantidadInformes
+     * para filtrar de antemano como sí existe cantidadFotos).
+     */
+    informes: Record<string, FotoInspeccion[]>;
+    informesLoadingIds: Set<string>;
     loadingSolicitud: boolean;
     loadingInspecciones: boolean;
     loadingArchivos: boolean;
@@ -45,6 +54,8 @@ const initialState: SolicitudState = {
     archivos: {},
     fotos: {},
     fotosLoadingIds: new Set(),
+    informes: {},
+    informesLoadingIds: new Set(),
     loadingSolicitud: false,
     loadingInspecciones: false,
     loadingArchivos: false,
@@ -70,7 +81,11 @@ type SolicitudAction =
     // Fotos — una acción por inspección para no bloquear entre sí
     | { type: 'FOTOS_LOADING'; payload: { inspeccionId: string } }
     | { type: 'FOTOS_SUCCESS'; payload: { inspeccionId: string; data: FotoInspeccion[] } }
-    | { type: 'FOTOS_ERROR'; payload: { inspeccionId: string } };
+    | { type: 'FOTOS_ERROR'; payload: { inspeccionId: string } }
+    // Informes — mismo patrón que fotos, independiente por inspección
+    | { type: 'INFORMES_LOADING'; payload: { inspeccionId: string } }
+    | { type: 'INFORMES_SUCCESS'; payload: { inspeccionId: string; data: FotoInspeccion[] } }
+    | { type: 'INFORMES_ERROR'; payload: { inspeccionId: string } };
 
 // ============================================================
 // REDUCER
@@ -85,9 +100,11 @@ function solicitudReducer(state: SolicitudState, action: SolicitudAction): Solic
                 loadingSolicitud: true,
                 errorSolicitud: null,
                 solicitudActual: null,
-                // Limpiar fotos de la solicitud anterior para no mostrar datos stale
+                // Limpiar fotos/informes de la solicitud anterior para no mostrar datos stale
                 fotos: {},
                 fotosLoadingIds: new Set(),
+                informes: {},
+                informesLoadingIds: new Set(),
             };
 
         case 'SOLICITUD_SUCCESS':
@@ -160,6 +177,39 @@ function solicitudReducer(state: SolicitudState, action: SolicitudAction): Solic
                 fotosLoadingIds: next,
                 fotos: {
                     ...state.fotos,
+                    [action.payload.inspeccionId]: [],
+                },
+            };
+        }
+
+        // ── Informes ─────────────────────────────────────────────
+        case 'INFORMES_LOADING': {
+            const next = new Set(state.informesLoadingIds);
+            next.add(action.payload.inspeccionId);
+            return { ...state, informesLoadingIds: next };
+        }
+
+        case 'INFORMES_SUCCESS': {
+            const next = new Set(state.informesLoadingIds);
+            next.delete(action.payload.inspeccionId);
+            return {
+                ...state,
+                informesLoadingIds: next,
+                informes: {
+                    ...state.informes,
+                    [action.payload.inspeccionId]: action.payload.data,
+                },
+            };
+        }
+
+        case 'INFORMES_ERROR': {
+            const next = new Set(state.informesLoadingIds);
+            next.delete(action.payload.inspeccionId);
+            return {
+                ...state,
+                informesLoadingIds: next,
+                informes: {
+                    ...state.informes,
                     [action.payload.inspeccionId]: [],
                 },
             };
@@ -240,6 +290,40 @@ export function SolicitudProvider({ children }: { children: ReactNode }) {
     );
 
     /**
+     * Lanza el fetch de informes (PDF/Word) para una sola inspección.
+     * Se llama para TODAS las inspecciones (no hay campo cantidadInformes
+     * para filtrar de antemano) — no bloquea, mismo patrón que fotos.
+     */
+    const cargarInformesDeInspeccion = useCallback(
+        (inspeccionId: string, stateRef: SolicitudState): void => {
+            if (
+                stateRef.informesLoadingIds.has(inspeccionId) ||
+                inspeccionId in stateRef.informes
+            ) {
+                return;
+            }
+
+            dispatch({ type: 'INFORMES_LOADING', payload: { inspeccionId } });
+
+            informesService
+                .getByInspeccionId(inspeccionId)
+                .then((data: unknown) => {
+                    dispatch({
+                        type: 'INFORMES_SUCCESS',
+                        payload: {
+                            inspeccionId,
+                            data: Array.isArray(data) ? (data as FotoInspeccion[]) : [],
+                        },
+                    });
+                })
+                .catch(() => {
+                    dispatch({ type: 'INFORMES_ERROR', payload: { inspeccionId } });
+                });
+        },
+        []
+    );
+
+    /**
      * Método padre — orquesta los tres niveles de carga.
      */
     const cargarSolicitud = useCallback(
@@ -300,13 +384,23 @@ export function SolicitudProvider({ children }: { children: ReactNode }) {
                                 fotosLoadingIds: new Set(),
                             });
                         });
+
+                    // ── Nivel 3b: informes — para TODAS las inspecciones ────
+                    // No hay cantidadInformes para filtrar de antemano.
+                    inspecciones.forEach((i) => {
+                        cargarInformesDeInspeccion(String(i.id), {
+                            ...initialState,
+                            informes: {},
+                            informesLoadingIds: new Set(),
+                        });
+                    });
                 })
                 .catch((err: unknown) => {
                     const message = err instanceof Error ? err.message : 'Error al cargar inspecciones';
                     dispatch({ type: 'INSPECCIONES_ERROR', payload: message });
                 });
         },
-        [cargarFotosDeInspeccion]
+        [cargarFotosDeInspeccion, cargarInformesDeInspeccion]
     );
 
     /**
@@ -336,13 +430,22 @@ export function SolicitudProvider({ children }: { children: ReactNode }) {
                                 fotosLoadingIds: state.fotosLoadingIds,
                             });
                         });
+
+                    // Re-lanzar informes para todas las inspecciones
+                    inspecciones.forEach((i) => {
+                        cargarInformesDeInspeccion(String(i.id), {
+                            ...initialState,
+                            informes: state.informes,
+                            informesLoadingIds: state.informesLoadingIds,
+                        });
+                    });
                 })
                 .catch((err: unknown) => {
                     const message = err instanceof Error ? err.message : 'Error al recargar inspecciones';
                     dispatch({ type: 'INSPECCIONES_ERROR', payload: message });
                 });
         },
-        [cargarFotosDeInspeccion, state.fotos, state.fotosLoadingIds]
+        [cargarFotosDeInspeccion, cargarInformesDeInspeccion, state.fotos, state.fotosLoadingIds, state.informes, state.informesLoadingIds]
     );
 
     /**

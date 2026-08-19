@@ -106,6 +106,8 @@ app.get('/health', (req, res) => {
     flow_subir_archivos: !!process.env.FLOW_SUBIR_ARCHIVOS_URL,
     flow_tipos:        !!process.env.FLOW_TIPOS_INSPECCION_URL,
     flow_usuarios:     !!process.env.FLOW_USUARIOS_URL,
+    flow_documentos_subir:  !!process.env.FLOW_DOCUMENTOS_SUBIR_URL,
+    flow_documentos_listar: !!process.env.FLOW_DOCUMENTOS_LISTAR_URL,
   };
 
   const allCriticalOk = checks.oracle && checks.jwt && checks.session;
@@ -190,5 +192,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  ✓ Fotos contenido:    ${process.env.FLOW_FOTOS_CONTENIDO_URL     ? '✅' : '❌'}`);
   console.log(`  ✓ Tipos inspección:   ${process.env.FLOW_TIPOS_INSPECCION_URL    ? '✅' : '❌'}`);
   console.log(`  ✓ Usuarios:           ${process.env.FLOW_USUARIOS_URL            ? '✅' : '❌'}`);
+  console.log(`  ✓ Documentos subir:   ${process.env.FLOW_DOCUMENTOS_SUBIR_URL     ? '✅' : '❌'}`);
+  console.log(`  ✓ Documentos listar:  ${process.env.FLOW_DOCUMENTOS_LISTAR_URL    ? '✅' : '❌'}`);
   console.log(separator);
 });

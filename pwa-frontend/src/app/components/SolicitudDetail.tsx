@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { getEstadoColor, getPrioridadTextColor } from '@/utils/solicitudUtils';
 import type { Solicitud, InspeccionDetalle, Archivo, FotoInspeccion } from '@/types/solicitud';
-import { getFileIconInfo, getTipoDocumentoBadgeColor, isImageFile, isDocumentFile } from '@/utils/fileUtils';
+import { getFileIconInfo, getTipoDocumentoBadgeColor, isImageFile } from '@/utils/fileUtils';
 import { PhotosModal } from './PhotosModal';
 import { InformesModal } from './InformesModal';
 import { useSolicitudContext } from '@/context/SolicitudContext';
@@ -92,7 +92,7 @@ const STATUS_CONFIG = {
 
 export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierreObra }: SolicitudDetailProps) {
   const {
-    solicitudActual, inspecciones, archivos, fotos, fotosLoadingIds,
+    solicitudActual, inspecciones, archivos, fotos, fotosLoadingIds, informes, informesLoadingIds,
     loadingSolicitud, loadingInspecciones, loadingArchivos,
     errorSolicitud, errorInspecciones, errorArchivos,
     cargarSolicitud, recargarInspecciones, recargarArchivos,
@@ -612,9 +612,10 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                       const inspeccionIdStr = String(inspection.id);
                       const fotosList = fotos[inspeccionIdStr] ?? [];
                       const fotosLoaded = inspeccionIdStr in fotos;
-                      // Si las fotos ya cargaron, derivamos los conteos separados; si no, usamos el total de SharePoint como fallback
+                      // Si las fotos ya cargaron, derivamos el conteo; si no, usamos el total de SharePoint como fallback
                       const fotosImagenesCount = fotosLoaded ? fotosList.filter(f => isImageFile(f.fileName ?? '')).length : inspection.cantidadFotos;
-                      const fotosInformesCount = fotosLoaded ? fotosList.filter(f => isDocumentFile(f.fileName ?? '')).length : 0;
+                      // Informes vienen de su propio listado (DocumentosInspecciones), independiente de fotos
+                      const informesCount = (informes[inspeccionIdStr] ?? []).length;
                       return (
                           <div key={inspection.id} className={`bg-white rounded-xl shadow-md border-l-4 ${config.borderColor} overflow-hidden`}>
                             <div className={`${config.bgColor} p-4 border-b ${config.borderColor}`}>
@@ -672,19 +673,19 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                     <p className="text-lg font-bold text-purple-600">{fotosImagenesCount}</p>
                                   </div>
                                 </button>
-                                {/* Informes — PDF/Word */}
+                                {/* Informes — PDF/Word, desde DocumentosInspecciones */}
                                 <button
                                   type="button"
-                                  onClick={() => fotosInformesCount > 0 && openInformesModal(inspection)}
-                                  disabled={fotosInformesCount === 0}
-                                  className={`flex items-center gap-2 text-left ${fotosInformesCount > 0 ? 'cursor-pointer' : 'opacity-60 cursor-default'}`}
+                                  onClick={() => informesCount > 0 && openInformesModal(inspection)}
+                                  disabled={informesCount === 0}
+                                  className={`flex items-center gap-2 text-left ${informesCount > 0 ? 'cursor-pointer' : 'opacity-60 cursor-default'}`}
                                 >
                                   <div className="w-10 h-10 bg-gradient-to-br from-orange-100 to-orange-200 rounded-lg flex items-center justify-center flex-shrink-0">
                                     <FileText className="w-5 h-5 text-orange-600" />
                                   </div>
                                   <div>
                                     <p className="text-xs text-[#4A4A4A]">Informes</p>
-                                    <p className="text-lg font-bold text-orange-600">{fotosInformesCount}</p>
+                                    <p className="text-lg font-bold text-orange-600">{informesCount}</p>
                                   </div>
                                 </button>
                               </div>
@@ -910,8 +911,8 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
             <InformesModal
                 isOpen={isInformesModalOpen}
                 title={`Informes de ${currentInspectionForInformes.title}`}
-                informes={(fotos[currentInspectionForInformes.id] ?? []).filter(f => isDocumentFile(f.fileName ?? '')) as FotoInspeccion[]}
-                loading={fotosLoadingIds.has(currentInspectionForInformes.id)}
+                informes={informes[currentInspectionForInformes.id] ?? []}
+                loading={informesLoadingIds.has(currentInspectionForInformes.id)}
                 onClose={closeInformesModal}
             />
         )}

@@ -80,6 +80,28 @@ export const informesService = {
   },
 
   /**
+   * Obtener informes (PDF/Word) de una inspección
+   */
+  async getByInspeccionId(inspeccionId) {
+    const response = await fetch(`${API_URL}/api/informes/inspeccion/${inspeccionId}`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+
+    if (response.status === 401) {
+      authService.logout();
+      throw new Error('Sesión expirada.');
+    }
+
+    if (!response.ok) {
+      throw new Error(`Error del servidor: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data || [];
+  },
+
+  /**
    * Leer un File y devolver los datos listos para upload
    * @param {File} file
    * @returns {Promise<{ fileName: string, fileContentBase64: string, contentType: string, sizeKb: number }>}

@@ -3,7 +3,8 @@ const router = express.Router();
 const axios = require('axios');
 const { verifyToken } = require('./auth');
 
-const FLOW_SUBIR_ARCHIVOS_URL = process.env.FLOW_SUBIR_ARCHIVOS_URL;
+const FLOW_DOCUMENTOS_SUBIR_URL = process.env.FLOW_DOCUMENTOS_SUBIR_URL;
+const FLOW_DOCUMENTOS_LISTAR_URL = process.env.FLOW_DOCUMENTOS_LISTAR_URL;
 const MAX_FILE_SIZE_MB = 10;
 
 // Tipos MIME aceptados (PDF y Word)
@@ -88,11 +89,11 @@ router.post('/upload', verifyToken, async (req, res) => {
       });
     }
 
-    if (!FLOW_SUBIR_ARCHIVOS_URL) {
+    if (!FLOW_DOCUMENTOS_SUBIR_URL) {
       return res.status(500).json({
         success: false,
         error: 'Flow URL not configured',
-        message: 'FLOW_SUBIR_ARCHIVOS_URL is missing in .env',
+        message: 'FLOW_DOCUMENTOS_SUBIR_URL is missing in .env',
       });
     }
 
@@ -103,14 +104,13 @@ router.post('/upload', verifyToken, async (req, res) => {
       fileName,
       fileContentBase64,
       contentType:      contentType || 'application/pdf',
-      description:      `Informe de inspección - ${fileName}`,  // compatible con flow de fotos
+      description:      `Informe de inspección - ${fileName}`,
       inspectorEmail:   userEmail  || '',
       inspectorNombre:  userNombre || '',
       fechaCarga:       new Date().toISOString(),
-      fechaCaptura:     new Date().toISOString(),               // compatible con flow de fotos
     };
 
-    const result = await callFlow(FLOW_SUBIR_ARCHIVOS_URL, payload);
+    const result = await callFlow(FLOW_DOCUMENTOS_SUBIR_URL, payload);
 
     console.log(`✅ Informe subido: ${fileName} → Inspección ${inspeccionId}`);
 
@@ -123,6 +123,49 @@ router.post('/upload', verifyToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to upload informe',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/informes/inspeccion/:inspeccionId
+ * Obtener informes (PDF/Word) de una inspección, desde la carpeta
+ * DocumentosInspecciones (separada de FotosInspecciones)
+ */
+router.get('/inspeccion/:inspeccionId', verifyToken, async (req, res) => {
+  try {
+    const { inspeccionId } = req.params;
+
+    console.log(`📄 GET /api/informes/inspeccion/${inspeccionId}`);
+
+    if (!FLOW_DOCUMENTOS_LISTAR_URL) {
+      return res.status(500).json({
+        success: false,
+        error: 'Flow URL not configured',
+        message: 'FLOW_DOCUMENTOS_LISTAR_URL is missing in .env',
+      });
+    }
+
+    const result = await callFlow(FLOW_DOCUMENTOS_LISTAR_URL, {
+      inspeccionId: String(inspeccionId),
+    });
+
+    const informes = Array.isArray(result.data) ? result.data : [];
+
+    console.log(`✅ ${informes.length} informes obtenidos para inspección ${inspeccionId}`);
+
+    res.json({
+      success: true,
+      inspeccionId,
+      count: informes.length,
+      data: informes,
+    });
+  } catch (error) {
+    console.error(`❌ Error fetching informes for inspección ${req.params.inspeccionId}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch informes',
       message: error.message,
     });
   }
