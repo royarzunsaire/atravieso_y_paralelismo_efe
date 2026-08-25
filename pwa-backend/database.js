@@ -68,6 +68,61 @@ async function createLocalUser({ email, password, nombre, rol = 'usuario' }) {
   return getUserById(result.id_out);
 }
 
+// ============================================================
+// Inspecciones — outbox (Oracle → SharePoint asíncrono)
+// ============================================================
+
+async function createInspeccionOutbox({ solicitudId, payload, archivos = [] }) {
+  const result = await ordsPost('/inspecciones-actions/guardar', {
+    solicitud_id: solicitudId,
+    payload_json: JSON.stringify(payload),
+    archivos_json: archivos.length > 0 ? JSON.stringify(archivos) : null,
+  });
+  return result.id_out;
+}
+
+function mapInspeccionOutboxRow(item) {
+  if (!item) return null;
+  return {
+    id: item.id,
+    solicitudId: item.solicitud_id,
+    payload: JSON.parse(item.payload_json),
+    estado: item.estado,
+    intentos: item.intentos,
+    archivos: item.archivos ? JSON.parse(item.archivos) : [],
+  };
+}
+
+async function getInspeccionesPendientes() {
+  const data = await ordsGet('/inspecciones-actions/pendientes');
+  const items = data?.items || [];
+  return items.map(mapInspeccionOutboxRow);
+}
+
+async function getInspeccionOutboxById(id) {
+  const data = await ordsGet(`/inspecciones-actions/${id}`);
+  const item = data?.items?.[0];
+  return mapInspeccionOutboxRow(item || null);
+}
+
+async function getInspeccionesOutboxBySolicitud(solicitudId) {
+  // No reutiliza getInspeccionesPendientes(): esa acción filtra intentos<3
+  // porque es para que el sync job sepa qué reintentar. Una inspección con
+  // 3 intentos (error terminal) debe seguir siendo visible para el usuario
+  // (badge de error + botón reintentar), aunque el job ya no la reintente sola.
+  const data = await ordsGet(`/inspecciones-actions/por-solicitud/${solicitudId}`);
+  const items = data?.items || [];
+  return items.map(mapInspeccionOutboxRow);
+}
+
+async function marcarResultadoInspeccion(id, { resultado, sharepointId = null, mensaje = '' }) {
+  await ordsPost(`/inspecciones-actions/${id}/marcar-resultado`, {
+    resultado,
+    sharepoint_id: sharepointId,
+    mensaje: mensaje.slice(0, 4000),
+  });
+}
+
 module.exports = {
   getUserByEmail,
   getUserById,
@@ -75,4 +130,9 @@ module.exports = {
   updateUserLastLogin,
   updateUserPassword,
   createLocalUser,
+  createInspeccionOutbox,
+  getInspeccionesPendientes,
+  getInspeccionOutboxById,
+  getInspeccionesOutboxBySolicitud,
+  marcarResultadoInspeccion,
 };

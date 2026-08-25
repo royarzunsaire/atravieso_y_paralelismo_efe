@@ -90,6 +90,10 @@ export interface InspeccionDetalle {
   desfase: '1' | '0' | null;
   fechaCreacion: string | null;
   fechaInspeccion: string | null;
+  // Presentes solo en inspecciones pendientes/erroradas de sincronizar (outbox Oracle)
+  estadoSync?: 'pendiente' | 'error';
+  intentosSync?: number;
+  oracleId?: string;
 }
 
 /**

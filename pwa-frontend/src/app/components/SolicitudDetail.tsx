@@ -23,6 +23,8 @@ import {
   Search,
   Filter,
   Lock,
+  RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import { getEstadoColor, getPrioridadTextColor } from '@/utils/solicitudUtils';
 import type { Solicitud, InspeccionDetalle, Archivo, FotoInspeccion } from '@/types/solicitud';
@@ -30,6 +32,7 @@ import { getFileIconInfo, getTipoDocumentoBadgeColor, isImageFile } from '@/util
 import { PhotosModal } from './PhotosModal';
 import { InformesModal } from './InformesModal';
 import { useSolicitudContext } from '@/context/SolicitudContext';
+import { inspeccionesService } from '@/services/inspecciones';
 
 type TabId = 'info' | 'documentos' | 'inspections';
 
@@ -115,6 +118,8 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   const [currentInspectionForPhotos, setCurrentInspectionForPhotos] = useState<{ id: string; title: string } | null>(null);
   const [isInformesModalOpen, setIsInformesModalOpen] = useState(false);
   const [currentInspectionForInformes, setCurrentInspectionForInformes] = useState<{ id: string; title: string } | null>(null);
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
+  const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     cargarSolicitud(solicitudId);
@@ -199,6 +204,19 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   };
 
   const closePhotosModal = () => { setIsPhotosModalOpen(false); setCurrentInspectionForPhotos(null); };
+
+  const handleReintentarSync = async (oracleId: string) => {
+    setRetryingIds(prev => new Set(prev).add(oracleId));
+    setRetryErrors(prev => { const next = { ...prev }; delete next[oracleId]; return next; });
+    try {
+      await inspeccionesService.reintentar(oracleId);
+      await recargarInspecciones(solicitudId);
+    } catch (error) {
+      setRetryErrors(prev => ({ ...prev, [oracleId]: error instanceof Error ? error.message : 'No se pudo sincronizar' }));
+    } finally {
+      setRetryingIds(prev => { const next = new Set(prev); next.delete(oracleId); return next; });
+    }
+  };
 
   const openInformesModal = (inspection: InspeccionDetalle) => {
     if (!inspection?.id) return;
@@ -632,11 +650,40 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                       {inspection.desfase === '1' && (
                                           <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300">Desfase</span>
                                       )}
+                                      {inspection.estadoSync === 'pendiente' && (
+                                          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-[#0066CC] border border-blue-300">
+                                            <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando...
+                                          </span>
+                                      )}
+                                      {inspection.estadoSync === 'error' && (
+                                          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-[#E30613] border border-red-300">
+                                            <AlertTriangle className="w-3 h-3" /> Error de sincronización
+                                          </span>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${config.badgeColor} whitespace-nowrap`}>{config.label}</span>
                               </div>
+                              {inspection.estadoSync === 'error' && inspection.oracleId && (
+                                  <div className="mt-2 flex items-center justify-between gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                                    <p className="text-xs text-red-800">
+                                      No se pudo sincronizar con SharePoint{retryErrors[inspection.oracleId] ? `: ${retryErrors[inspection.oracleId]}` : '.'}
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleReintentarSync(inspection.oracleId!)}
+                                        disabled={retryingIds.has(inspection.oracleId)}
+                                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-[#E30613] text-white hover:bg-red-700 disabled:opacity-50 whitespace-nowrap"
+                                    >
+                                      {retryingIds.has(inspection.oracleId) ? (
+                                          <><Loader2 className="w-3 h-3 animate-spin" /> Reintentando...</>
+                                      ) : (
+                                          <><RefreshCw className="w-3 h-3" /> Reintentar</>
+                                      )}
+                                    </button>
+                                  </div>
+                              )}
                             </div>
 
                             <div className="p-4 space-y-3">

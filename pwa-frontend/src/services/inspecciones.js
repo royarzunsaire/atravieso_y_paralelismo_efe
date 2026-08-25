@@ -75,5 +75,31 @@ export const inspeccionesService = {
       console.error('Error creando inspección:', error);
       throw error;
     }
+  },
+
+  async reintentar(oracleId) {
+    try {
+      const response = await fetch(`${API_URL}/api/inspecciones/${oracleId}/reintentar`, {
+        method: 'POST',
+        headers: this.getHeaders()
+      });
+
+      if (response.status === 401) {
+        authService.logout();
+        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+      }
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || result.error || `Error del servidor: ${response.status}`);
+      }
+
+      invalidateCache('inspecciones:solicitud:');
+      return result;
+    } catch (error) {
+      console.error('Error reintentando sincronización de inspección:', error);
+      throw error;
+    }
   }
 };

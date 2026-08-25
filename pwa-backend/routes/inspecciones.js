@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { verifyToken } = require('./auth');
+const {
+  createInspeccionOutbox,
+  getInspeccionesOutboxBySolicitud,
+  getInspeccionOutboxById,
+} = require('../database');
+const { procesarInspeccion } = require('../syncJob');
 
 const FLOW_INSPECCIONES_CREAR_URL = process.env.FLOW_INSPECCIONES_CREAR_URL;
 const FLOW_INSPECCIONES_LISTAR_URL = process.env.FLOW_INSPECCIONES_LISTAR_URL;
@@ -104,6 +110,50 @@ function mapInspeccionItem(item) {
 }
 
 /**
+ * Mapea una fila de Oracle (inspecciones_outbox) al mismo shape que
+ * mapInspeccionItem produce para SharePoint — el frontend consume ambas
+ * indistintamente. El payload ya está en camelCase (lo armamos nosotros
+ * al crear), a diferencia del PascalCase que devuelve SharePoint.
+ */
+function mapInspeccionOutboxToItem(inspeccionOutbox) {
+  const { id, payload, estado, intentos } = inspeccionOutbox;
+  const fecha = payload.fechaInspeccion ? new Date(payload.fechaInspeccion) : new Date();
+  const dateStr = fecha.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+
+  let status = 'conforme';
+  if (payload.estadoInspeccion === 'No Conforme') status = 'no-conforme';
+  else if (String(payload.estadoInspeccion || '').includes('Observacion')) status = 'observaciones';
+
+  return {
+    id: `outbox-${id}`, // prefijo para no chocar con ids reales de SharePoint
+    date: `${dateStr} - ${timeStr}`,
+    type: payload.tipoInspeccion || 'Sin tipo',
+    progress: Number(payload.porcentajeAvance) || 0,
+    status,
+    observations: String(payload.observacionesInspeccion || ''),
+    solicitudId: Number(payload.solicitudId),
+    codigoSolicitud: String(payload.codigoSolicitud || ''),
+    inspector: payload.inspectorNombre || '',
+    inspectorEmail: payload.inspectorEmail || '',
+    cantidadFotos: Number(payload.cantidadFotos) || 0,
+    solicitaParalizacion: Boolean(payload.solicitaParalizacion),
+    estadoParalizacion: null,
+    observacionesAvance: String(payload.observacionesAvance || ''),
+    motivoParalizacion: String(payload.motivoParalizacion || ''),
+    latitud: String(payload.latitud || ''),
+    longitud: String(payload.longitud || ''),
+    desfase: null,
+    fechaCreacion: null,
+    fechaInspeccion: payload.fechaInspeccion || null,
+    // ── Campos exclusivos del outbox — no existen en inspecciones de SharePoint ──
+    estadoSync: estado, // 'pendiente' | 'error'
+    intentosSync: intentos,
+    oracleId: id,
+  };
+}
+
+/**
  * GET /api/inspecciones/solicitud/:solicitudId
  */
 router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
@@ -126,9 +176,22 @@ router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
     if (cached) return res.json(cached);
 
     const result = await callFlow(FLOW_INSPECCIONES_LISTAR_URL, { solicitudId: normalizedId });
-    const inspecciones = Array.isArray(result.data) ? result.data.map(mapInspeccionItem) : [];
+    const inspeccionesSharePoint = Array.isArray(result.data) ? result.data.map(mapInspeccionItem) : [];
 
-    console.log(`✅ ${inspecciones.length} inspecciones obtenidas para solicitud ${solicitudId}`);
+    // Fusionar con las que aún no llegan a SharePoint (pendiente/error) — evita duplicados
+    // porque getInspeccionesOutboxBySolicitud solo trae lo que NO está 'enviado'.
+    let inspeccionesOutbox = [];
+    try {
+      const outbox = await getInspeccionesOutboxBySolicitud(normalizedId);
+      inspeccionesOutbox = outbox.map(mapInspeccionOutboxToItem);
+    } catch (outboxError) {
+      console.error('⚠️  No se pudieron obtener inspecciones pendientes de Oracle:', outboxError.message);
+      // No bloquea el listado principal — el usuario igual ve las de SharePoint.
+    }
+
+    const inspecciones = [...inspeccionesOutbox, ...inspeccionesSharePoint];
+
+    console.log(`✅ ${inspeccionesSharePoint.length} inspecciones de SharePoint + ${inspeccionesOutbox.length} pendientes de Oracle para solicitud ${solicitudId}`);
 
     const payload = { success: true, solicitudId: normalizedId, count: inspecciones.length, data: inspecciones };
     setCacheEntry(cacheKey, payload);
@@ -186,10 +249,6 @@ router.post('/', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Observaciones requeridas' });
     }
 
-    if (!FLOW_INSPECCIONES_CREAR_URL) {
-      return res.status(500).json({ success: false, error: 'Flow URL not configured' });
-    }
-
     let fechaFinal;
     if (fechaInspeccion) {
       const parsed = new Date(fechaInspeccion);
@@ -236,15 +295,49 @@ router.post('/', verifyToken, async (req, res) => {
       cantidadNotificados: notificar.length,
     };
 
-    const result = await callFlow(FLOW_INSPECCIONES_CREAR_URL, payload);
+    const oracleId = await createInspeccionOutbox({ solicitudId: parseInt(solicitudId), payload });
     invalidateInspeccionesCache(solicitudId);
 
-    console.log(`✅ Inspección creada con ID: ${result.data?.id}`);
-    res.status(201).json(result);
+    console.log(`✅ Inspección guardada en Oracle (pendiente de sync) con ID: ${oracleId}`);
+    res.status(201).json({
+      success: true,
+      data: { id: oracleId, estadoSync: 'pendiente' },
+    });
 
   } catch (error) {
     console.error(`❌ Error creando inspección:`, error);
     res.status(500).json({ success: false, error: 'Failed to create inspection', message: error.message });
+  }
+});
+
+/**
+ * POST /api/inspecciones/:oracleId/reintentar
+ *
+ * Reintenta manualmente el envío a SharePoint de una inspección que quedó
+ * en estado 'error' (ya agotó los 3 intentos automáticos del sync job).
+ * Sincroniza en el mismo request — no espera al próximo ciclo del job.
+ */
+router.post('/:oracleId/reintentar', verifyToken, async (req, res) => {
+  try {
+    const { oracleId } = req.params;
+    console.log(`🔁 POST /api/inspecciones/${oracleId}/reintentar - Usuario: ${req.user?.email}`);
+
+    const inspeccion = await getInspeccionOutboxById(oracleId);
+    if (!inspeccion) {
+      return res.status(404).json({ success: false, error: 'Inspección no encontrada en la cola de sincronización' });
+    }
+
+    const resultado = await procesarInspeccion(inspeccion);
+    invalidateInspeccionesCache(inspeccion.solicitudId);
+
+    if (resultado.success) {
+      res.json({ success: true, message: resultado.mensaje, sharepointId: resultado.sharepointId });
+    } else {
+      res.status(502).json({ success: false, error: 'No se pudo sincronizar', message: resultado.mensaje });
+    }
+  } catch (error) {
+    console.error('❌ Error reintentando inspección:', error);
+    res.status(500).json({ success: false, error: 'Failed to retry inspection', message: error.message });
   }
 });
 

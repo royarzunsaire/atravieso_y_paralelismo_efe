@@ -13,6 +13,7 @@ const fotosRouter = require('./routes/fotos');
 const informesRouter = require('./routes/informes');
 const tiposInspeccionRoutes = require('./routes/tiposInspeccion');
 const usuariosRouter = require('./routes/usuarios');
+const { startSyncJob } = require('./syncJob');
 
 process.on('uncaughtException', (err) => {
   console.error('💥 uncaughtException:', err.message, err.stack);
@@ -195,4 +196,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  ✓ Documentos subir:   ${process.env.FLOW_DOCUMENTOS_SUBIR_URL     ? '✅' : '❌'}`);
   console.log(`  ✓ Documentos listar:  ${process.env.FLOW_DOCUMENTOS_LISTAR_URL    ? '✅' : '❌'}`);
   console.log(separator);
+
+  startSyncJob();
 });
