@@ -90,6 +90,7 @@ function mapInspeccionOutboxRow(item) {
     estado: item.estado,
     intentos: item.intentos,
     archivos: item.archivos ? JSON.parse(item.archivos) : [],
+    sharepointId: item.sharepoint_id || null,
   };
 }
 

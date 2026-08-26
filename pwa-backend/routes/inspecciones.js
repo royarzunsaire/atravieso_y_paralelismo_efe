@@ -361,10 +361,16 @@ router.post('/:id/reintentar', verifyToken, async (req, res) => {
       }
       solicitudId = inspeccion.solicitudId;
 
-      const resultado = await procesarInspeccion(inspeccion);
-      mensajes.push(resultado.mensaje);
-      if (!resultado.success) huboError = true;
-      else sharepointInspeccionId = resultado.sharepointId;
+      if (inspeccion.estado === 'enviado' && inspeccion.sharepointId) {
+        // Ya está en SharePoint — no volver a llamar al flow de creación
+        // (eso duplicaría la inspección). Solo quedan archivos por reintentar.
+        sharepointInspeccionId = inspeccion.sharepointId;
+      } else {
+        const resultado = await procesarInspeccion(inspeccion);
+        mensajes.push(resultado.mensaje);
+        if (!resultado.success) huboError = true;
+        else sharepointInspeccionId = resultado.sharepointId;
+      }
     }
 
     // Archivos con error asociados a esta inspección (por oracleId recién
