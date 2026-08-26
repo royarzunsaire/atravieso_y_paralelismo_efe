@@ -57,7 +57,8 @@ router.post('/login/local', (req, res, next) => {
         email: user.email,
         nombre: user.nombre,
         rol: user.rol,
-        auth_type: user.auth_type
+        auth_type: user.auth_type,
+        debeCambiarPassword: !!user.debe_cambiar_password,
       }
     });
   })(req, res, next);
@@ -208,8 +209,8 @@ router.get('/me', verifyToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
     }
 
-    const { password, activo, created_at: createdAt, ...safeUser } = user;
-    res.json({ success: true, user: safeUser });
+    const { password, activo, created_at: createdAt, debe_cambiar_password, ...safeUser } = user;
+    res.json({ success: true, user: { ...safeUser, debeCambiarPassword: !!debe_cambiar_password } });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -290,7 +291,10 @@ router.post('/admin/reset-password/:id', verifyToken, async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await usersDb.updateUserPassword(targetUser.id, hashedPassword);
+    // resetUserPassword (no updateUserPassword): además de la contraseña,
+    // vuelve a activar debe_cambiar_password — el usuario deberá cambiarla
+    // en su próximo login, ya que esta se la asignó el admin, no él mismo.
+    await usersDb.resetUserPassword(targetUser.id, hashedPassword);
 
     res.json({ success: true, message: `Contraseña de ${targetUser.email} restablecida correctamente` });
   } catch (error) {

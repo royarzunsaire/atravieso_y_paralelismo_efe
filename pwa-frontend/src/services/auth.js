@@ -77,6 +77,12 @@ export const authService = {
       throw new Error(data.error || 'Error al cambiar la contraseña');
     }
 
+    // Limpiar el flag localmente para no depender de un refetch de /me
+    const user = this.getUser();
+    if (user) {
+      localStorage.setItem('user', JSON.stringify({ ...user, debeCambiarPassword: false }));
+    }
+
     return data;
   },
 

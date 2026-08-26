@@ -27,7 +27,7 @@ type Screen =
     | { type: 'login' }
     | { type: 'authCallback' }
     | { type: 'profile' }
-    | { type: 'changePassword' }
+    | { type: 'changePassword'; mandatory?: boolean }
     | { type: 'solicitudesDashboard' }
     | { type: 'solicitudDetail'; solicitudId: number }
     | { type: 'newInspection'; solicitudId: number; solicitud: Solicitud; minimoAvance: number }
@@ -64,7 +64,16 @@ function AppContent() {
     }
     const isAuth = authService.isAuthenticated();
     setIsAuthenticated(isAuth);
-    setCurrentScreen(isAuth ? { type: 'solicitudesDashboard' } : { type: 'login' });
+    if (!isAuth) {
+      setCurrentScreen({ type: 'login' });
+      return;
+    }
+    const user = authService.getUser();
+    setCurrentScreen(
+        user?.debeCambiarPassword
+            ? { type: 'changePassword', mandatory: true }
+            : { type: 'solicitudesDashboard' }
+    );
   }, []);
 
   useEffect(() => {
@@ -85,6 +94,11 @@ function AppContent() {
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
+    const user = authService.getUser();
+    if (user?.debeCambiarPassword) {
+      setCurrentScreen({ type: 'changePassword', mandatory: true });
+      return;
+    }
     setCurrentScreen({ type: 'solicitudesDashboard' });
     void recargarTiposInspeccion();
   };
@@ -412,10 +426,13 @@ function AppContent() {
         {isAuthenticated && currentScreen.type === 'changePassword' && (
             <>
               <ChangePassword
-                  onBack={() => setCurrentScreen({ type: 'profile' })}
+                  onBack={currentScreen.mandatory ? undefined : () => setCurrentScreen({ type: 'profile' })}
                   onSuccess={handleChangePasswordSuccess}
+                  mandatory={currentScreen.mandatory}
               />
-              <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
+              {!currentScreen.mandatory && (
+                  <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
+              )}
             </>
         )}
 

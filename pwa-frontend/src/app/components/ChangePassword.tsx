@@ -5,11 +5,13 @@ import { authService } from '../../services/auth';
 import { KeyRound } from 'lucide-react';
 
 interface ChangePasswordProps {
-  onBack: () => void;
+  onBack?: () => void;
   onSuccess: () => void;
+  /** Modo forzado (primer login / contraseña reseteada por admin) — oculta el botón de volver. */
+  mandatory?: boolean;
 }
 
-export function ChangePassword({ onBack, onSuccess }: ChangePasswordProps) {
+export function ChangePassword({ onBack, onSuccess, mandatory = false }: ChangePasswordProps) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -49,7 +51,7 @@ export function ChangePassword({ onBack, onSuccess }: ChangePasswordProps) {
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] pb-20">
-      <Header title="Cambiar Contraseña" showBackButton onBack={onBack} />
+      <Header title="Cambiar Contraseña" showBackButton={!mandatory} onBack={onBack} />
 
       <div className="p-4">
         <div className="bg-white rounded-lg shadow-sm p-6">
@@ -58,6 +60,14 @@ export function ChangePassword({ onBack, onSuccess }: ChangePasswordProps) {
               <KeyRound className="w-8 h-8 text-white" />
             </div>
           </div>
+
+          {mandatory && (
+              <div className="bg-blue-50 border-2 border-[#0066CC]/30 rounded-lg p-4 mb-4">
+                <p className="text-sm text-[#003D7A] leading-relaxed">
+                  Debes cambiar tu contraseña antes de continuar.
+                </p>
+              </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

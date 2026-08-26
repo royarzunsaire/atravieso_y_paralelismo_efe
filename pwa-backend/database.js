@@ -15,6 +15,7 @@ function mapUsuarioRow(row) {
     activo: row.activo === 1 || row.activo === true,
     created_at: row.created_at,
     last_login: row.last_login,
+    debe_cambiar_password: row.debe_cambiar_password === 1 || row.debe_cambiar_password === true,
   };
 }
 
@@ -50,7 +51,17 @@ async function updateUserLastLogin(id) {
 }
 
 async function updateUserPassword(id, hashedPassword) {
+  // El usuario cambia su propia contraseña — limpia debe_cambiar_password.
   await ordsPost(`/usuarios-actions/${id}/change-password`, {
+    password: hashedPassword,
+  });
+  return getUserById(id);
+}
+
+async function resetUserPassword(id, hashedPassword) {
+  // Un admin resetea la contraseña de otro usuario — vuelve a activar
+  // debe_cambiar_password (comportamiento opuesto a updateUserPassword).
+  await ordsPost(`/usuarios-actions/${id}/reset-password`, {
     password: hashedPassword,
   });
   return getUserById(id);
@@ -197,6 +208,7 @@ module.exports = {
   getLocalActiveUserByEmail,
   updateUserLastLogin,
   updateUserPassword,
+  resetUserPassword,
   createLocalUser,
   createInspeccionOutbox,
   getInspeccionesPendientes,
