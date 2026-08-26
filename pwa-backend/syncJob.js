@@ -2,6 +2,8 @@ const axios = require('axios');
 const {
   getInspeccionesPendientes,
   marcarResultadoInspeccion,
+  getArchivosPendientes,
+  marcarResultadoArchivo,
 } = require('./database');
 
 const FLOW_INSPECCIONES_CREAR_URL = process.env.FLOW_INSPECCIONES_CREAR_URL;
@@ -21,20 +23,20 @@ async function callFlow(flowUrl, data) {
   return response.data;
 }
 
-async function subirArchivo(archivo, inspeccionSharePointId, payload) {
+async function subirArchivo(archivo, inspeccionSharePointId, { solicitudId, codigoSolicitud, inspectorEmail, inspectorNombre }) {
   const flowUrl = archivo.tipo === 'foto' ? FLOW_SUBIR_ARCHIVOS_URL : FLOW_DOCUMENTOS_SUBIR_URL;
   if (!flowUrl) {
     throw new Error(`Flow no configurado para archivos tipo "${archivo.tipo}"`);
   }
 
   const archivoPayload = {
-    solicitudId: payload.solicitudId,
-    codigoSolicitud: payload.codigoSolicitud || '',
+    solicitudId,
+    codigoSolicitud: codigoSolicitud || '',
     inspeccionId: String(inspeccionSharePointId),
     fileName: archivo.fileName,
     fileContentBase64: archivo.fileBase64,
-    inspectorEmail: payload.inspectorEmail || '',
-    inspectorNombre: payload.inspectorNombre || '',
+    inspectorEmail: inspectorEmail || '',
+    inspectorNombre: inspectorNombre || '',
   };
 
   if (archivo.tipo === 'documento') {
@@ -60,7 +62,12 @@ async function procesarInspeccion(inspeccion) {
     const erroresArchivos = [];
     for (const archivo of archivos) {
       try {
-        await subirArchivo(archivo, sharepointId, payload);
+        await subirArchivo(archivo, sharepointId, {
+          solicitudId: payload.solicitudId,
+          codigoSolicitud: payload.codigoSolicitud,
+          inspectorEmail: payload.inspectorEmail,
+          inspectorNombre: payload.inspectorNombre,
+        });
       } catch (archivoError) {
         erroresArchivos.push(`${archivo.fileName}: ${archivoError.message}`);
       }
@@ -86,6 +93,30 @@ async function procesarInspeccion(inspeccion) {
   }
 }
 
+// Archivo subido en su propio POST (separado de la inspección), vía
+// /api/fotos/upload o /api/informes/upload. Solo llega aquí cuando ya
+// tiene un sharepoint_inspeccion_id resuelto (ver acción ORDS
+// archivos-pendientes) — o sea, su inspección padre ya está en SharePoint.
+async function procesarArchivo(archivo) {
+  const { id, sharepointInspeccionId, solicitudId, inspectorEmail, inspectorNombre } = archivo;
+
+  try {
+    await subirArchivo(archivo, sharepointInspeccionId, {
+      solicitudId,
+      codigoSolicitud: '',
+      inspectorEmail,
+      inspectorNombre,
+    });
+    await marcarResultadoArchivo(id, { resultado: 'exito' });
+    console.log(`✅ Archivo ${id} (${archivo.fileName}) sincronizado → Inspección SharePoint ${sharepointInspeccionId}`);
+    return { success: true };
+  } catch (error) {
+    await marcarResultadoArchivo(id, { resultado: 'error' });
+    console.error(`❌ Error sincronizando archivo ${id} (${archivo.fileName}):`, error.message);
+    return { success: false, mensaje: error.message };
+  }
+}
+
 async function runSyncCycle() {
   if (isRunning) {
     console.log('⏭️  Sync ya en curso, se salta este ciclo.');
@@ -95,12 +126,22 @@ async function runSyncCycle() {
 
   try {
     const pendientes = await getInspeccionesPendientes();
-    if (pendientes.length === 0) return;
+    if (pendientes.length > 0) {
+      console.log(`🔄 Sync: ${pendientes.length} inspección(es) pendiente(s)`);
+      for (const inspeccion of pendientes) {
+        await procesarInspeccion(inspeccion);
+      }
+    }
 
-    console.log(`🔄 Sync: ${pendientes.length} inspección(es) pendiente(s)`);
-
-    for (const inspeccion of pendientes) {
-      await procesarInspeccion(inspeccion);
+    // Archivos subidos por separado (no inline con la inspección) — solo
+    // se procesan una vez que su inspección padre ya tiene sharepoint_id,
+    // por eso corre después del bloque de arriba.
+    const archivosPendientes = await getArchivosPendientes();
+    if (archivosPendientes.length > 0) {
+      console.log(`🔄 Sync: ${archivosPendientes.length} archivo(s) pendiente(s)`);
+      for (const archivo of archivosPendientes) {
+        await procesarArchivo(archivo);
+      }
     }
   } catch (error) {
     console.error('❌ Error en ciclo de sincronización:', error.message);
@@ -118,4 +159,4 @@ function startSyncJob() {
   setInterval(runSyncCycle, SYNC_INTERVAL_MS);
 }
 
-module.exports = { startSyncJob, runSyncCycle, procesarInspeccion };
+module.exports = { startSyncJob, runSyncCycle, procesarInspeccion, procesarArchivo };

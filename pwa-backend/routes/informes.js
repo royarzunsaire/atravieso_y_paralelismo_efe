@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { verifyToken } = require('./auth');
+const { createArchivoOutbox } = require('../database');
 
-const FLOW_DOCUMENTOS_SUBIR_URL = process.env.FLOW_DOCUMENTOS_SUBIR_URL;
 const FLOW_DOCUMENTOS_LISTAR_URL = process.env.FLOW_DOCUMENTOS_LISTAR_URL;
 const MAX_FILE_SIZE_MB = 10;
 
@@ -13,6 +13,9 @@ const CONTENT_TYPES_PERMITIDOS = new Set([
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
+
+// Ver comentario equivalente en routes/fotos.js
+const ORACLE_ID_REGEX = /^[0-9A-F]{32}$/i;
 
 async function callFlow(flowUrl, data = {}) {
   try {
@@ -47,7 +50,6 @@ router.post('/upload', verifyToken, async (req, res) => {
   try {
     const {
       solicitudId,
-      codigoSolicitud,
       inspeccionId,
       fileName,
       fileContentBase64,
@@ -89,37 +91,29 @@ router.post('/upload', verifyToken, async (req, res) => {
       });
     }
 
-    if (!FLOW_DOCUMENTOS_SUBIR_URL) {
-      return res.status(500).json({
-        success: false,
-        error: 'Flow URL not configured',
-        message: 'FLOW_DOCUMENTOS_SUBIR_URL is missing in .env',
-      });
-    }
-
-    const payload = {
-      solicitudId:      parseInt(solicitudId, 10),
-      codigoSolicitud:  codigoSolicitud || `SOL-${solicitudId}`,
-      inspeccionId:     String(inspeccionId),
+    // El informe se guarda en Oracle y responde rápido — el sync job lo
+    // sube a SharePoint después (mismo patrón que fotos.js).
+    const esOracleId = ORACLE_ID_REGEX.test(String(inspeccionId));
+    const archivoId = await createArchivoOutbox({
+      inspeccionOutboxId: esOracleId ? String(inspeccionId) : null,
+      sharepointInspeccionId: esOracleId ? null : String(inspeccionId),
+      solicitudId: parseInt(solicitudId, 10),
+      tipo: 'documento',
       fileName,
-      fileContentBase64,
-      contentType:      contentType || 'application/pdf',
-      description:      `Informe de inspección - ${fileName}`,
-      inspectorEmail:   userEmail  || '',
-      inspectorNombre:  userNombre || '',
-      fechaCarga:       new Date().toISOString(),
-    };
+      contentType: contentType || 'application/pdf',
+      fileBase64: fileContentBase64,
+      inspectorEmail: userEmail || '',
+      inspectorNombre: userNombre || '',
+    });
 
-    const result = await callFlow(FLOW_DOCUMENTOS_SUBIR_URL, payload);
-
-    console.log(`✅ Informe subido: ${fileName} → Inspección ${inspeccionId}`);
+    console.log(`✅ Informe guardado en Oracle (pendiente de sync): ${fileName} → Inspección ${inspeccionId}`);
 
     res.status(201).json({
       success: true,
-      data: result.data || result,
+      data: { id: archivoId, fileName, estadoSync: 'pendiente' },
     });
   } catch (error) {
-    console.error('❌ Error subiendo informe:', error);
+    console.error('❌ Error guardando informe:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to upload informe',

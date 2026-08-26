@@ -665,25 +665,32 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                 </div>
                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${config.badgeColor} whitespace-nowrap`}>{config.label}</span>
                               </div>
-                              {inspection.estadoSync === 'error' && inspection.oracleId && (
+                              {inspection.estadoSync === 'error' && (() => {
+                                // Inspección aún pendiente en Oracle → usar el oracleId puro (sin
+                                // el prefijo "outbox-" que trae inspection.id para lectura). Ya
+                                // sincronizada (solo archivo con error) → inspection.id ya es el
+                                // id real de SharePoint, sin prefijo.
+                                const retryId = inspection.oracleId ?? String(inspection.id);
+                                return (
                                   <div className="mt-2 flex items-center justify-between gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
                                     <p className="text-xs text-red-800">
-                                      No se pudo sincronizar con SharePoint{retryErrors[inspection.oracleId] ? `: ${retryErrors[inspection.oracleId]}` : '.'}
+                                      No se pudo sincronizar con SharePoint{retryErrors[retryId] ? `: ${retryErrors[retryId]}` : '.'}
                                     </p>
                                     <button
                                         type="button"
-                                        onClick={() => handleReintentarSync(inspection.oracleId!)}
-                                        disabled={retryingIds.has(inspection.oracleId)}
+                                        onClick={() => handleReintentarSync(retryId)}
+                                        disabled={retryingIds.has(retryId)}
                                         className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-[#E30613] text-white hover:bg-red-700 disabled:opacity-50 whitespace-nowrap"
                                     >
-                                      {retryingIds.has(inspection.oracleId) ? (
+                                      {retryingIds.has(retryId) ? (
                                           <><Loader2 className="w-3 h-3 animate-spin" /> Reintentando...</>
                                       ) : (
                                           <><RefreshCw className="w-3 h-3" /> Reintentar</>
                                       )}
                                     </button>
                                   </div>
-                              )}
+                                );
+                              })()}
                             </div>
 
                             <div className="p-4 space-y-3">

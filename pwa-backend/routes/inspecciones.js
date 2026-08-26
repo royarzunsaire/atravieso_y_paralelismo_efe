@@ -6,8 +6,12 @@ const {
   createInspeccionOutbox,
   getInspeccionesOutboxBySolicitud,
   getInspeccionOutboxById,
+  getArchivosPendientes,
+  getArchivosConErrorBySolicitud,
 } = require('../database');
-const { procesarInspeccion } = require('../syncJob');
+const { procesarInspeccion, procesarArchivo } = require('../syncJob');
+
+const ORACLE_ID_REGEX = /^[0-9A-F]{32}$/i;
 
 const FLOW_INSPECCIONES_CREAR_URL = process.env.FLOW_INSPECCIONES_CREAR_URL;
 const FLOW_INSPECCIONES_LISTAR_URL = process.env.FLOW_INSPECCIONES_LISTAR_URL;
@@ -189,7 +193,24 @@ router.get('/solicitud/:solicitudId', verifyToken, async (req, res) => {
       // No bloquea el listado principal — el usuario igual ve las de SharePoint.
     }
 
-    const inspecciones = [...inspeccionesOutbox, ...inspeccionesSharePoint];
+    let inspecciones = [...inspeccionesOutbox, ...inspeccionesSharePoint];
+
+    // Marcar inspecciones con archivos (fotos/informes) que fallaron al
+    // subir por separado — para que el badge de error y el botón de
+    // reintentar cubran también este caso, no solo la inspección misma.
+    try {
+      const archivosConError = await getArchivosConErrorBySolicitud(normalizedId);
+      if (archivosConError.length > 0) {
+        const sharepointIdsConError = new Set(archivosConError.map((a) => a.sharepointInspeccionId));
+        inspecciones = inspecciones.map((insp) => {
+          const tieneArchivoConError = sharepointIdsConError.has(String(insp.id));
+          if (!tieneArchivoConError) return insp;
+          return { ...insp, estadoSync: insp.estadoSync || 'error' };
+        });
+      }
+    } catch (archivosError) {
+      console.error('⚠️  No se pudieron obtener archivos con error:', archivosError.message);
+    }
 
     console.log(`✅ ${inspeccionesSharePoint.length} inspecciones de SharePoint + ${inspeccionesOutbox.length} pendientes de Oracle para solicitud ${solicitudId}`);
 
@@ -311,30 +332,63 @@ router.post('/', verifyToken, async (req, res) => {
 });
 
 /**
- * POST /api/inspecciones/:oracleId/reintentar
+ * POST /api/inspecciones/:id/reintentar
  *
- * Reintenta manualmente el envío a SharePoint de una inspección que quedó
- * en estado 'error' (ya agotó los 3 intentos automáticos del sync job).
+ * Reintenta manualmente el envío a SharePoint de una inspección y/o sus
+ * archivos que hayan quedado en estado 'error'. Un solo botón para todo
+ * lo pendiente de esa inspección (no hay reintento granular por archivo).
  * Sincroniza en el mismo request — no espera al próximo ciclo del job.
+ *
+ * :id puede ser el oracleId (inspección todavía en la cola de Oracle) o
+ * el id de SharePoint (inspección vieja que ya sincronizó, pero tiene
+ * archivos con error pendientes de reintentar).
  */
-router.post('/:oracleId/reintentar', verifyToken, async (req, res) => {
+router.post('/:id/reintentar', verifyToken, async (req, res) => {
   try {
-    const { oracleId } = req.params;
-    console.log(`🔁 POST /api/inspecciones/${oracleId}/reintentar - Usuario: ${req.user?.email}`);
+    const { id } = req.params;
+    console.log(`🔁 POST /api/inspecciones/${id}/reintentar - Usuario: ${req.user?.email}`);
 
-    const inspeccion = await getInspeccionOutboxById(oracleId);
-    if (!inspeccion) {
-      return res.status(404).json({ success: false, error: 'Inspección no encontrada en la cola de sincronización' });
+    const esOracleId = ORACLE_ID_REGEX.test(id);
+    let solicitudId = null;
+    let sharepointInspeccionId = esOracleId ? null : id;
+    const mensajes = [];
+    let huboError = false;
+
+    if (esOracleId) {
+      const inspeccion = await getInspeccionOutboxById(id);
+      if (!inspeccion) {
+        return res.status(404).json({ success: false, error: 'Inspección no encontrada en la cola de sincronización' });
+      }
+      solicitudId = inspeccion.solicitudId;
+
+      const resultado = await procesarInspeccion(inspeccion);
+      mensajes.push(resultado.mensaje);
+      if (!resultado.success) huboError = true;
+      else sharepointInspeccionId = resultado.sharepointId;
     }
 
-    const resultado = await procesarInspeccion(inspeccion);
-    invalidateInspeccionesCache(inspeccion.solicitudId);
-
-    if (resultado.success) {
-      res.json({ success: true, message: resultado.mensaje, sharepointId: resultado.sharepointId });
-    } else {
-      res.status(502).json({ success: false, error: 'No se pudo sincronizar', message: resultado.mensaje });
+    // Archivos con error asociados a esta inspección (por oracleId recién
+    // sincronizado, o directo por sharepointInspeccionId si ya lo era).
+    if (sharepointInspeccionId) {
+      const pendientes = await getArchivosPendientes();
+      const archivosDeEstaInspeccion = pendientes.filter(
+        (a) => a.sharepointInspeccionId === sharepointInspeccionId
+      );
+      for (const archivo of archivosDeEstaInspeccion) {
+        const resultadoArchivo = await procesarArchivo(archivo);
+        if (!resultadoArchivo.success) {
+          huboError = true;
+          mensajes.push(`${archivo.fileName}: ${resultadoArchivo.mensaje}`);
+        }
+      }
     }
+
+    if (solicitudId) invalidateInspeccionesCache(solicitudId);
+
+    if (huboError) {
+      return res.status(502).json({ success: false, error: 'No se pudo sincronizar todo', message: mensajes.filter(Boolean).join(' | ') });
+    }
+    res.json({ success: true, message: mensajes.filter(Boolean).join(' | ') || 'Sincronizado correctamente.' });
   } catch (error) {
     console.error('❌ Error reintentando inspección:', error);
     res.status(500).json({ success: false, error: 'Failed to retry inspection', message: error.message });

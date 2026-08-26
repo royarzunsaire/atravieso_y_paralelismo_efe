@@ -2,11 +2,16 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { verifyToken } = require('./auth');
+const { createArchivoOutbox } = require('../database');
 
-const FLOW_SUBIR_ARCHIVOS_URL = process.env.FLOW_SUBIR_ARCHIVOS_URL;
 const FLOW_FOTOS_LISTAR_URL = process.env.FLOW_FOTOS_LISTAR_URL;
 const FLOW_FOTOS_CONTENIDO_URL = process.env.FLOW_FOTOS_CONTENIDO_URL;
 const MAX_FILE_SIZE_MB = 10;
+
+// Los oracleId son RAW(16) de Oracle → 32 caracteres hex. Los ids de
+// SharePoint son numéricos incrementales (list items). Nunca coinciden
+// en formato, así que basta esta regex para distinguirlos.
+const ORACLE_ID_REGEX = /^[0-9A-F]{32}$/i;
 
 /**
  * Llamar a Power Automate Flow
@@ -44,11 +49,9 @@ router.post('/upload', verifyToken, async (req, res) => {
   try {
     const {
       solicitudId,
-      codigoSolicitud,
       inspeccionId,
       fileName,
       fileContentBase64,
-      description,
     } = req.body;
 
     const userEmail = req.user?.email;
@@ -78,41 +81,34 @@ router.post('/upload', verifyToken, async (req, res) => {
       });
     }
 
-    if (!FLOW_SUBIR_ARCHIVOS_URL) {
-      return res.status(500).json({
-        success: false,
-        error: 'Flow URL not configured',
-        message: 'FLOW_SUBIR_ARCHIVOS_URL is missing in .env',
-      });
-    }
-
     // ── Construir nombre de archivo si no viene ───────────────
     const safeFileName =
       fileName || `foto_${Date.now()}.jpg`;
 
-    // ── Payload para el Flow ──────────────────────────────────
-    const payload = {
+    // La foto se guarda en Oracle y responde rápido — el sync job la
+    // sube a SharePoint después (cuando la inspección ya tenga
+    // sharepoint_id, sea porque ya lo tenía o porque recién sincronizó).
+    const esOracleId = ORACLE_ID_REGEX.test(String(inspeccionId));
+    const archivoId = await createArchivoOutbox({
+      inspeccionOutboxId: esOracleId ? String(inspeccionId) : null,
+      sharepointInspeccionId: esOracleId ? null : String(inspeccionId),
       solicitudId: parseInt(solicitudId, 10),
-      codigoSolicitud: codigoSolicitud || `SOL-${solicitudId}`,
-      inspeccionId: String(inspeccionId),
+      tipo: 'foto',
       fileName: safeFileName,
-      fileContentBase64,
-      description: description || '',
+      contentType: 'image/jpeg',
+      fileBase64: fileContentBase64,
       inspectorEmail: userEmail || '',
       inspectorNombre: userNombre || '',
-      fechaCaptura: new Date().toISOString(),
-    };
+    });
 
-    const result = await callFlow(FLOW_SUBIR_ARCHIVOS_URL, payload);
-
-    console.log(`✅ Foto subida: ${safeFileName} → Inspección ${inspeccionId}`);
+    console.log(`✅ Foto guardada en Oracle (pendiente de sync): ${safeFileName} → Inspección ${inspeccionId}`);
 
     res.status(201).json({
       success: true,
-      data: result.data || result,
+      data: { id: archivoId, fileName: safeFileName, estadoSync: 'pendiente' },
     });
   } catch (error) {
-    console.error('❌ Error subiendo foto:', error);
+    console.error('❌ Error guardando foto:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to upload photo',
