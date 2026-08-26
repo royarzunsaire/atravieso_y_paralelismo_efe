@@ -100,4 +100,5 @@ antes de asumir un comportamiento de error.
 2. [ ] Login Azure AD para usuarios internos EFE — código comentado en esta fase (ver spec 02-azure-ad-login.md), se retoma en una fase futura, no en el corto plazo
 3. [ ] Perfiles de usuario según rol SharePoint
 4. [ ] Modo offline (lectura + escritura + sync)
-5. [ ] Subida de documentos a carpeta separada: actualmente los documentos se suben junto con las fotos en la carpeta/página `FotosInspecciones`. Se requiere que la subida de documentos ocurra en una carpeta/página distinta llamada `DocumentosInspecciones`. Sin spec aún — ambigüedades a resolver antes de implementar: ¿es una carpeta en SharePoint, un flow de Power Automate distinto, o ambos? ¿el backend necesita una ruta/env var nueva (ej. `FLOW_DOCUMENTOS_SUBIR_URL`) o reutiliza la de fotos con un parámetro de tipo?
+5. [x] Subida de documentos a carpeta separada (`DocumentosInspecciones`, separada de `FotosInspecciones`) — completado
+6. [x] Transactional Outbox para inspecciones (Oracle → SharePoint asíncrono), incluyendo fotos e informes — ver `.claude/skills/pwa-inspecciones-obra/references/specs/07-outbox-archivos.md`. Inspecciones/fotos/documentos se guardan primero en Oracle y sincronizan a SharePoint vía job interno cada 30s, con reintentos automáticos y manuales — completado y desplegado en producción
