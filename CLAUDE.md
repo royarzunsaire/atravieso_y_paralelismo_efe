@@ -102,3 +102,4 @@ antes de asumir un comportamiento de error.
 4. [ ] Modo offline (lectura + escritura + sync)
 5. [x] Subida de documentos a carpeta separada (`DocumentosInspecciones`, separada de `FotosInspecciones`) — completado
 6. [x] Transactional Outbox para inspecciones (Oracle → SharePoint asíncrono), incluyendo fotos e informes — ver `.claude/skills/pwa-inspecciones-obra/references/specs/07-outbox-archivos.md`. Inspecciones/fotos/documentos se guardan primero en Oracle y sincronizan a SharePoint vía job interno cada 30s, con reintentos automáticos y manuales — completado y desplegado en producción
+7. [x] Forzar cambio de contraseña en el primer login — ver `.claude/skills/pwa-inspecciones-obra/references/specs/08-forzar-cambio-password.md`. Flag `debe_cambiar_password` en Oracle (retroactivo a usuarios existentes); login bloquea el acceso a la app hasta completar el cambio — completado y desplegado en producción
