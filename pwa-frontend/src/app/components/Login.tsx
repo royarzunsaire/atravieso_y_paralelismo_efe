@@ -9,10 +9,12 @@ interface LoginProps {
 }
 
 export function Login({ onLoginSuccess }: LoginProps) {
-  const [isLogin, setIsLogin] = useState(true);
+  // Registro deshabilitado en el frontend: las cuentas se crean desde
+  // la plataforma externa del cliente (client OAuth2 AYP_INTEGRACION_EXTERNA
+  // contra /usuarios-actions/register), no desde esta app. El endpoint
+  // /auth/register sigue existiendo en el backend (sin uso desde aquí).
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [nombre, setNombre] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,11 +24,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        await authService.loginLocal(email, password);
-      } else {
-        await authService.register(email, password, nombre);
-      }
+      await authService.loginLocal(email, password);
       onLoginSuccess();
     } catch (err: any) {
       setError(err.message || 'Error al autenticar');
@@ -114,32 +112,16 @@ export function Login({ onLoginSuccess }: LoginProps) {
                 </svg>
               </div>
               <h2 className="text-xl font-semibold text-[#003D7A]">
-                {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
+                Iniciar Sesión
               </h2>
             </div>
             <p className="text-xs text-[#4A4A4A]">
-              {isLogin ? 'Ingresa tus credenciales para continuar' : 'Completa el formulario para registrarte'}
+              Ingresa tus credenciales para continuar
             </p>
           </div>
 
           {/* Formulario */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-[#003D7A] mb-2">
-                  Nombre Completo
-                </label>
-                <input
-                  type="text"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  className="w-full h-12 px-4 bg-white rounded-lg border-2 border-[#003D7A]/20 focus:outline-none focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC]/20 transition-all"
-                  placeholder="Juan Pérez"
-                  required
-                />
-              </div>
-            )}
-
             <div>
               <label className="block text-sm font-medium text-[#003D7A] mb-2">
                 Correo Electrónico
@@ -167,12 +149,6 @@ export function Login({ onLoginSuccess }: LoginProps) {
                 required
                 minLength={8}
               />
-              {!isLogin && (
-                <p className="text-xs text-[#4A4A4A] mt-2 flex items-center gap-1">
-                  <span className="text-[#0066CC]">ℹ️</span> 
-                  Mínimo 8 caracteres
-                </p>
-              )}
             </div>
 
             {error && (
@@ -198,7 +174,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
                   Cargando...
                 </span>
               ) : (
-                isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'
+                'Iniciar Sesión'
               )}
             </Button>
           </form>
@@ -232,19 +208,8 @@ export function Login({ onLoginSuccess }: LoginProps) {
           </div>
           */}
 
-          {/* Toggle Login/Registro */}
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setError('');
-              }}
-              className="text-sm text-[#0066CC] hover:text-[#003D7A] font-medium hover:underline transition-colors"
-            >
-              {isLogin ? '¿No tienes cuenta? Regístrate aquí' : '¿Ya tienes cuenta? Inicia sesión'}
-            </button>
-          </div>
+          {/* Registro deshabilitado — las cuentas se crean desde la
+              plataforma externa del cliente, no desde esta app. */}
         </div>
 
         {/* Usuario de prueba (solo en desarrollo) */}
