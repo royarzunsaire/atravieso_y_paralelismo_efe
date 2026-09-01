@@ -50,6 +50,12 @@ interface NewInspectionProps {
   onAddPhoto: () => void;
   tempPhotos: InspectionPhoto[];
   onRemovePhoto: (photoId: string) => void;
+  /**
+   * Modo v2 (API de eventos): las acciones INSPECCION_* habilitadas para
+   * esta obra. Si viene, el form muestra/oculta secciones según ellas.
+   * Si es undefined, el form se comporta como siempre (modo viejo).
+   */
+  accionesV2?: string[];
 }
 
 export function NewInspection({
@@ -61,8 +67,20 @@ export function NewInspection({
                                 onAddPhoto,
                                 tempPhotos,
                                 onRemovePhoto,
+                                accionesV2,
                               }: NewInspectionProps) {
   const draftKey = useMemo(() => `newInspectionDraft:${solicitud.id}`, [solicitud.id]);
+
+  // ── Modo v2: qué secciones mostrar según las acciones habilitadas ──
+  // Si accionesV2 es undefined, es modo viejo: se muestra todo (v1).
+  const esV2 = Array.isArray(accionesV2);
+  const inspecciones = esV2 ? accionesV2! : [];
+  // Alguna inspección con avance requerido (INSPECCION_AVANCE).
+  const muestraAvance = !esV2 || inspecciones.includes('INSPECCION_AVANCE');
+  // Alguna inspección habilitada (todas las INSPECCION_* aceptan adjunto/fotos).
+  const hayInspeccion = !esV2 || inspecciones.some((a) => a.startsWith('INSPECCION_'));
+  const muestraFotos = hayInspeccion;
+  const muestraInforme = hayInspeccion;
 
   const { tiposInspeccion, tiposInspeccionLoading, tiposInspeccionError, recargarTiposInspeccion } =
       useCatalogs();
@@ -197,9 +215,11 @@ export function NewInspection({
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
     if (!fechaInspeccion) newErrors.fechaInspeccion = 'La fecha es obligatoria';
-    if (!type) newErrors.type = 'Debe seleccionar un tipo de inspección';
+    // En v2 el tipo no se envía a la API (no tiene campo) — no se exige.
+    if (!esV2 && !type) newErrors.type = 'Debe seleccionar un tipo de inspección';
     if (!comentariosAvance.trim()) newErrors.comentariosAvance = 'Los comentarios de avance son obligatorios';
-    if (progress < minimoAvance)
+    // El avance solo se valida si su sección está visible (v2: INSPECCION_AVANCE).
+    if (muestraAvance && progress < minimoAvance)
       newErrors.progress = `El avance no puede ser menor al registrado anteriormente (${minimoAvance}%)`;
     if (status === 'no-conforme' && observacionesInspeccion.trim().length < 10)
       newErrors.observacionesInspeccion = 'Las observaciones son obligatorias para "No Conforme" (mínimo 10 caracteres)';
@@ -214,7 +234,7 @@ export function NewInspection({
       const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) =>
           ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if (!fechaInspeccion) { scrollTo(refFecha); return; }
-      if (!type) { scrollTo(refTipo); return; }
+      if (!esV2 && !type) { scrollTo(refTipo); return; }
       if (!comentariosAvance.trim()) { scrollTo(refComentarios); return; }
       if (status === 'no-conforme' && observacionesInspeccion.trim().length < 10) { scrollTo(refObservaciones); }
       return;
@@ -275,6 +295,11 @@ export function NewInspection({
 
           {/* Fecha y hora */}
           <div ref={refFecha} className="bg-white rounded-lg p-4 shadow-sm">
+            {esV2 && (
+                <div className="mb-2 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 border border-amber-300 rounded text-[10px] font-semibold text-amber-700">
+                  ⚠ Pendiente en la API — no se envía aún
+                </div>
+            )}
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Fecha y Hora de Inspección <span className="text-[#E30613]">*</span>
             </label>
@@ -289,6 +314,11 @@ export function NewInspection({
 
           {/* Tipo de inspección */}
           <div ref={refTipo} className="bg-white rounded-lg p-4 shadow-sm">
+            {esV2 && (
+                <div className="mb-2 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 border border-amber-300 rounded text-[10px] font-semibold text-amber-700">
+                  ⚠ Pendiente en la API — no se envía aún
+                </div>
+            )}
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Tipo de Inspección <span className="text-[#E30613]">*</span>
             </label>
@@ -319,7 +349,8 @@ export function NewInspection({
             {errors.type && <p className="mt-1 text-sm text-[#E30613]">{errors.type}</p>}
           </div>
 
-          {/* Slider de avance */}
+          {/* Slider de avance — v2: solo si INSPECCION_AVANCE está habilitada */}
+          {muestraAvance && (
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -368,6 +399,7 @@ export function NewInspection({
             </div>
             {errors.progress && <p className="mt-1.5 text-sm text-[#E30613]">{errors.progress}</p>}
           </div>
+          )}
 
           {/* Comentarios de Avance */}
           <div ref={refComentarios} className="bg-white rounded-lg p-4 shadow-sm">
@@ -402,8 +434,8 @@ export function NewInspection({
             </div>
           </div>
 
-          {/* Solicitud de Paralización */}
-          {status === 'no-conforme' && (
+          {/* Solicitud de Paralización — v2: se oculta (va a la pestaña Control de obra) */}
+          {!esV2 && status === 'no-conforme' && (
               <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4 shadow-sm">
                 <div className="flex items-start gap-3">
                   <AlertOctagon className="w-6 h-6 text-orange-600 flex-shrink-0 mt-0.5" />
@@ -464,7 +496,8 @@ export function NewInspection({
             </p>
           </div>
 
-          {/* Fotos */}
+          {/* Fotos — v2: solo si hay inspección habilitada */}
+          {muestraFotos && (
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm text-[#4A4A4A]">Fotos Adjuntas</label>
@@ -494,8 +527,10 @@ export function NewInspection({
                 </div>
             )}
           </div>
+          )}
 
-          {/* Informe adjunto */}
+          {/* Informe adjunto — v2: solo si hay inspección habilitada */}
+          {muestraInforme && (
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm text-[#4A4A4A] flex items-center gap-1.5">
@@ -556,9 +591,16 @@ export function NewInspection({
                 </button>
             )}
           </div>
+          )}
 
           {/* ── Usuarios a notificar ──────────────────────────────── */}
+          {/* v2: la API aún no tiene campo para notificar — visible pero marcado. */}
           <div className="bg-white rounded-xl shadow-sm p-4">
+            {esV2 && (
+                <div className="mb-2 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 border border-amber-300 rounded text-[10px] font-semibold text-amber-700">
+                  ⚠ Pendiente en la API — no se envía aún
+                </div>
+            )}
             <label className="flex items-center gap-2 text-sm font-medium text-[#003D7A] mb-1">
               <Users className="w-4 h-4 text-[#0066CC]" />
               Notificar a
