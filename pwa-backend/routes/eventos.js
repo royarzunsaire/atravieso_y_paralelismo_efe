@@ -3,7 +3,7 @@ const router = express.Router();
 const { verifyToken } = require('./auth');
 const { createInspeccionOutbox, getInspeccionOutboxById } = require('../database');
 const { procesarInspeccion } = require('../syncJob');
-const { obtenerInicio } = require('../apiEventos');
+const { obtenerInicio, obtenerAccionesHabilitadas } = require('../apiEventos');
 
 // ============================================================
 // Rutas v2 — API de eventos unificada (nuevo contrato)
@@ -66,6 +66,42 @@ router.post('/eventos', verifyToken, async (req, res) => {
         success: false,
         error: 'Campos obligatorios faltantes',
         message: 'solicitudId, eventoIdExterno y tipoEvento son requeridos',
+      });
+    }
+
+    // ── SEGURIDAD: re-validar la acción contra la fuente de verdad ──
+    // El frontend muestra/oculta secciones por comodidad, pero es
+    // manipulable. Antes de aceptar el evento, consultamos la API_Inicio
+    // (según el usuario del token, no lo que diga el body) y verificamos
+    // que la acción esté REALMENTE habilitada para esta obra en su estado
+    // actual. Si no, se rechaza — así manipular la consola no sirve.
+    // Ver spec 10, sección "Seguridad".
+    try {
+      const permitidas = await obtenerAccionesHabilitadas({
+        usuario: userEmail,
+        solicitudId: parseInt(solicitudId, 10),
+      });
+      if (permitidas === null) {
+        return res.status(403).json({
+          success: false,
+          error: 'OBRA_NO_ACCESIBLE',
+          message: 'No tienes acceso a esta obra o ya no está disponible.',
+        });
+      }
+      if (!permitidas.includes(tipoEvento)) {
+        console.warn(`🚫 Acción no permitida: ${tipoEvento} en solicitud ${solicitudId} para ${userEmail}. Permitidas: ${permitidas.join(', ')}`);
+        return res.status(403).json({
+          success: false,
+          error: 'ACCION_NO_PERMITIDA',
+          message: 'Esta acción no está permitida en el estado actual de la obra.',
+        });
+      }
+    } catch (validationError) {
+      console.error('❌ Error validando acción contra API_Inicio:', validationError.message);
+      return res.status(502).json({
+        success: false,
+        error: 'No se pudo validar la acción',
+        message: 'No se pudo verificar los permisos de la obra. Intenta de nuevo.',
       });
     }
 

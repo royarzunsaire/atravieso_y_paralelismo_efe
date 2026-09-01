@@ -50,6 +50,23 @@ async function obtenerInicio({ usuario, catalogosVersion = '' }) {
 }
 
 /**
+ * Devuelve las AccionesHabilitadas (códigos) de UNA obra para un usuario,
+ * consultando la fuente de verdad (API_Inicio) — se usa para RE-VALIDAR en
+ * el backend que una acción enviada esté realmente permitida, sin confiar
+ * en lo que dice el frontend (que es manipulable). Ver spec 10, seguridad.
+ *
+ * Devuelve null si la obra no está en la lista del usuario (no tiene
+ * acceso a esa obra) — el llamador debe tratar eso como no autorizado.
+ */
+async function obtenerAccionesHabilitadas({ usuario, solicitudId }) {
+  const data = await obtenerInicio({ usuario, catalogosVersion: 'x' });
+  const obras = Array.isArray(data?.Solicitudes) ? data.Solicitudes : [];
+  const obra = obras.find((o) => Number(o.Id) === Number(solicitudId));
+  if (!obra) return null;
+  return Array.isArray(obra.AccionesHabilitadas) ? obra.AccionesHabilitadas : [];
+}
+
+/**
  * API_Evento_Obra_v2 — registra un evento (escritura). Idempotente por
  * eventoIdExterno: reintentos con el mismo id no duplican.
  *
@@ -92,4 +109,4 @@ async function registrarEvento(evento) {
   };
 }
 
-module.exports = { obtenerInicio, registrarEvento };
+module.exports = { obtenerInicio, obtenerAccionesHabilitadas, registrarEvento };
