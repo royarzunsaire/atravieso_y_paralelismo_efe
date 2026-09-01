@@ -143,7 +143,7 @@ export function PhotoCapture({ onBack, onPhotoConfirm }: PhotoCaptureProps) {
     }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const url = canvas.toDataURL('image/jpeg', 0.80);
+    const url = canvas.toDataURL('image/jpeg', 0.70);
     stopCamera();
     setCapturedImage(url);
   };
@@ -188,7 +188,7 @@ export function PhotoCapture({ onBack, onPhotoConfirm }: PhotoCaptureProps) {
         }
         ctx.drawImage(img, 0, 0, w, h);
         stopCamera();
-        setCapturedImage(resizeCanvas.toDataURL('image/jpeg', 0.80));
+        setCapturedImage(resizeCanvas.toDataURL('image/jpeg', 0.70));
       };
       img.onerror = () => {
         stopCamera();
