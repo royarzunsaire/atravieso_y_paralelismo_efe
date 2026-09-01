@@ -5,7 +5,13 @@ import { SolicitudCard } from './SolicitudCard';
 import { Button } from './Button';
 import { solicitudesService } from '@/services/solicitudes';
 import { inspeccionesService } from '@/services/inspecciones';
+import { inicioService } from '@/services/inicioService';
+import { mapObraToSolicitud } from '@/utils/mapInicio';
 import type { Solicitud } from '@/types/solicitud.ts';
+
+// Flag de migración (spec 10): cuando está activo, el dashboard usa la
+// API de eventos unificada (API_Inicio) en vez del listado viejo.
+const USE_API_V2 = import.meta.env.VITE_USE_API_V2 === 'true';
 
 // ========================================
 // INTERFACES
@@ -114,12 +120,20 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
     setError(null);
 
     try {
-      const data = await solicitudesService.getAll(filterByUser, { forceRefresh });
-      setSolicitudes(data);
-      // Disparar avances sin bloquear el render de la lista
-      void cargarAvances(data);
+      if (USE_API_V2) {
+        // Modo migración: API_Inicio devuelve obras ya filtradas + catálogo.
+        // El avance viene en la obra (avanceObraPct), no hace falta cargarAvances.
+        const { obras } = await inicioService.getInicio({ forzarCatalogo: forceRefresh });
+        setSolicitudes(obras.map(mapObraToSolicitud));
+      } else {
+        const data = await solicitudesService.getAll(filterByUser, { forceRefresh });
+        setSolicitudes(data);
+        // Disparar avances sin bloquear el render de la lista
+        void cargarAvances(data);
+      }
     } catch (err: any) {
-      setError(err.message);
+      // Mensaje específico si el usuario no existe en el sistema de obras (v2).
+      setError(err.code === 'USUARIO_NO_ENCONTRADO' ? err.message : err.message);
       console.error('Error cargando solicitudes:', err);
     } finally {
       setLoading(false);
@@ -145,6 +159,12 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
   // ── Refresh ─────────────────────────────────────────────────
 
   const handleRefresh = async () => {
+    if (USE_API_V2) {
+      // En v2 forceRefresh trae el catálogo completo de nuevo (gesto de recarga).
+      await loadSolicitudes(true);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
