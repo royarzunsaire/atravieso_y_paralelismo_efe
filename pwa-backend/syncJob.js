@@ -5,6 +5,7 @@ const {
   getArchivosPendientes,
   marcarResultadoArchivo,
 } = require('./database');
+const { registrarEvento } = require('./apiEventos');
 
 const FLOW_INSPECCIONES_CREAR_URL = process.env.FLOW_INSPECCIONES_CREAR_URL;
 const FLOW_SUBIR_ARCHIVOS_URL = process.env.FLOW_SUBIR_ARCHIVOS_URL;
@@ -48,7 +49,60 @@ async function subirArchivo(archivo, inspeccionSharePointId, { solicitudId, codi
   await callFlow(flowUrl, archivoPayload);
 }
 
+// Dispatcher versionado: cada fila del outbox trae su payload_version.
+// 'v2' → API de eventos unificada nueva; cualquier otra (incl. 'v1' o
+// null) → flows viejos de Power Automate (lógica original intacta).
 async function procesarInspeccion(inspeccion) {
+  if (inspeccion.payloadVersion === 'v2') {
+    return procesarInspeccionV2(inspeccion);
+  }
+  return procesarInspeccionV1(inspeccion);
+}
+
+// ── v2: API de eventos unificada ─────────────────────────────
+// El payload ya viene con el shape que espera API_Evento_Obra_v2
+// (SolicitudId, EventoIdExterno, TipoEvento, Payload...). El
+// EventoIdExterno se persistió en la fila del outbox y se reusa en
+// cada reintento — la API deduplica por él.
+async function procesarInspeccionV2(inspeccion) {
+  const { id, payload, eventoIdExterno } = inspeccion;
+
+  try {
+    // Garantizamos que el EventoIdExterno que viaja sea el persistido en
+    // la fila (fuente de verdad de la idempotencia), no uno del payload.
+    const evento = { ...payload, EventoIdExterno: eventoIdExterno || payload.EventoIdExterno };
+    const resultado = await registrarEvento(evento);
+
+    if (resultado.accionNoPermitida) {
+      // 403: otra persona movió la obra. No es reintentable — se marca
+      // error terminal para que el frontend recargue (no reintentar).
+      await marcarResultadoInspeccion(id, { resultado: 'error', mensaje: resultado.mensaje });
+      console.warn(`⚠️  Evento ${id} rechazado (acción no permitida): ${resultado.mensaje}`);
+      return { success: false, accionNoPermitida: true, mensaje: resultado.mensaje, data: resultado.data };
+    }
+
+    if (!resultado.ok) {
+      await marcarResultadoInspeccion(id, { resultado: 'error', mensaje: resultado.mensaje });
+      console.error(`❌ Error registrando evento ${id}:`, resultado.mensaje);
+      return { success: false, mensaje: resultado.mensaje };
+    }
+
+    // Éxito (incluye duplicado:true, que la API trata como ya registrado).
+    const sharepointId = resultado.data?.EventoId ? String(resultado.data.EventoId) : null;
+    const mensaje = resultado.duplicado ? 'Evento ya registrado (duplicado).' : resultado.mensaje;
+    await marcarResultadoInspeccion(id, { resultado: 'exito', sharepointId, mensaje });
+    console.log(`✅ Evento ${id} registrado → EventoId ${sharepointId}${resultado.duplicado ? ' (duplicado)' : ''}`);
+    return { success: true, sharepointId, mensaje, data: resultado.data };
+  } catch (error) {
+    const mensaje = error.message || 'Error desconocido al registrar evento';
+    await marcarResultadoInspeccion(id, { resultado: 'error', mensaje });
+    console.error(`❌ Error registrando evento ${id}:`, mensaje);
+    return { success: false, mensaje };
+  }
+}
+
+// ── v1: flows viejos de Power Automate (lógica original) ─────
+async function procesarInspeccionV1(inspeccion) {
   const { id, payload, archivos } = inspeccion;
 
   try {
@@ -151,8 +205,10 @@ async function runSyncCycle() {
 }
 
 function startSyncJob() {
-  if (!FLOW_INSPECCIONES_CREAR_URL) {
-    console.warn('⚠️  FLOW_INSPECCIONES_CREAR_URL no configurado — sync job no se inicia.');
+  // Durante la migración conviven los dos caminos: arranca si hay al
+  // menos uno configurado (flows viejos v1 o API de eventos v2).
+  if (!FLOW_INSPECCIONES_CREAR_URL && !process.env.API_EVENTO_URL) {
+    console.warn('⚠️  Ni FLOW_INSPECCIONES_CREAR_URL ni API_EVENTO_URL configurados — sync job no se inicia.');
     return;
   }
   console.log(`🔄 Sync job iniciado (cada ${SYNC_INTERVAL_MS / 1000}s)`);

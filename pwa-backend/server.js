@@ -13,6 +13,7 @@ const fotosRouter = require('./routes/fotos');
 const informesRouter = require('./routes/informes');
 const tiposInspeccionRoutes = require('./routes/tiposInspeccion');
 const usuariosRouter = require('./routes/usuarios');
+const eventosRouter = require('./routes/eventos');
 const { startSyncJob } = require('./syncJob');
 
 process.on('uncaughtException', (err) => {
@@ -134,6 +135,7 @@ app.use('/api/fotos', fotosRouter);
 app.use('/api/informes', informesRouter);
 app.use('/api/tipos-inspeccion', tiposInspeccionRoutes);
 app.use('/api/usuarios', usuariosRouter);
+app.use('/api/v2', eventosRouter);
 
 // ========================================
 // 404

@@ -83,11 +83,19 @@ async function createLocalUser({ email, password, nombre, rol = 'usuario' }) {
 // Inspecciones — outbox (Oracle → SharePoint asíncrono)
 // ============================================================
 
-async function createInspeccionOutbox({ solicitudId, payload, archivos = [] }) {
+async function createInspeccionOutbox({
+  solicitudId,
+  payload,
+  archivos = [],
+  payloadVersion = 'v1',
+  eventoIdExterno = null,
+}) {
   const result = await ordsPost('/inspecciones-actions/guardar', {
     solicitud_id: solicitudId,
     payload_json: JSON.stringify(payload),
     archivos_json: archivos.length > 0 ? JSON.stringify(archivos) : null,
+    payload_version: payloadVersion,
+    evento_id_externo: eventoIdExterno,
   });
   return result.id_out;
 }
@@ -102,6 +110,8 @@ function mapInspeccionOutboxRow(item) {
     intentos: item.intentos,
     archivos: item.archivos ? JSON.parse(item.archivos) : [],
     sharepointId: item.sharepoint_id || null,
+    payloadVersion: item.payload_version || 'v1',
+    eventoIdExterno: item.evento_id_externo || null,
   };
 }
 
