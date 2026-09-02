@@ -523,12 +523,12 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                         <div className="space-y-2">
                           <div className="relative">
                             <button onClick={() => setShowDesfaseMenu(v => !v)}
-                                    className={`w-full flex items-center justify-between h-12 px-3 rounded-xl border-2 text-sm font-medium transition-all active:scale-[0.98] shadow-sm ${currentDesfase.chipColors}`}>
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="w-4 h-4 flex-shrink-0" />
+                                    className={`w-full flex items-center justify-between h-12 px-4 rounded-xl border-2 text-base font-medium transition-all active:scale-[0.98] shadow-sm ${currentDesfase.chipColors}`}>
+                        <span className="flex items-center gap-2">
+                          <Clock className="w-5 h-5 flex-shrink-0" />
                           <span className="truncate">{currentDesfase.label}</span>
                         </span>
-                              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${showDesfaseMenu ? 'rotate-180' : ''}`} />
+                              <ChevronDown className={`w-5 h-5 flex-shrink-0 transition-transform ${showDesfaseMenu ? 'rotate-180' : ''}`} />
                             </button>
                             {showDesfaseMenu && (
                                 <>
@@ -537,7 +537,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                     {DESFASE_OPTIONS.map(opt => (
                                         <button key={opt.value}
                                                 onClick={() => { setFiltros(f => ({ ...f, desfase: opt.value })); setShowDesfaseMenu(false); }}
-                                                className={`w-full flex items-center gap-3 py-3 px-4 text-left text-sm font-medium transition-colors border-b border-gray-100 last:border-b-0 ${filtros.desfase === opt.value ? `${opt.listColors} font-semibold` : 'bg-white text-[#4A4A4A] hover:bg-gray-50'}`}>
+                                                className={`w-full flex items-center gap-3 py-4 px-5 text-left text-base font-medium transition-colors border-b border-gray-100 last:border-b-0 ${filtros.desfase === opt.value ? `${opt.listColors} font-semibold` : 'bg-white text-[#4A4A4A] hover:bg-gray-50'}`}>
                                           <span className="flex-1">{opt.label}</span>
                                           {filtros.desfase === opt.value && <CheckCircle2 className="w-4 h-4 text-[#0066CC] flex-shrink-0" />}
                                         </button>
@@ -549,12 +549,12 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
 
                           <div className="relative">
                             <button onClick={() => setShowParalizacionMenu(v => !v)}
-                                    className={`w-full flex items-center justify-between h-12 px-3 rounded-xl border-2 text-sm font-medium transition-all active:scale-[0.98] shadow-sm ${currentParalizacion.chipColors}`}>
-                        <span className="flex items-center gap-1.5">
-                          <AlertOctagon className="w-4 h-4 flex-shrink-0" />
+                                    className={`w-full flex items-center justify-between h-12 px-4 rounded-xl border-2 text-base font-medium transition-all active:scale-[0.98] shadow-sm ${currentParalizacion.chipColors}`}>
+                        <span className="flex items-center gap-2">
+                          <AlertOctagon className="w-5 h-5 flex-shrink-0" />
                           <span className="truncate">{currentParalizacion.label}</span>
                         </span>
-                              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${showParalizacionMenu ? 'rotate-180' : ''}`} />
+                              <ChevronDown className={`w-5 h-5 flex-shrink-0 transition-transform ${showParalizacionMenu ? 'rotate-180' : ''}`} />
                             </button>
                             {showParalizacionMenu && (
                                 <>
@@ -563,7 +563,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                     {PARALIZACION_OPTIONS.map(opt => (
                                         <button key={String(opt.value)}
                                                 onClick={() => { setFiltros(f => ({ ...f, solicitaParalizacion: opt.value })); setShowParalizacionMenu(false); }}
-                                                className={`w-full flex items-center gap-3 py-3 px-4 text-left text-sm font-medium transition-colors border-b border-gray-100 last:border-b-0 ${filtros.solicitaParalizacion === opt.value ? `${opt.listColors} font-semibold` : 'bg-white text-[#4A4A4A] hover:bg-gray-50'}`}>
+                                                className={`w-full flex items-center gap-3 py-4 px-5 text-left text-base font-medium transition-colors border-b border-gray-100 last:border-b-0 ${filtros.solicitaParalizacion === opt.value ? `${opt.listColors} font-semibold` : 'bg-white text-[#4A4A4A] hover:bg-gray-50'}`}>
                                           <span className="flex-1">{opt.label}</span>
                                           {filtros.solicitaParalizacion === opt.value && <CheckCircle2 className="w-4 h-4 text-[#0066CC] flex-shrink-0" />}
                                         </button>
@@ -589,7 +589,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                       {TIPO_OPTIONS.map(opt => (
                                           <button key={opt.value}
                                                   onClick={() => { setFiltros(f => ({ ...f, tipoInspeccion: opt.value })); setShowTipoMenu(false); }}
-                                                  className={`w-full flex items-center gap-3 py-3 px-5 text-left text-base font-medium transition-colors border-b border-gray-100 last:border-b-0 ${filtros.tipoInspeccion === opt.value ? `${opt.listColors} font-semibold` : 'bg-white text-[#4A4A4A] hover:bg-gray-50'}`}>
+                                                  className={`w-full flex items-center gap-3 py-4 px-5 text-left text-base font-medium transition-colors border-b border-gray-100 last:border-b-0 ${filtros.tipoInspeccion === opt.value ? `${opt.listColors} font-semibold` : 'bg-white text-[#4A4A4A] hover:bg-gray-50'}`}>
                                             <span className="flex-1">{opt.label}</span>
                                             {filtros.tipoInspeccion === opt.value && <CheckCircle2 className="w-5 h-5 text-[#0066CC] flex-shrink-0" />}
                                           </button>
