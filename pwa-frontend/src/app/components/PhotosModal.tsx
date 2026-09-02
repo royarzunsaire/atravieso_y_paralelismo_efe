@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { fotosService } from '@/services/fotos';
+
+// Máximo de descargas de fotos en simultáneo al precargar la galería.
+// Evita saturar la conexión en terreno con muchas fotos a la vez.
+const MAX_DESCARGAS_PARALELAS = 3;
 
 interface RemotePhoto {
   id: string;
@@ -31,9 +35,9 @@ export function PhotosModal({
 }: PhotosModalProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [objectUrls, setObjectUrls] = useState<Record<string, string>>({});
-  const [selectedObjectUrl, setSelectedObjectUrl] = useState<string | null>(null);
-  const [imageLoading, setImageLoading] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
+  const [erroresPorFoto, setErroresPorFoto] = useState<Record<string, string>>({});
+  const objectUrlsRef = useRef(objectUrls);
+  objectUrlsRef.current = objectUrls;
 
   useEffect(() => {
     if (isOpen) {
@@ -41,64 +45,70 @@ export function PhotosModal({
     }
   }, [isOpen, photos]);
 
+  // Precarga en cola de todas las fotos al abrir el modal (o al cambiar la
+  // lista), con concurrencia limitada. Empieza por la foto seleccionada
+  // para que la vista grande aparezca lo antes posible, y va rellenando
+  // el resto de miniaturas en segundo plano sin bloquear la UI.
   useEffect(() => {
-    if (!isOpen) return;
-
+    if (!isOpen || !inspeccionId) return;
     const hasPhotos = photos && photos.length > 0;
-    const selected = hasPhotos ? photos[Math.min(selectedIndex, photos.length - 1)] : undefined;
-    const fileName = selected?.fileName;
-    if (!fileName || !inspeccionId) {
-      setSelectedObjectUrl(null);
-      setImageError(null);
-      return;
-    }
+    if (!hasPhotos) return;
 
-    if (objectUrls[fileName]) {
-      setSelectedObjectUrl(objectUrls[fileName]);
-      setImageError(null);
-      return;
-    }
+    const pendientes = photos
+      .map((p, idx) => ({ ...p, idx }))
+      .filter((p) => p.fileName && !objectUrlsRef.current[p.fileName]);
+    if (pendientes.length === 0) return;
+
+    // Prioriza la seleccionada, luego el resto en orden.
+    const orden = [...pendientes].sort((a, b) => {
+      if (a.idx === selectedIndex) return -1;
+      if (b.idx === selectedIndex) return 1;
+      return a.idx - b.idx;
+    });
 
     let cancelled = false;
-    setImageLoading(true);
-    setImageError(null);
+    let cursor = 0;
 
-    fotosService
-      .getContentBlob({ inspeccionId, fileName })
-      .then((blob: Blob) => {
-        if (cancelled) return;
-        const url = URL.createObjectURL(blob);
-        setObjectUrls((prev) => ({ ...prev, [fileName]: url }));
-        setSelectedObjectUrl(url);
-      })
-      .catch((err: any) => {
-        if (cancelled) return;
-        setImageError(err?.message || 'No se pudo cargar la imagen');
-        setSelectedObjectUrl(null);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setImageLoading(false);
-      });
+    const descargarSiguiente = async (): Promise<void> => {
+      while (!cancelled) {
+        const item = orden[cursor++];
+        if (!item) return;
+        const fileName = item.fileName as string;
+        try {
+          const blob = await fotosService.getContentBlob({ inspeccionId, fileName });
+          if (cancelled) return;
+          const url = URL.createObjectURL(blob);
+          setObjectUrls((prev) => (prev[fileName] ? prev : { ...prev, [fileName]: url }));
+        } catch (err: any) {
+          if (cancelled) return;
+          setErroresPorFoto((prev) => ({ ...prev, [fileName]: err?.message || 'No se pudo cargar la imagen' }));
+        }
+      }
+    };
+
+    const trabajadores = Array.from(
+      { length: Math.min(MAX_DESCARGAS_PARALELAS, orden.length) },
+      () => descargarSiguiente()
+    );
+    void Promise.all(trabajadores);
 
     return () => {
       cancelled = true;
     };
-  }, [isOpen, inspeccionId, photos, selectedIndex, objectUrls]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, inspeccionId, photos, selectedIndex]);
 
   useEffect(() => {
     if (!isOpen) return;
     return () => {
       // limpiar object URLs al cerrar
-      Object.values(objectUrls).forEach((u) => {
+      Object.values(objectUrlsRef.current).forEach((u) => {
         try {
           URL.revokeObjectURL(u);
         } catch {}
       });
       setObjectUrls({});
-      setSelectedObjectUrl(null);
-      setImageError(null);
-      setImageLoading(false);
+      setErroresPorFoto({});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -107,6 +117,10 @@ export function PhotosModal({
 
   const hasPhotos = photos && photos.length > 0;
   const selected = hasPhotos ? photos[Math.min(selectedIndex, photos.length - 1)] : undefined;
+  const selectedFileName = selected?.fileName;
+  const selectedObjectUrl = selectedFileName ? objectUrls[selectedFileName] : undefined;
+  const selectedImageError = selectedFileName ? erroresPorFoto[selectedFileName] : undefined;
+  const imageLoading = Boolean(selected && selectedFileName && !selectedObjectUrl && !selectedImageError);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
@@ -159,8 +173,10 @@ export function PhotosModal({
                           alt={photo.description || photo.fileName || 'Foto'}
                           className="w-full h-full object-cover"
                         />
+                      ) : photo.fileName && erroresPorFoto[photo.fileName] ? (
+                        <ImageIcon className="w-6 h-6 text-red-300" />
                       ) : (
-                        <ImageIcon className="w-6 h-6 text-gray-400" />
+                        <Loader2 className="w-5 h-5 text-gray-300 animate-spin" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -187,9 +203,9 @@ export function PhotosModal({
                   <Loader2 className="w-7 h-7 animate-spin mb-3" />
                   <p>Cargando imagen...</p>
                 </div>
-              ) : imageError ? (
+              ) : selectedImageError ? (
                 <div className="text-center text-white/80 text-sm px-6">
-                  <p className="mb-2">{imageError}</p>
+                  <p className="mb-2">{selectedImageError}</p>
                   {selected?.url && (
                     <a
                       href={selected.url}
