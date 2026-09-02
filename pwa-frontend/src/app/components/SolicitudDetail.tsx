@@ -519,9 +519,9 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                           )}
                         </div>
 
-                        {/* Desfase + Paralización */}
-                        <div className="flex gap-3">
-                          <div className="relative flex-1">
+                        {/* Desfase + Paralización — cada uno en su propia línea */}
+                        <div className="space-y-2">
+                          <div className="relative">
                             <button onClick={() => setShowDesfaseMenu(v => !v)}
                                     className={`w-full flex items-center justify-between h-12 px-3 rounded-xl border-2 text-sm font-medium transition-all active:scale-[0.98] shadow-sm ${currentDesfase.chipColors}`}>
                         <span className="flex items-center gap-1.5">
@@ -547,7 +547,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                             )}
                           </div>
 
-                          <div className="relative flex-1">
+                          <div className="relative">
                             <button onClick={() => setShowParalizacionMenu(v => !v)}
                                     className={`w-full flex items-center justify-between h-12 px-3 rounded-xl border-2 text-sm font-medium transition-all active:scale-[0.98] shadow-sm ${currentParalizacion.chipColors}`}>
                         <span className="flex items-center gap-1.5">
