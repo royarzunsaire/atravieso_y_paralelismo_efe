@@ -5,8 +5,8 @@ import { SolicitudCard } from './SolicitudCard';
 import { Button } from './Button';
 import { solicitudesService } from '@/services/solicitudes';
 import { inspeccionesService } from '@/services/inspecciones';
-import { inicioService } from '@/services/inicioService';
 import { mapObraToSolicitud } from '@/utils/mapInicio';
+import { useInicio } from '@/context/InicioContext';
 import type { Solicitud } from '@/types/solicitud.ts';
 
 // Flag de migración (spec 10): cuando está activo, el dashboard usa la
@@ -68,12 +68,24 @@ function calcularUltimoAvance(inspecciones: any[]): UltimoAvance {
 // ========================================
 
 export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: SolicitudesDashboardProps) {
-  const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Estado compartido de la carga inicial (v2) — se reutiliza en toda la
+  // sesión sin re-cargar al navegar. En modo viejo no se usa.
+  const inicio = useInicio();
+
+  const [solicitudesViejas, setSolicitudesViejas] = useState<Solicitud[]>([]);
+  const [loadingViejo, setLoadingViejo] = useState(true);
+  const [errorViejo, setErrorViejo] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterByUser, setFilterByUser] = useState<boolean>();
   const [stats, setStats] = useState<Stats | null>(null);
+
+  // En v2 las solicitudes salen del context (obras mapeadas); en modo viejo,
+  // del estado local que llena solicitudesService.
+  const solicitudes: Solicitud[] = USE_API_V2
+      ? inicio.obras.map(mapObraToSolicitud)
+      : solicitudesViejas;
+  const loading = USE_API_V2 ? inicio.loading && !inicio.cargado : loadingViejo;
+  const error = USE_API_V2 ? inicio.error : errorViejo;
 
   /**
    * Mapa de avances: solicitudId → { avance, estado } | null (cargando).
@@ -116,29 +128,26 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
   // ── Cargar solicitudes ──────────────────────────────────────
 
   const loadSolicitudes = useCallback(async (forceRefresh = false) => {
-    setLoading(true);
-    setError(null);
-
+    if (USE_API_V2) {
+      // Modo migración: el InicioContext carga UNA vez y se reutiliza toda
+      // la sesión; cargar() es idempotente (no re-llama si ya está cargado).
+      await inicio.cargar(forceRefresh);
+      return;
+    }
+    setLoadingViejo(true);
+    setErrorViejo(null);
     try {
-      if (USE_API_V2) {
-        // Modo migración: API_Inicio devuelve obras ya filtradas + catálogo.
-        // El avance viene en la obra (avanceObraPct), no hace falta cargarAvances.
-        const { obras } = await inicioService.getInicio({ forzarCatalogo: forceRefresh });
-        setSolicitudes(obras.map(mapObraToSolicitud));
-      } else {
-        const data = await solicitudesService.getAll(filterByUser, { forceRefresh });
-        setSolicitudes(data);
-        // Disparar avances sin bloquear el render de la lista
-        void cargarAvances(data);
-      }
+      const data = await solicitudesService.getAll(filterByUser, { forceRefresh });
+      setSolicitudesViejas(data);
+      // Disparar avances sin bloquear el render de la lista
+      void cargarAvances(data);
     } catch (err: any) {
-      // Mensaje específico si el usuario no existe en el sistema de obras (v2).
-      setError(err.code === 'USUARIO_NO_ENCONTRADO' ? err.message : err.message);
+      setErrorViejo(err.message);
       console.error('Error cargando solicitudes:', err);
     } finally {
-      setLoading(false);
+      setLoadingViejo(false);
     }
-  }, [filterByUser, cargarAvances]);
+  }, [filterByUser, cargarAvances, inicio]);
 
   const loadStats = useCallback(async (forceRefresh = false) => {
     try {
@@ -165,8 +174,8 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    setLoadingViejo(true);
+    setErrorViejo(null);
 
     try {
       if (filterByUser) {
@@ -174,17 +183,17 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
           solicitudesService.getAll(filterByUser, { forceRefresh: true }),
           loadStats(true),
         ]);
-        setSolicitudes(solicitudesData);
+        setSolicitudesViejas(solicitudesData);
         void cargarAvances(solicitudesData);
       } else {
         const data = await solicitudesService.getAll(filterByUser, { forceRefresh: true });
-        setSolicitudes(data);
+        setSolicitudesViejas(data);
         void cargarAvances(data);
       }
     } catch (err: any) {
-      setError(err.message);
+      setErrorViejo(err.message);
     } finally {
-      setLoading(false);
+      setLoadingViejo(false);
     }
   };
 

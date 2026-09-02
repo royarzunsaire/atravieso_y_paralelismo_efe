@@ -7,7 +7,6 @@ import { Profile } from './components/Profile';
 import { ChangePassword } from './components/ChangePassword';
 import { SolicitudesDashboard } from './components/SolicitudesDashboard';
 import { SolicitudDetail } from './components/SolicitudDetail';
-import { ObraDetalleV2 } from './components/ObraDetalleV2';
 import { NewInspection } from './components/NewInspection';
 import { PhotoCapture } from './components/PhotoCapture';
 import { CierreObra } from './components/CierreObra';
@@ -18,6 +17,7 @@ import { fotosService } from '@/services/fotos';
 import { informesService } from '@/services/informes';
 import { CatalogsProvider, useCatalogs } from '@/context/CatalogsContext';
 import { SolicitudProvider } from '@/context/SolicitudContext';
+import { InicioProvider } from '@/context/InicioContext';
 import type { CierreObraData } from './components/CierreObra';
 
 // Flag de migración (spec 10): en modo v2 el detalle de obra usa el flujo
@@ -407,19 +407,15 @@ function AppContent() {
 
         {isAuthenticated && currentScreen.type === 'solicitudDetail' && (
             <>
-              {USE_API_V2 ? (
-                  <ObraDetalleV2
-                      solicitudId={currentScreen.solicitudId}
-                      onBack={() => setCurrentScreen({ type: 'solicitudesDashboard' })}
-                  />
-              ) : (
-                  <SolicitudDetail
-                      solicitudId={currentScreen.solicitudId}
-                      onBack={() => setCurrentScreen({ type: 'solicitudesDashboard' })}
-                      onNewInspection={(solicitud, minimoAvance) => handleNewInspection(currentScreen.solicitudId, solicitud, minimoAvance)}
-                      onCierreObra={(solicitud) => handleCierreObra(currentScreen.solicitudId, solicitud)}
-                  />
-              )}
+              {/* El detalle es siempre SolicitudDetail (tu pantalla). En modo v2
+                  conserva la lectura por flows viejos y muestra las acciones
+                  dinámicas de la API en lugar de los botones fijos. */}
+              <SolicitudDetail
+                  solicitudId={currentScreen.solicitudId}
+                  onBack={() => setCurrentScreen({ type: 'solicitudesDashboard' })}
+                  onNewInspection={(solicitud, minimoAvance) => handleNewInspection(currentScreen.solicitudId, solicitud, minimoAvance)}
+                  onCierreObra={(solicitud) => handleCierreObra(currentScreen.solicitudId, solicitud)}
+              />
               <BottomNav activeTab={bottomNavTab} onTabChange={handleBottomNavChange} />
             </>
         )}
@@ -493,7 +489,9 @@ export default function App() {
   return (
       <CatalogsProvider>
         <SolicitudProvider>
-          <AppContent />
+          <InicioProvider>
+            <AppContent />
+          </InicioProvider>
         </SolicitudProvider>
       </CatalogsProvider>
   );
