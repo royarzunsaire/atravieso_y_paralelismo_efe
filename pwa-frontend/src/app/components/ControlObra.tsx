@@ -112,9 +112,17 @@ export function ControlObra({ solicitudId, onEventoRegistrado }: ControlObraProp
           <span className="text-sm text-[#4A4A4A]">Sub-estado</span>
           <span className="text-sm font-medium text-[#003D7A]">{obra.SubEstado}</span>
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-[#4A4A4A]">Avance</span>
-          <span className="text-lg font-bold text-[#0066CC]">{Math.round(obra.AvanceObraPct || 0)}%</span>
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-sm text-[#4A4A4A]">Avance</span>
+            <span className="text-lg font-bold text-[#0066CC]">{Math.round(obra.AvanceObraPct || 0)}%</span>
+          </div>
+          <div className="w-full h-2 rounded-full bg-[#F5F7FA] overflow-hidden">
+            <div
+                className="h-full rounded-full bg-gradient-to-r from-[#0066CC] to-green-500 transition-all"
+                style={{ width: `${Math.min(100, Math.max(0, Math.round(obra.AvanceObraPct || 0)))}%` }}
+            />
+          </div>
         </div>
       </div>
 

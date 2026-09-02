@@ -290,14 +290,17 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
             ) : filteredSolicitudes.length > 0 ? (
                 filteredSolicitudes.map(solicitud => {
                   const avanceData = avancesMap[solicitud.id];
-                  // null = aún cargando (undefined para que SolicitudCard no muestre nada aún)
-                  // objeto = ya resuelto
+                  // En v2 el avance viene en la propia obra (avanceObraPct);
+                  // en modo viejo, del avancesMap (null = cargando).
+                  const ultimoAvance = USE_API_V2
+                      ? Math.round((solicitud as { avanceObraPct?: number }).avanceObraPct ?? 0)
+                      : (avanceData !== null && avanceData !== undefined ? avanceData.avance : undefined);
                   return (
                       <SolicitudCard
                           key={solicitud.id}
                           solicitud={solicitud}
                           onClick={() => onSolicitudSelect(solicitud.id)}
-                          ultimoAvance={avanceData !== null && avanceData !== undefined ? avanceData.avance : undefined}
+                          ultimoAvance={ultimoAvance}
                           ultimoEstado={avanceData?.estado ?? null}
                       />
                   );
