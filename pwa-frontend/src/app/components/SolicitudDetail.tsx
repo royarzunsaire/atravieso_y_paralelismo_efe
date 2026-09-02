@@ -298,10 +298,10 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
           <div className="flex">
             {tabs.map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                        className={`flex-1 h-12 transition-colors ${activeTab === tab.id ? 'text-[#0066CC] border-b-2 border-[#0066CC]' : 'text-[#4A4A4A] border-b-2 border-transparent'}`}>
-                  {tab.label}
+                        className={`flex-1 basis-0 min-w-0 h-12 flex items-center justify-center px-1 text-center text-sm whitespace-nowrap transition-colors ${activeTab === tab.id ? 'text-[#0066CC] border-b-2 border-[#0066CC]' : 'text-[#4A4A4A] border-b-2 border-transparent'}`}>
+                  <span className="truncate">{tab.label}</span>
                   {tab.id === 'inspections' && filtrosActivos > 0 && (
-                      <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0066CC] text-white text-[10px]">{filtrosActivos}</span>
+                      <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0066CC] text-white text-[10px] flex-shrink-0">{filtrosActivos}</span>
                   )}
                 </button>
             ))}
