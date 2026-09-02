@@ -261,7 +261,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
     { id: 'inspections', label: 'Inspecciones' },
     // En modo v2, el control de obra (detener/reactivar/cierre) tiene su
     // propia pestaña en vez de los botones fijos del final.
-    ...(USE_API_V2 ? [{ id: 'control' as TabId, label: 'Control de obra' }] : []),
+    ...(USE_API_V2 ? [{ id: 'control' as TabId, label: 'Ctrl. Obra' }] : []),
   ];
 
   const ESTADO_OPTIONS = [
