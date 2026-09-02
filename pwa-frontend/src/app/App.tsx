@@ -15,9 +15,11 @@ import { Toast } from './components/Toast';
 import type { Solicitud, Inspection, InspectionPhoto, Photo } from '../types/solicitud';
 import { fotosService } from '@/services/fotos';
 import { informesService } from '@/services/informes';
+import { eventosService, generarEventoIdExterno } from '@/services/eventosService';
+import { armarFotos, armarInformes, validarPesos, ArchivoInvalidoError } from '@/utils/prepararArchivos';
 import { CatalogsProvider, useCatalogs } from '@/context/CatalogsContext';
 import { SolicitudProvider } from '@/context/SolicitudContext';
-import { InicioProvider } from '@/context/InicioContext';
+import { InicioProvider, useInicio } from '@/context/InicioContext';
 import type { CierreObraData } from './components/CierreObra';
 
 // Flag de migración (spec 10): en modo v2 el detalle de obra usa el flujo
@@ -45,6 +47,7 @@ type Screen =
 
 function AppContent() {
   const { recargarTiposInspeccion } = useCatalogs();
+  const inicio = useInicio();
   const [currentScreen, setCurrentScreen] = useState<Screen>({ type: 'login' });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [bottomNavTab, setBottomNavTab] = useState<'home' | 'reports' | 'camera' | 'profile'>('home');
@@ -285,6 +288,12 @@ function AppContent() {
         } catch { /* no disponible */ }
       }
 
+      // ── Modo v2: registrar como evento vía la API de eventos ──
+      if (USE_API_V2) {
+        await guardarInspeccionV2(solicitudId, inspection, latitud, longitud);
+        return;
+      }
+
       const inspeccionData = {
         solicitudId,
         codigoSolicitud: solicitud?.codigo || null,
@@ -383,6 +392,114 @@ function AppContent() {
     }
   };
 
+  // ── Guardado v2: la inspección se registra como un evento en la API ──
+  // Deduce el TipoEvento según los campos llenados (regla acordada) y solo
+  // entre las acciones INSPECCION_* realmente habilitadas para la obra.
+  const guardarInspeccionV2 = async (
+      solicitudId: number,
+      inspection: Parameters<typeof handleSaveInspection>[1],
+      latitud: string,
+      longitud: string,
+  ) => {
+    const obra = inicio.getObra(solicitudId);
+    const habilitadas = obra?.AccionesHabilitadas ?? [];
+
+    // Regla de deducción: si hay avance → INSPECCION_AVANCE; si no, el
+    // informe diario. Solo si la acción está realmente habilitada.
+    const pusoAvance = inspection.progress != null && Number(inspection.progress) > 0;
+    let tipoEvento: string | null = null;
+    if (pusoAvance && habilitadas.includes('INSPECCION_AVANCE')) {
+      tipoEvento = 'INSPECCION_AVANCE';
+    } else if (habilitadas.includes('INSPECCION_INFORME_DIARIO')) {
+      tipoEvento = 'INSPECCION_INFORME_DIARIO';
+    } else {
+      // Fallback: la primera inspección habilitada, si hay alguna.
+      tipoEvento = habilitadas.find((a) => a.startsWith('INSPECCION_')) ?? null;
+    }
+
+    if (!tipoEvento) {
+      setToast({ isOpen: true, type: 'error', title: 'No se puede registrar', message: 'Esta obra no tiene inspecciones habilitadas en su estado actual.' });
+      return;
+    }
+
+    // Armar el Payload con el contrato de la API (los 3 canales de archivos).
+    const eventoIdExterno = generarEventoIdExterno();
+    const fotos = inspection.photos.length > 0 ? armarFotos(eventoIdExterno, inspection.photos.map((p) => p.url)) : [];
+    const informes = inspection.informe
+        ? armarInformes(eventoIdExterno, [{ nombre: inspection.informe.fileName, dataUrl: inspection.informe.fileContentBase64 }])
+        : [];
+
+    try {
+      validarPesos({ fotos, informes });
+    } catch (err) {
+      if (err instanceof ArchivoInvalidoError) {
+        setToast({ isOpen: true, type: 'error', title: 'Archivo muy pesado', message: err.message });
+        return;
+      }
+      throw err;
+    }
+
+    const payload: Record<string, unknown> = {
+      Comentario: inspection.comentariosAvance || '',
+      EstadoInspeccion: inspection.status === 'conforme' ? 'Conforme' : 'No Conforme',
+      ObservacionesAvance: inspection.observacionesInspeccion || '',
+    };
+    if (tipoEvento === 'INSPECCION_AVANCE') payload.AvancePct = Number(inspection.progress);
+    if (fotos.length > 0) payload.Fotos = fotos;
+    if (informes.length > 0) payload.Informes = informes;
+    if (latitud && longitud) { payload.Latitud = Number(latitud); payload.Longitud = Number(longitud); }
+
+    const res: {
+      ok: boolean;
+      estadoSync?: string;
+      accionNoPermitida?: boolean;
+      mensaje?: string;
+      acciones?: string[];
+      subEstado?: string;
+      avanceObraPct?: number;
+    } = await eventosService.registrarEvento({
+      solicitudId,
+      tipoEvento,
+      eventoIdExterno,
+      payload,
+      sync: true,
+    });
+
+    if (!res.ok) {
+      if (res.accionNoPermitida) {
+        // 403: la obra cambió de estado — recargar y avisar.
+        await inicio.refrescar();
+        setToast({ isOpen: true, type: 'warning', title: 'La obra cambió', message: res.mensaje });
+        setCurrentScreen({ type: 'solicitudDetail', solicitudId });
+        return;
+      }
+      setToast({ isOpen: true, type: 'error', title: 'Error al registrar', message: res.mensaje });
+      return;
+    }
+
+    // Éxito: si la respuesta trae acciones/estado nuevos, actualizar solo
+    // esa obra en el caché (sin re-llamar a Inicio).
+    if (res.acciones && obra) {
+      inicio.actualizarObra(solicitudId, {
+        AccionesHabilitadas: res.acciones,
+        SubEstado: res.subEstado ?? obra.SubEstado,
+        AvanceObraPct: res.avanceObraPct ?? obra.AvanceObraPct,
+      });
+    }
+
+    setTempPhotos([]);
+    try { sessionStorage.removeItem(`newInspectionDraft:${solicitudId}`); } catch {}
+    setCurrentScreen({ type: 'solicitudDetail', solicitudId });
+    setToast({
+      isOpen: true,
+      type: res.estadoSync === 'sincronizado' ? 'success' : 'warning',
+      title: res.estadoSync === 'sincronizado' ? 'Inspección registrada' : 'Guardada sin conexión',
+      message: res.estadoSync === 'sincronizado'
+          ? 'La inspección se registró correctamente.'
+          : 'La inspección quedó pendiente y se enviará cuando haya señal.',
+    });
+  };
+
   // ── Render ───────────────────────────────────────────────────
 
   return (
@@ -454,6 +571,11 @@ function AppContent() {
                 minimoAvance={currentScreen.minimoAvance}
                 tempPhotos={tempPhotos}
                 onRemovePhoto={handleRemovePhoto}
+                accionesV2={
+                  USE_API_V2
+                      ? (inicio.getObra(currentScreen.solicitudId)?.AccionesHabilitadas ?? [])
+                      : undefined
+                }
             />
         )}
 
