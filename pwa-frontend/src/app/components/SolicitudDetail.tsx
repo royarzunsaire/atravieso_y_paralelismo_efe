@@ -32,9 +32,14 @@ import { getFileIconInfo, getTipoDocumentoBadgeColor, isImageFile } from '@/util
 import { PhotosModal } from './PhotosModal';
 import { InformesModal } from './InformesModal';
 import { useSolicitudContext } from '@/context/SolicitudContext';
+import { useInicio } from '@/context/InicioContext';
 import { inspeccionesService } from '@/services/inspecciones';
+import { ControlObra } from './ControlObra';
 
-type TabId = 'info' | 'documentos' | 'inspections';
+// Flag de migración (spec 10): en v2 aparece la pestaña "Control de obra".
+const USE_API_V2 = import.meta.env.VITE_USE_API_V2 === 'true';
+
+type TabId = 'info' | 'documentos' | 'inspections' | 'control';
 
 interface SolicitudDetailProps {
   solicitudId: number;
@@ -254,6 +259,9 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
     { id: 'info', label: 'Información' },
     { id: 'documentos', label: 'Documentos' },
     { id: 'inspections', label: 'Inspecciones' },
+    // En modo v2, el control de obra (detener/reactivar/cierre) tiene su
+    // propia pestaña en vez de los botones fijos del final.
+    ...(USE_API_V2 ? [{ id: 'control' as TabId, label: 'Control de obra' }] : []),
   ];
 
   const ESTADO_OPTIONS = [
@@ -928,6 +936,14 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                     </div>
                 )}
               </div>
+          )}
+
+          {/* ── TAB: CONTROL DE OBRA (solo v2) ── */}
+          {activeTab === 'control' && USE_API_V2 && (
+              <ControlObra
+                  solicitudId={solicitudId}
+                  onEventoRegistrado={() => recargarInspecciones(solicitudId)}
+              />
           )}
         </div>
 
