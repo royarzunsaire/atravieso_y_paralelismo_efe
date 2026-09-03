@@ -39,7 +39,7 @@ export const solicitudesService = {
           const result = await response.json();
           return result.data || [];
         },
-        { ttlMs: 20000, forceRefresh }
+        { ttlMs: 5 * 60 * 1000, forceRefresh }
     );
   },
 
@@ -70,7 +70,7 @@ export const solicitudesService = {
           const result = await response.json();
           return result.data;
         },
-        { ttlMs: 30000, forceRefresh }
+        { ttlMs: 5 * 60 * 1000, forceRefresh }
     );
   },
 

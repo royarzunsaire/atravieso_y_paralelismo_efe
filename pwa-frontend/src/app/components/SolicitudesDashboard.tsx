@@ -84,7 +84,14 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
   const solicitudes: Solicitud[] = USE_API_V2
       ? inicio.obras.map(mapObraToSolicitud)
       : solicitudesViejas;
+  // `loading` (v2) controla el spinner de PANTALLA COMPLETA — solo debe
+  // verse en la carga inicial, cuando todavía no hay nada que mostrar.
+  // `refreshing` controla el botón "Actualizar": debe reflejar
+  // inicio.loading SIEMPRE (también en refrescos posteriores al primero),
+  // para que el botón dé feedback real sin ocultar la lista ya cargada
+  // (antes no distinguía ambos casos y el botón nunca giraba en refrescos).
   const loading = USE_API_V2 ? inicio.loading && !inicio.cargado : loadingViejo;
+  const refreshing = USE_API_V2 ? inicio.loading : loadingViejo;
   const error = USE_API_V2 ? inicio.error : errorViejo;
 
   /**
@@ -237,16 +244,19 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
               />
             </div>
 
-            {/* Botón de refresh */}
+            {/* Botón de refresh — refleja refreshing (no loading), así da
+                feedback también en refrescos posteriores al primero, sin
+                depender de que la pantalla completa esté en su spinner
+                inicial. */}
             <Button
                 variant="secondary"
                 size="md"
                 fullWidth
                 onClick={handleRefresh}
-                disabled={loading}
-                icon={<RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />}
+                disabled={refreshing}
+                icon={<RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />}
             >
-              {loading ? 'Cargando...' : 'Actualizar'}
+              {refreshing ? 'Cargando...' : 'Actualizar'}
             </Button>
           </div>
 

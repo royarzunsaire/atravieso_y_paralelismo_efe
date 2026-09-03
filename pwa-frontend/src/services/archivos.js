@@ -41,7 +41,7 @@ export const archivosService = {
 
           return result.data || [];
         },
-        { ttlMs: 20000, forceRefresh }
+        { ttlMs: 5 * 60 * 1000, forceRefresh }
     );
   }
 };

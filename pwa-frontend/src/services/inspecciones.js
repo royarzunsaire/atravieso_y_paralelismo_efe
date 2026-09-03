@@ -41,7 +41,7 @@ export const inspeccionesService = {
 
               return result.data || [];
             },
-            { ttlMs: 10000, forceRefresh }
+            { ttlMs: 3 * 60 * 1000, forceRefresh }
         );
       },
 
