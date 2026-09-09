@@ -10,6 +10,7 @@ const {
   getArchivosConErrorBySolicitud,
 } = require('../database');
 const { procesarInspeccion, procesarArchivo } = require('../syncJob');
+const { parseFechaInspeccion, FechaInvalidaError } = require('../utils/fechas');
 
 const ORACLE_ID_REGEX = /^[0-9A-F]{32}$/i;
 
@@ -69,12 +70,9 @@ function mapInspeccionItem(item) {
     return null;
   };
 
-  let fecha;
-  try { fecha = new Date(item.FechaInspeccion || item.Created); }
-  catch (e) { fecha = new Date(); }
-
-  const dateStr = fecha.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const timeStr = fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  // El backend trabaja siempre en UTC: NO arma strings de fecha en hora
+  // local. El frontend formatea fechaInspeccion/fechaCreacion a hora de
+  // Chile en la capa de presentación (spec 11).
 
   let status = 'conforme';
   const estadoInspeccion = extractValue(item.EstadoInspeccion) || '';
@@ -91,7 +89,6 @@ function mapInspeccionItem(item) {
 
   return {
     id: String(item.ID || item.Id || Date.now()),
-    date: `${dateStr} - ${timeStr}`,
     type: extractValue(item.TipoInspeccion) || 'Sin tipo',
     progress: Number(item.PorcentajeAvance) || 0,
     status,
@@ -121,9 +118,6 @@ function mapInspeccionItem(item) {
  */
 function mapInspeccionOutboxToItem(inspeccionOutbox) {
   const { id, payload, estado, intentos } = inspeccionOutbox;
-  const fecha = payload.fechaInspeccion ? new Date(payload.fechaInspeccion) : new Date();
-  const dateStr = fecha.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const timeStr = fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 
   let status = 'conforme';
   if (payload.estadoInspeccion === 'No Conforme') status = 'no-conforme';
@@ -131,7 +125,6 @@ function mapInspeccionOutboxToItem(inspeccionOutbox) {
 
   return {
     id: `outbox-${id}`, // prefijo para no chocar con ids reales de SharePoint
-    date: `${dateStr} - ${timeStr}`,
     type: payload.tipoInspeccion || 'Sin tipo',
     progress: Number(payload.porcentajeAvance) || 0,
     status,
@@ -270,12 +263,17 @@ router.post('/', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Observaciones requeridas' });
     }
 
+    // fechaInspeccion: obligatoria y en UTC. El frontend la envía como ISO
+    // con offset/Z; acá se valida y normaliza a UTC. Si no cumple → 400,
+    // sin sustituir en silencio por now() (spec 11).
     let fechaFinal;
-    if (fechaInspeccion) {
-      const parsed = new Date(fechaInspeccion);
-      fechaFinal = isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
-    } else {
-      fechaFinal = new Date().toISOString();
+    try {
+      fechaFinal = parseFechaInspeccion(fechaInspeccion);
+    } catch (err) {
+      if (err instanceof FechaInvalidaError) {
+        return res.status(400).json({ success: false, error: 'fechaInspeccion inválida', message: err.message });
+      }
+      throw err;
     }
 
     // Normalizar array de usuarios — tolera undefined o null

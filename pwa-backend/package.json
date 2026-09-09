@@ -19,10 +19,10 @@
     "express": "^4.22.1",
     "express-session": "^1.18.2",
     "jsonwebtoken": "^9.0.3",
+    "luxon": "^3.7.2",
     "passport": "^0.7.0",
     "passport-azure-ad": "^4.3.5",
-    "passport-local": "^1.0.0",
-    "sqlite3": "^5.1.7"
+    "passport-local": "^1.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

@@ -29,6 +29,7 @@ import {
 import { getEstadoColor, getPrioridadTextColor } from '@/utils/solicitudUtils';
 import type { Solicitud, InspeccionDetalle, Archivo, FotoInspeccion } from '@/types/solicitud';
 import { getFileIconInfo, getTipoDocumentoBadgeColor, isImageFile } from '@/utils/fileUtils';
+import { formatearFechaCL, formatearFechaHoraCL } from '@/utils/fechas';
 import { PhotosModal } from './PhotosModal';
 import { InformesModal } from './InformesModal';
 import { useSolicitudContext } from '@/context/SolicitudContext';
@@ -382,7 +383,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                             </p>
                             <div className="flex items-center gap-2 text-sm text-[#1A1A1A]">
                               <Clock className="w-3.5 h-3.5 text-[#0066CC] flex-shrink-0" />
-                              <span>{ultimaInspeccion.date}</span>
+                              <span>{formatearFechaHoraCL(ultimaInspeccion.fechaInspeccion ?? ultimaInspeccion.fechaCreacion)}</span>
                             </div>
                             <div className="flex items-center gap-2 text-sm text-[#1A1A1A]">
                               <FileText className="w-3.5 h-3.5 text-[#0066CC] flex-shrink-0" />
@@ -653,7 +654,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                                       <div className="flex items-center gap-1">
                                         <Clock className="w-3 h-3 text-[#4A4A4A]" />
-                                        <span className="text-xs text-[#4A4A4A]">{inspection.date}</span>
+                                        <span className="text-xs text-[#4A4A4A]">{formatearFechaHoraCL(inspection.fechaInspeccion ?? inspection.fechaCreacion)}</span>
                                       </div>
                                       {inspection.desfase === '1' && (
                                           <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300">Desfase</span>
@@ -791,15 +792,13 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                               <div className="flex items-center gap-2 text-xs">
                                                 <span className="text-amber-600 font-medium w-32">Fecha inspección:</span>
                                                 <span className="text-amber-800">
-                                    {new Date(inspection.fechaInspeccion).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
-                                                  {new Date(inspection.fechaInspeccion).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                                    {formatearFechaHoraCL(inspection.fechaInspeccion)}
                                   </span>
                                               </div>
                                               <div className="flex items-center gap-2 text-xs">
                                                 <span className="text-amber-600 font-medium w-32">Fecha registro:</span>
                                                 <span className="text-amber-800">
-                                    {new Date(inspection.fechaCreacion).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
-                                                  {new Date(inspection.fechaCreacion).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                                    {formatearFechaHoraCL(inspection.fechaCreacion)}
                                   </span>
                                               </div>
                                             </div>
@@ -915,7 +914,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                               <div className="flex-1 min-w-0">
                                 <h4 className="text-[#003D7A] font-medium truncate mb-2">{archivo.fileName}</h4>
                                 <span className={`inline-block px-2 py-1 rounded-md text-xs font-medium border ${badgeColor}`}>{archivo.tipoDocumento}</span>
-                                <p className="text-xs text-[#4A4A4A] mt-2">Modificado: {new Date(archivo.modified).toLocaleDateString('es-CL')} por {archivo.modifiedBy}</p>
+                                <p className="text-xs text-[#4A4A4A] mt-2">Modificado: {formatearFechaCL(archivo.modified)} por {archivo.modifiedBy}</p>
                                 {archivo.estado && <p className="text-xs text-[#4A4A4A] mt-1">Estado: {archivo.estado}</p>}
                               </div>
                               <div className="flex-shrink-0">

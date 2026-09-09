@@ -58,7 +58,8 @@ export interface Solicitud {
  */
 export interface Inspection {
   id: string;
-  date: string;
+  /** Texto de fecha/hora ya formateado en hora de Chile (lo arma el frontend). */
+  date?: string;
   type: string;
   progress: number;
   status: 'conforme' | 'observaciones' | 'no-conforme';
@@ -70,7 +71,8 @@ export interface Inspection {
  */
 export interface InspeccionDetalle {
   id: string;
-  date: string;
+  /** Ya no lo envía el backend (trabaja en UTC); el frontend lo deriva de fechaInspeccion/fechaCreacion. */
+  date?: string;
   type: string;
   progress: number;
   status: 'conforme' | 'no-conforme';

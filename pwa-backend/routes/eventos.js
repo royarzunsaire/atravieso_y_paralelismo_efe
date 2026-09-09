@@ -4,6 +4,7 @@ const { verifyToken } = require('./auth');
 const { createInspeccionOutbox, getInspeccionOutboxById } = require('../database');
 const { procesarInspeccion } = require('../syncJob');
 const { obtenerInicio, obtenerAccionesHabilitadas } = require('../apiEventos');
+const { parseFechaEventoOpcional, FechaInvalidaError } = require('../utils/fechas');
 
 // ============================================================
 // Rutas v2 — API de eventos unificada (nuevo contrato)
@@ -69,6 +70,19 @@ router.post('/eventos', verifyToken, async (req, res) => {
       });
     }
 
+    // fechaEvento es opcional (cola offline). Si viene, debe ser ISO con
+    // zona (Z u offset); si no, el servidor pone el sello de recepción en
+    // now() UTC más abajo — eso es intencional (spec 11).
+    let fechaEventoUTC;
+    try {
+      fechaEventoUTC = parseFechaEventoOpcional(fechaEvento);
+    } catch (err) {
+      if (err instanceof FechaInvalidaError) {
+        return res.status(400).json({ success: false, error: 'fechaEvento inválida', message: err.message });
+      }
+      throw err;
+    }
+
     // ── SEGURIDAD: re-validar la acción contra la fuente de verdad ──
     // El frontend muestra/oculta secciones por comodidad, pero es
     // manipulable. Antes de aceptar el evento, consultamos la API_Inicio
@@ -114,7 +128,7 @@ router.post('/eventos', verifyToken, async (req, res) => {
       Origen: 'Mobile',
       Usuario: userEmail || '',
       UsuarioNombre: userNombre || '',
-      FechaEvento: fechaEvento || new Date().toISOString(),
+      FechaEvento: fechaEventoUTC || new Date().toISOString(),
       Payload: payload,
     };
 

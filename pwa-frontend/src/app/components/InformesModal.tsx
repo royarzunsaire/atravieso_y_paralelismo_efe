@@ -1,5 +1,6 @@
 import { X, FileText, Eye, Loader2 } from 'lucide-react';
 import { getFileIconInfo } from '@/utils/fileUtils';
+import { formatearFechaCL } from '@/utils/fechas';
 import type { FotoInspeccion } from '@/types/solicitud';
 
 interface InformesModalProps {
@@ -62,10 +63,7 @@ export function InformesModal({ isOpen, title, informes, loading, onClose }: Inf
                       </h4>
                       {informe.created && (
                         <p className="text-xs text-[#4A4A4A]">
-                          Cargado el{' '}
-                          {new Date(informe.created).toLocaleDateString('es-CL', {
-                            day: '2-digit', month: '2-digit', year: 'numeric',
-                          })}
+                          Cargado el {formatearFechaCL(informe.created)}
                         </p>
                       )}
                       {informe.description && (

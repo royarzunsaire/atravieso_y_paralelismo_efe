@@ -17,6 +17,7 @@ import { fotosService } from '@/services/fotos';
 import { informesService } from '@/services/informes';
 import { eventosService, generarEventoIdExterno } from '@/services/eventosService';
 import { armarFotos, armarInformes, validarPesos, ArchivoInvalidoError } from '@/utils/prepararArchivos';
+import { wallChileAUTC, formatearFechaCL, formatearFechaHoraCL, FechaInvalidaError } from '@/utils/fechas';
 import { CatalogsProvider, useCatalogs } from '@/context/CatalogsContext';
 import { SolicitudProvider } from '@/context/SolicitudContext';
 import { InicioProvider, useInicio } from '@/context/InicioContext';
@@ -294,11 +295,24 @@ function AppContent() {
         return;
       }
 
+      // El input entrega un reloj de pared local; se interpreta en
+      // America/Santiago y se convierte a UTC antes de enviar (spec 11).
+      let fechaInspeccionUTC: string;
+      try {
+        fechaInspeccionUTC = wallChileAUTC(inspection.fechaInspeccion ?? '');
+      } catch (e) {
+        if (e instanceof FechaInvalidaError) {
+          setToast({ isOpen: true, type: 'error', title: 'Fecha inválida', message: 'Revisa la fecha y hora de la inspección.' });
+          return;
+        }
+        throw e;
+      }
+
       const inspeccionData = {
         solicitudId,
         codigoSolicitud: solicitud?.codigo || null,
         tipoInspeccion: inspection.type,
-        fechaInspeccion: inspection.fechaInspeccion || new Date().toISOString(),
+        fechaInspeccion: fechaInspeccionUTC,
         porcentajeAvance: inspection.progress,
         estadoInspeccion: inspection.status === 'conforme' ? 'Conforme' : 'No Conforme',
         observacionesAvance: inspection.comentariosAvance,
@@ -343,13 +357,13 @@ function AppContent() {
         }
       }
 
-      const fechaDisplay = inspection.fechaInspeccion ? new Date(inspection.fechaInspeccion) : new Date();
-      const dateStr = fechaDisplay.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const timeStr = fechaDisplay.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+      // Display en hora de Chile a partir del instante UTC ya calculado.
+      const fechaTexto = formatearFechaHoraCL(fechaInspeccionUTC);
+      const fechaSoloDia = formatearFechaCL(fechaInspeccionUTC);
 
       const newInspection: Inspection = {
         id: result.id?.toString() || Date.now().toString(),
-        date: `${dateStr} - ${timeStr}`,
+        date: fechaTexto,
         type: inspection.type,
         progress: inspection.progress,
         status: inspection.status,
@@ -360,7 +374,7 @@ function AppContent() {
 
       if (inspection.photos.length > 0) {
         const newPhotos: Photo[] = inspection.photos.map(p => ({
-          id: p.id, url: p.url, description: p.description, date: dateStr,
+          id: p.id, url: p.url, description: p.description, date: fechaSoloDia,
         }));
         setPhotos(prev => ({ ...prev, [solicitudId]: [...newPhotos, ...(prev[solicitudId] || [])] }));
       }

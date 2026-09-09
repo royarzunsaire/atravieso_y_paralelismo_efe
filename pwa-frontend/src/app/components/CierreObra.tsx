@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { Solicitud } from '../../types/solicitud';
 import { usuariosService } from '@/services/usuarios';
+import { fechaCierreChileAUTC, FechaInvalidaError } from '@/utils/fechas';
 
 // ============================================================
 // TYPES
@@ -169,10 +170,24 @@ export function CierreObra({ solicitud, onBack, onSave, isSaving = false }: Cier
             .filter(u => seleccionados.has(u.id))
             .map(u => ({ id: u.id, nombre: u.nombre, correo: u.correo }));
 
+        // La fecha (sin hora) se ancla a mediodía de Chile y se convierte a
+        // UTC — mediodía nunca cruza un cambio de día al reinterpretarse (spec 11).
+        let fechaCierreUTC: string;
+        try {
+            fechaCierreUTC = fechaCierreChileAUTC(fechaCierre);
+        } catch (err) {
+            if (err instanceof FechaInvalidaError) {
+                setErrors(p => ({ ...p, fechaCierre: 'Fecha de cierre inválida' }));
+                refFecha.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+            throw err;
+        }
+
         onSave({
             solicitudId: solicitud.id,
             codigoSolicitud: solicitud.codigo,
-            fechaCierre,
+            fechaCierre: fechaCierreUTC,
             comentarios,
             archivoInforme: archivo,
             usuariosNotificar,

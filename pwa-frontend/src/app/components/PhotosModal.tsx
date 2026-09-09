@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { fotosService } from '@/services/fotos';
+import { formatearFechaHoraCL } from '@/utils/fechas';
 
 // Máximo de descargas de fotos en simultáneo al precargar la galería.
 // Evita saturar la conexión en terreno con muchas fotos a la vez.
@@ -252,7 +253,7 @@ export function PhotosModal({
                 )}
                 {selected.created && (
                   <p className="text-xs text-gray-500">
-                    Capturada el {new Date(selected.created).toLocaleString('es-CL')}
+                    Capturada el {formatearFechaHoraCL(selected.created)}
                   </p>
                 )}
               </div>
