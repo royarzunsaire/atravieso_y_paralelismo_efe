@@ -25,3 +25,11 @@ de ahora en adelante.
 | `03_tablas_outbox.sql` | Tablas `inspecciones_outbox` / `archivos_outbox` / `sync_log` + triggers |
 | `04_modulo_inspecciones_actions.sql` | Módulo `api_inspecciones_actions` — acciones `guardar`, `pendientes`, `marcar-resultado`, `{id}` |
 | `05_inspecciones_por_solicitud.sql` | Acción nueva `por-solicitud/{solicitud_id}` — corrige bug de inspecciones en error terminal invisibles en el listado |
+| `06_archivos_outbox_estado.sql` | Amplía `archivos_outbox` con ciclo de sync propio (archivos que se suben en su propio POST, separados de la inspección) |
+| `07_archivos_outbox_inspector.sql` | Agrega `inspector_email`/`inspector_nombre` a `archivos_outbox` (metadata que el sync job necesita para el flow de subida) |
+| `08_exponer_sharepoint_id_inspeccion.sql` | Expone `sharepoint_id` en los GET de `inspecciones_outbox` — corrige bug de inspección duplicada al reintentar |
+| `09_debe_cambiar_password.sql` | Flag `debe_cambiar_password` (retroactivo) — fuerza cambio de contraseña en el primer login (spec 08) |
+| `10_outbox_eventos.sql` | Migración del outbox a la API de eventos unificada (Etapa A): `payload_version` + `evento_id_externo` para idempotencia (spec 10) |
+| `11_tipos_inspeccion.sql` | Tabla `tipos_inspeccion` + AutoREST + carga inicial — reemplaza el flow de SharePoint (el jefe sincroniza la tabla; lectura para el backend) |
+| `12_grant_tipos_inspeccion.sql` | Otorga a `AYP_BACKEND_NODEJS` el rol interno de AutoREST de `tipos_inspeccion` (sin él, todo GET da 401) |
+| `13_lectura_usuarios.sql` | API de lectura de usuarios (consumo externo): GET `listar`/`{id}` (sin hash) y `por-email/{email}` (con `password_hash`) (spec 12) |
