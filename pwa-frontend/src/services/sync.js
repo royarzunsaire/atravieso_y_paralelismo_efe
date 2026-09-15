@@ -1,7 +1,7 @@
 import { storage } from './storage';
 import { authService } from './auth'; 
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 
 export const syncService = {
@@ -24,7 +24,7 @@ export const syncService = {
     }
 
     try {
-      const response = await fetch(`${API_URL}/datos`, {
+      const response = await fetch(`${API_URL}/api/datos`, {
         method: 'GET',
         headers: this.getHeaders() // ← Usar headers con token
       });
@@ -63,7 +63,7 @@ export const syncService = {
     
     for (const item of unsynced) {
       try {
-        const response = await fetch(`${API_URL}/datos`, {
+        const response = await fetch(`${API_URL}/api/datos`, {
           method: 'POST',
           headers: this.getHeaders(), // ← Usar headers con token
           body: JSON.stringify(item)

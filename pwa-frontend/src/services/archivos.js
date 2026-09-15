@@ -1,7 +1,7 @@
 import { authService } from './auth';
 import { cachedGet } from './requestCache';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 export const archivosService = {
   // Helper para headers con token

@@ -1,0 +1,60 @@
+server {
+    listen 8080;
+    server_name _;
+
+    # Raíz de la SPA compilada
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Uploads de fotos/informes viajan en base64 y pesan;
+    # el backend acepta hasta 15mb (express.json limit). Damos margen.
+    client_max_body_size 20m;
+
+    # Compresión de estáticos
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript
+               application/xml image/svg+xml;
+    gzip_min_length 1024;
+
+    # ── Reverse proxy hacia el backend ──
+    # ${BACKEND_HOST}/${BACKEND_PORT} se resuelven con envsubst al arrancar:
+    #   · docker-compose (local) → BACKEND_HOST=backend (nombre de servicio)
+    #   · OCI Container Instance → BACKEND_HOST=localhost (namespace compartido)
+    location /api/ {
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    location /auth/ {
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    # El service worker no debe cachearse (para que la PWA se actualice)
+    location = /sw.js {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    # Assets con hash en el nombre → cache agresivo
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # SPA: cualquier ruta desconocida cae en index.html (routing del lado cliente)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

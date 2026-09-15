@@ -1,6 +1,6 @@
 import { authService } from './auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 /**
  * Genera un EventoIdExterno único. Se crea UNA vez, en el momento en que

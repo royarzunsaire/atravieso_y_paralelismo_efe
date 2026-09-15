@@ -1,6 +1,6 @@
 import { authService } from './auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 // El catálogo y su versión se guardan JUNTOS (contrato del MD): nunca uno
 // sin el otro. Si el almacenamiento está vacío/corrupto, se manda '' y el

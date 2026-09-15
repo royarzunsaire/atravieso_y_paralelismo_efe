@@ -1,0 +1,39 @@
+# Levanta backend + frontend juntos para verificar localmente en el servidor
+# Linux (concerto), simulando la red compartida de una OCI Container Instance.
+#   docker compose build
+#   docker compose up
+# Luego abrir  http://IP-servidor:8080  y probar login real contra Oracle.
+
+services:
+  backend:
+    build:
+      context: ./pwa-backend
+    image: ayp-backend:local
+    # El .env del backend (Oracle ORDS, JWT, session, flows) NO se commitea:
+    # es el mismo que ya usas localmente. Debe existir en ./pwa-backend/.env
+    env_file:
+      - ./pwa-backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+    expose:
+      - "3001"            # visible solo dentro de la red de compose (no al host)
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./pwa-frontend
+      args:
+        VITE_API_URL: ""          # rutas relativas → reverse proxy de nginx
+        VITE_USE_API_V2: "false"  # producción con flujo v1 estable
+    image: ayp-frontend:local
+    environment:
+      # nginx alcanza al backend por el nombre de servicio de compose.
+      # En OCI Container Instance esto cambia a "localhost".
+      BACKEND_HOST: backend
+      BACKEND_PORT: "3001"
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"   # puerto del host configurable
+    depends_on:
+      - backend
+    restart: unless-stopped
