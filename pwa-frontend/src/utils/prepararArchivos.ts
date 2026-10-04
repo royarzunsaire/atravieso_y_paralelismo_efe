@@ -61,10 +61,13 @@ export function validarPesos({
   fotos = [],
   informes = [],
   documento = null,
+  documentos = [],
 }: {
   fotos?: ArchivoBase64[];
   informes?: ArchivoBase64[];
   documento?: DocumentoBase64 | null;
+  /** Varios documentos formales en un mismo envío (una acción con varios tipos de documento, CU-30). */
+  documentos?: DocumentoBase64[];
 }): void {
   for (const f of fotos) {
     const mb = pesoBase64MB(f.Contenido);
@@ -86,11 +89,11 @@ export function validarPesos({
     }
   }
 
-  if (documento) {
-    const mb = pesoBase64MB(documento.Contenido);
+  for (const doc of documento ? [documento, ...documentos] : documentos) {
+    const mb = pesoBase64MB(doc.Contenido);
     if (mb > MAX_DOCUMENTO_MB) {
       throw new ArchivoInvalidoError(
-        `El documento "${documento.Nombre}" pesa ${mb.toFixed(1)} MB y el máximo es ${MAX_DOCUMENTO_MB} MB. ` +
+        `El documento "${doc.Nombre}" pesa ${mb.toFixed(1)} MB y el máximo es ${MAX_DOCUMENTO_MB} MB. ` +
         `Vuelve a escanearlo en calidad media, o sácale una foto con la cámara de la app.`
       );
     }
@@ -99,7 +102,8 @@ export function validarPesos({
   const totalMB =
     fotos.reduce((s, f) => s + pesoBase64MB(f.Contenido), 0) +
     informes.reduce((s, i) => s + pesoBase64MB(i.Contenido), 0) +
-    (documento ? pesoBase64MB(documento.Contenido) : 0);
+    (documento ? pesoBase64MB(documento.Contenido) : 0) +
+    documentos.reduce((sum, d) => sum + pesoBase64MB(d.Contenido), 0);
 
   if (totalMB > MAX_PAYLOAD_MB) {
     throw new ArchivoInvalidoError(
@@ -135,10 +139,11 @@ export function armarInformes(
 /** Arma el Documento formal de la obra (acta, informe final). */
 export function armarDocumento(
   eventoIdExterno: string,
-  archivo: { nombre: string; dataUrl: string; tipoDocumentoId?: number }
+  archivo: { nombre: string; dataUrl: string; tipoDocumentoId?: number },
+  indice = 1,
 ): DocumentoBase64 {
   return {
-    Nombre: nombreUnico(eventoIdExterno, 1, archivo.nombre),
+    Nombre: nombreUnico(eventoIdExterno, indice, archivo.nombre),
     Contenido: stripDataUrl(archivo.dataUrl),
     ...(archivo.tipoDocumentoId != null ? { TipoDocumentoId: archivo.tipoDocumentoId } : {}),
   };

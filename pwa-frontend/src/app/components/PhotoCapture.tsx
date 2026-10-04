@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useProgreso } from '@/context/ProgresoContext';
 import { Header } from './Header';
 import { Button } from './Button';
 import { Camera, RotateCw, Upload, RefreshCw } from 'lucide-react';
@@ -10,6 +11,7 @@ interface PhotoCaptureProps {
 
 export function PhotoCapture({ onBack, onPhotoConfirm }: PhotoCaptureProps) {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const { mostrarError } = useProgreso();
   const [description, setDescription] = useState('');
   const [cameraState, setCameraState] = useState<
     'initializing' | 'active' | 'denied' | 'unavailable'
@@ -156,11 +158,11 @@ export function PhotoCapture({ onBack, onPhotoConfirm }: PhotoCaptureProps) {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Por favor selecciona una imagen');
+      mostrarError(new Error('El archivo elegido no es una imagen. Elige una foto (JPG o PNG).'), 'Archivo no permitido');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      alert('La imagen no debe superar los 10 MB');
+      mostrarError(new Error('La imagen no debe superar los 10 MB. Elige una más liviana.'), 'Imagen demasiado pesada');
       return;
     }
 

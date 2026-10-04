@@ -1,3 +1,5 @@
+import { reiniciarCachesDeSesion } from './sesionCache';
+
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 export const authService = {
@@ -130,6 +132,8 @@ async logout() {
     localStorage.removeItem('connection_token');
     localStorage.removeItem('supabase_session');
     localStorage.removeItem('user');
+    // CU-20: lo guardado en memoria de esta sesión (obras, detalles, fotos, catálogo) se descarta.
+    reiniciarCachesDeSesion();
   }
 },
 

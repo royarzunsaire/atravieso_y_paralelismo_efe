@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { fotosService } from '@/services/fotos';
+import { fotosBlobCache } from '@/services/fotosBlobCache';
 import { formatearFechaHoraCL } from '@/utils/fechas';
 
 // Máximo de descargas de fotos en simultáneo al precargar la galería.
@@ -23,6 +24,17 @@ interface PhotosModalProps {
   loading: boolean;
   error: string | null;
   onClose: () => void;
+  /**
+   * true cuando `photo.url` ya es una URL directa y usable (ej. API_Detalle
+   * v2) — se descarga con `fetch()` directo a esa URL (sin pasar por
+   * nuestro backend) en vez de `fotosService.getContentBlob`. Sigue
+   * necesitando blob: el gateway del cliente manda
+   * `Cross-Origin-Resource-Policy: same-origin`, que bloquea un <img src>
+   * directo entre orígenes (ERR_BLOCKED_BY_RESPONSE.NotSameOrigin) aunque
+   * el fetch() sí funciona (el servidor sí manda CORS abierto). La URL
+   * expira (~1h en v2); si eso pasa, queda el link "Abrir en SharePoint".
+   */
+  useDirectUrl?: boolean;
 }
 
 export function PhotosModal({
@@ -33,6 +45,7 @@ export function PhotosModal({
   loading,
   error,
   onClose,
+  useDirectUrl = false,
 }: PhotosModalProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [objectUrls, setObjectUrls] = useState<Record<string, string>>({});
@@ -76,9 +89,12 @@ export function PhotosModal({
         if (!item) return;
         const fileName = item.fileName as string;
         try {
-          const blob = await fotosService.getContentBlob({ inspeccionId, fileName });
+          // useDirectUrl: comparte cache con la precarga de SolicitudDetail
+          // — si ya se descargó en segundo plano, aparece al instante.
+          const url = useDirectUrl
+            ? await fotosBlobCache.getOrFetch(item.url as string)
+            : URL.createObjectURL(await fotosService.getContentBlob({ inspeccionId, fileName }));
           if (cancelled) return;
-          const url = URL.createObjectURL(blob);
           setObjectUrls((prev) => (prev[fileName] ? prev : { ...prev, [fileName]: url }));
         } catch (err: any) {
           if (cancelled) return;
@@ -122,6 +138,9 @@ export function PhotosModal({
   const selectedObjectUrl = selectedFileName ? objectUrls[selectedFileName] : undefined;
   const selectedImageError = selectedFileName ? erroresPorFoto[selectedFileName] : undefined;
   const imageLoading = Boolean(selected && selectedFileName && !selectedObjectUrl && !selectedImageError);
+
+  const srcDeMiniatura = (photo: RemotePhoto): string | undefined =>
+    photo.fileName ? objectUrls[photo.fileName] : undefined;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
@@ -168,9 +187,9 @@ export function PhotosModal({
                     }`}
                   >
                     <div className="w-12 h-12 bg-gray-100 rounded-md overflow-hidden flex items-center justify-center">
-                      {photo.fileName && objectUrls[photo.fileName] ? (
+                      {srcDeMiniatura(photo) ? (
                         <img
-                          src={objectUrls[photo.fileName]}
+                          src={srcDeMiniatura(photo)}
                           alt={photo.description || photo.fileName || 'Foto'}
                           className="w-full h-full object-cover"
                         />

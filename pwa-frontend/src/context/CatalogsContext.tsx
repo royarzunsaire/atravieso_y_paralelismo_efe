@@ -29,6 +29,9 @@ import {
 import { tiposInspeccionService } from '@/services/tiposInspeccion';
 import { authService } from '@/services/auth';
 
+// CU-21: en v2 los tipos de inspección vienen de la API (por obra); no se pide el catálogo viejo.
+const USE_API_V2 = import.meta.env.VITE_USE_API_V2 === 'true';
+
 // ── Interfaces de catálogos ──────────────────────────────────
 
 export interface TipoInspeccion {
@@ -109,7 +112,7 @@ export function CatalogsProvider({ children }: { children: ReactNode }) {
     // Solo si el usuario ya está autenticado (evita error en pantalla de login)
     // Añade aquí futuros catálogos: void cargarTiposObra(); etc.
     useEffect(() => {
-        if (authService.isAuthenticated()) {
+        if (!USE_API_V2 && authService.isAuthenticated()) {
             void cargarTipos();
         }
     }, [cargarTipos]);

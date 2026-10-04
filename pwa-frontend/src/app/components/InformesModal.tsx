@@ -1,4 +1,5 @@
-import { X, FileText, Eye, Loader2 } from 'lucide-react';
+import { X, FileText, Loader2 } from 'lucide-react';
+import { BotonDescargar } from './BotonDescargar';
 import { getFileIconInfo } from '@/utils/fileUtils';
 import { formatearFechaCL } from '@/utils/fechas';
 import type { FotoInspeccion } from '@/types/solicitud';
@@ -71,25 +72,8 @@ export function InformesModal({ isOpen, title, informes, loading, onClose }: Inf
                       )}
                     </div>
 
-                    {/* Botón abrir en SharePoint — igual al tab Documentos */}
-                    <div className="flex-shrink-0">
-                      {informe.url ? (
-                        <a
-                          href={informe.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center w-10 h-10 bg-[#0066CC] rounded-lg text-white active:scale-95 transition-transform"
-                          title="Abrir en SharePoint"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </a>
-                      ) : (
-                        <div className="flex items-center justify-center w-10 h-10 bg-gray-200 rounded-lg" title="URL no disponible">
-                          <Eye className="w-5 h-5 text-gray-400" />
-                        </div>
-                      )}
-                    </div>
                   </div>
+                  <div className="mt-3"><BotonDescargar url={informe.url} nombre={informe.fileName ?? 'informe'} /></div>
                 </div>
               );
             })

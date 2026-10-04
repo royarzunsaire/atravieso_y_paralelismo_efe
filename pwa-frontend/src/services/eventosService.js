@@ -88,6 +88,7 @@ export const eventosService = {
         oracleId: d.id,
         data: d,
         acciones: normalizarAcciones(d.AccionesHabilitadas),
+        accionesTipo: d.AccionesTipo,
         subEstado: d.SubEstado,
         avanceObraPct: d.AvanceObraPct,
         mensaje: data.message || 'Evento registrado.',

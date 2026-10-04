@@ -65,13 +65,18 @@ async function procesarInspeccion(inspeccion) {
 // EventoIdExterno se persistió en la fila del outbox y se reusa en
 // cada reintento — la API deduplica por él.
 async function procesarInspeccionV2(inspeccion) {
-  const { id, payload, eventoIdExterno } = inspeccion;
+  const { id, payload, eventoIdExterno, solicitudId } = inspeccion;
 
   try {
     // Garantizamos que el EventoIdExterno que viaja sea el persistido en
     // la fila (fuente de verdad de la idempotencia), no uno del payload.
     const evento = { ...payload, EventoIdExterno: eventoIdExterno || payload.EventoIdExterno };
-    const resultado = await registrarEvento(evento);
+    // Usuario/UsuarioNombre viajaban en el payload para la API vieja; con
+    // la nueva, van en el JWT, no en el body — los sacamos para no
+    // reenviarlos dos veces.
+    const { Usuario: usuario, UsuarioNombre: nombre, ...eventoSinIdentidad } = evento;
+
+    const resultado = await registrarEvento({ usuario, nombre, solicitudId, evento: eventoSinIdentidad });
 
     if (resultado.accionNoPermitida) {
       // 403: otra persona movió la obra. No es reintentable — se marca
@@ -82,9 +87,14 @@ async function procesarInspeccionV2(inspeccion) {
     }
 
     if (!resultado.ok) {
-      await marcarResultadoInspeccion(id, { resultado: 'error', mensaje: resultado.mensaje });
-      console.error(`❌ Error registrando evento ${id}:`, resultado.mensaje);
-      return { success: false, mensaje: resultado.mensaje };
+      // Rechazo de negocio de la API (4xx): reintentar no lo arregla. Se agotan los intentos de una vez
+      // (tope de 3 en Oracle) para que el job no lo reenvíe en cada ciclo, y se devuelve la causa real.
+      const restantes = Math.max(1, 3 - (Number(inspeccion.intentos) || 0));
+      for (let i = 0; i < restantes; i++) {
+        await marcarResultadoInspeccion(id, { resultado: 'error', mensaje: resultado.mensaje });
+      }
+      console.error(`❌ Evento ${id} rechazado por la API (no se reintenta):`, resultado.mensaje);
+      return { success: false, rechazada: true, mensaje: resultado.mensaje };
     }
 
     // Éxito (incluye duplicado:true, que la API trata como ya registrado).
@@ -207,8 +217,8 @@ async function runSyncCycle() {
 function startSyncJob() {
   // Durante la migración conviven los dos caminos: arranca si hay al
   // menos uno configurado (flows viejos v1 o API de eventos v2).
-  if (!FLOW_INSPECCIONES_CREAR_URL && !process.env.API_EVENTO_URL) {
-    console.warn('⚠️  Ni FLOW_INSPECCIONES_CREAR_URL ni API_EVENTO_URL configurados — sync job no se inicia.');
+  if (!FLOW_INSPECCIONES_CREAR_URL && !process.env.SHAREPOINT_API_URL) {
+    console.warn('⚠️  Ni FLOW_INSPECCIONES_CREAR_URL ni SHAREPOINT_API_URL configurados — sync job no se inicia.');
     return;
   }
   console.log(`🔄 Sync job iniciado (cada ${SYNC_INTERVAL_MS / 1000}s)`);

@@ -2,6 +2,7 @@ import {
   MessageSquare, ClipboardList, TrendingUp, Package, PauseCircle,
   PlayCircle, FileCheck, FileText, CheckCircle, FileSignature,
   FileEdit, Camera, Wrench, ShieldCheck, Boxes, CircleHelp,
+  Edit3, CheckSquare, Shield, Settings2, FileUp, ClipboardCheck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AccionCatalogo, CatalogoInicio } from '@/types/eventos';
@@ -25,6 +26,13 @@ const ICONOS: Record<string, LucideIcon> = {
   'wrench': Wrench,
   'shield-check': ShieldCheck,
   'boxes': Boxes,
+  // Ampliado spec 13 (Etapa C) — catálogo nuevo, 11 TiposEvento agregados.
+  'edit-3': Edit3,
+  'check-square': CheckSquare,
+  'shield': Shield,
+  'tool': Settings2, // Lucide no tiene ícono "Tool" — Settings2 (elegido por Rodrigo)
+  'file-up': FileUp,
+  'clipboard-check': ClipboardCheck,
 };
 
 function iconoDe(nombre: string): LucideIcon {

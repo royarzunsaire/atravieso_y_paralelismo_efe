@@ -12,9 +12,10 @@
  * aquí con useInicio(); no llaman a inicioService directamente.
  */
 import {
-  createContext, useContext, useState, useCallback, useRef, type ReactNode,
+  createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode,
 } from 'react';
 import { inicioService } from '@/services/inicioService';
+import { EVENTO_SESION_REINICIADA } from '@/services/sesionCache';
 import type { ObraInicio, CatalogoInicio } from '@/types/eventos';
 
 interface InicioContextValue {
@@ -29,6 +30,13 @@ interface InicioContextValue {
   cargar: (force?: boolean) => Promise<void>;
   /** Botón "Actualizar" — fuerza recarga completa desde la API. */
   refrescar: () => Promise<void>;
+  /** Vacía todo (obras, catálogo, usuario): cada inicio de sesión parte de cero (CU-20). */
+  reiniciar: () => void;
+  /**
+   * Vuelve a pedir la lista a la API y actualiza SOLO esta obra (tipos de inspección habilitados, estado,
+   * avance…). Devuelve la obra fresca, o null si ya no figura para este usuario (CU-23).
+   */
+  actualizarObraDesdeApi: (id: number) => Promise<ObraInicio | null>;
   /** Una obra por id, desde el caché en memoria. */
   getObra: (id: number) => ObraInicio | null;
   /**
@@ -49,6 +57,24 @@ export function InicioProvider({ children }: { children: ReactNode }) {
   const [cargado, setCargado] = useState(false);
   // Evita cargas concurrentes (dos pantallas montando a la vez).
   const enVuelo = useRef<Promise<void> | null>(null);
+  // Se incrementa al reiniciar: una carga que venía en camino de la sesión anterior no pisa la nueva.
+  const generacion = useRef(0);
+
+  const reiniciar = useCallback(() => {
+    generacion.current += 1;
+    enVuelo.current = null;
+    setObras([]);
+    setCatalogo(null);
+    setUsuario(null);
+    setError(null);
+    setLoading(false);
+    setCargado(false);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener(EVENTO_SESION_REINICIADA, reiniciar);
+    return () => window.removeEventListener(EVENTO_SESION_REINICIADA, reiniciar);
+  }, [reiniciar]);
 
   const cargar = useCallback(async (force = false) => {
     // Si ya se cargó y no es refresco forzado, reutilizar lo que hay.
@@ -58,9 +84,11 @@ export function InicioProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
 
+    const gen = generacion.current;
     const promesa = (async () => {
       try {
         const { obras: obrasApi, catalogo: cat, usuario: usr } = await inicioService.getInicio({ forzarCatalogo: force });
+        if (gen !== generacion.current) return; // se cerró/cambió la sesión mientras cargaba
         setObras(obrasApi);
         // El catálogo puede venir null (cacheado) — conservar el que ya teníamos.
         if (cat) setCatalogo(cat);
@@ -69,7 +97,7 @@ export function InicioProvider({ children }: { children: ReactNode }) {
         setCargado(true);
       } catch (err: any) {
         setError(err?.code === 'USUARIO_NO_ENCONTRADO'
-          ? 'Tu usuario no está registrado en el sistema de obras.'
+          ? 'No tienes obras asignadas en el sistema de obras. Si debería tenerlas, pide que te asignen una (o que registren tu correo en el sitio).'
           : (err?.message || 'No se pudo cargar la información inicial.'));
       } finally {
         setLoading(false);
@@ -83,6 +111,13 @@ export function InicioProvider({ children }: { children: ReactNode }) {
 
   const refrescar = useCallback(() => cargar(true), [cargar]);
 
+  const actualizarObraDesdeApi = useCallback(async (id: number): Promise<ObraInicio | null> => {
+    const { obras: obrasApi } = await inicioService.getInicio({ forzarCatalogo: false });
+    const fresca: ObraInicio | null = (obrasApi as ObraInicio[]).find((o) => o.Id === id) ?? null;
+    if (fresca) setObras((prev) => prev.map((o) => (o.Id === id ? { ...o, ...fresca } : o)));
+    return fresca;
+  }, []);
+
   const getObra = useCallback(
     (id: number) => obras.find((o) => o.Id === id) || null,
     [obras]
@@ -94,7 +129,7 @@ export function InicioProvider({ children }: { children: ReactNode }) {
 
   return (
     <InicioContext.Provider
-      value={{ obras, catalogo, usuario, loading, error, cargado, cargar, refrescar, getObra, actualizarObra }}
+      value={{ obras, catalogo, usuario, loading, error, cargado, cargar, refrescar, reiniciar, actualizarObraDesdeApi, getObra, actualizarObra }}
     >
       {children}
     </InicioContext.Provider>

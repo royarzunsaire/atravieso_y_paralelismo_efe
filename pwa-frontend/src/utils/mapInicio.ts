@@ -15,20 +15,25 @@ export interface SolicitudV2 extends Solicitud {
   avanceObraPct?: number;
   accionesHabilitadas?: string[];
   fechaUltimoEvento?: string | null;
+  /** Inicio de la obra (ISO UTC) — la tarjeta muestra fecha y días corridos. */
+  fechaInicioObra?: string | null;
+  /** Días de detención si la obra está detenida ahora; null si no lo está. */
+  diasDetencion?: number | null;
 }
 
 /**
  * Días reales de detención: DiasAcumulados no avanza mientras la obra está
  * detenida (solo se recalcula al reactivar), así que si hay
- * FechaDetencionActual sumamos los días corridos desde entonces. El
- * servidor trunca hacia abajo (días completos) — hacemos lo mismo.
+ * FechaDetencionActual sumamos los días corridos desde entonces. OJO: la API
+ * deja DiasAcumulados con decimales al reactivar (ej. 0.3019… = 7 h), por eso
+ * el total se muestra siempre en días COMPLETOS (se trunca hacia abajo).
  */
 export function calcularDiasDetencion(detencion: ObraInicio['Detencion']): number {
   const base = detencion?.DiasAcumulados ?? 0;
   const desde = detencion?.FechaDetencionActual;
-  if (!desde) return base;
-  const corridos = Math.floor((Date.now() - new Date(desde).getTime()) / 86400000);
-  return base + Math.max(0, corridos);
+  if (!desde) return Math.floor(base);
+  const corridos = (Date.now() - new Date(desde).getTime()) / 86400000;
+  return Math.floor(base + Math.max(0, corridos));
 }
 
 export function mapObraToSolicitud(obra: ObraInicio): SolicitudV2 {
@@ -85,5 +90,7 @@ export function mapObraToSolicitud(obra: ObraInicio): SolicitudV2 {
     avanceObraPct: obra.AvanceObraPct,
     accionesHabilitadas: Array.isArray(obra.AccionesHabilitadas) ? obra.AccionesHabilitadas : [],
     fechaUltimoEvento: obra.FechaUltimoEvento ?? null,
+    fechaInicioObra: obra.FechaInicioObra ?? null,
+    diasDetencion: obra.Detencion?.FechaDetencionActual ? calcularDiasDetencion(obra.Detencion) : null,
   };
 }

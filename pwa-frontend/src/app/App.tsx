@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BottomNav } from './components/BottomNav';
 import { Login } from './components/Login';
 import { AuthCallback } from './components/AuthCallback';
@@ -7,7 +7,7 @@ import { Profile } from './components/Profile';
 import { ChangePassword } from './components/ChangePassword';
 import { SolicitudesDashboard } from './components/SolicitudesDashboard';
 import { SolicitudDetail } from './components/SolicitudDetail';
-import { NewInspection } from './components/NewInspection';
+import { NewInspection, type InformeAdjunto } from './components/NewInspection';
 import { PhotoCapture } from './components/PhotoCapture';
 import { CierreObra } from './components/CierreObra';
 import { inspeccionesService } from '@/services/inspecciones';
@@ -17,6 +17,11 @@ import { fotosService } from '@/services/fotos';
 import { informesService } from '@/services/informes';
 import { eventosService, generarEventoIdExterno } from '@/services/eventosService';
 import { armarFotos, armarInformes, validarPesos, ArchivoInvalidoError } from '@/utils/prepararArchivos';
+import { refrescarObraTrasEvento } from '@/utils/refrescarObra';
+import { reiniciarCachesDeSesion } from '@/services/sesionCache';
+import { ProgresoProvider, useProgreso } from '@/context/ProgresoContext';
+import { esAccionInspeccion } from '@/utils/gruposAcciones';
+import { avisarEsperaPlataforma, mensajeEnvio, type CambiarEtapa } from '@/utils/etapasProgreso';
 import { wallChileAUTC, formatearFechaCL, formatearFechaHoraCL, FechaInvalidaError } from '@/utils/fechas';
 import { CatalogsProvider, useCatalogs } from '@/context/CatalogsContext';
 import { SolicitudProvider } from '@/context/SolicitudContext';
@@ -49,10 +54,16 @@ type Screen =
 function AppContent() {
   const { recargarTiposInspeccion } = useCatalogs();
   const inicio = useInicio();
+  const { conProgreso } = useProgreso();
+  // Un reintento del MISMO contenido reutiliza el EventoIdExterno: si el primer envío sí llegó a registrarse
+  // (ej. tiempo agotado), la API lo deduplica en vez de crear la inspección dos veces.
+  const intentoInspeccion = useRef<{ huella: string; eventoId: string } | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>({ type: 'login' });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [bottomNavTab, setBottomNavTab] = useState<'home' | 'reports' | 'camera' | 'profile'>('home');
   const [tempPhotos, setTempPhotos] = useState<InspectionPhoto[]>([]);
+  // El informe elegido en «+ Inspección» vive acá para no perderse al ir a la cámara y volver (CU-02).
+  const [informeBorrador, setInformeBorrador] = useState<InformeAdjunto | null>(null);
   const [inspections, setInspections] = useState<{ [solicitudId: number]: Inspection[] }>({});
   const [photos, setPhotos] = useState<{ [solicitudId: number]: Photo[] }>({});
   const [currentSolicitud, setCurrentSolicitud] = useState<Solicitud | null>(null);
@@ -102,6 +113,8 @@ function AppContent() {
   // ── Handlers: auth ───────────────────────────────────────────
 
   const handleLoginSuccess = () => {
+    // CU-20: cada inicio de sesión parte de cero (sin obras ni detalles de la sesión anterior).
+    reiniciarCachesDeSesion();
     setIsAuthenticated(true);
     const user = authService.getUser();
     if (user?.debeCambiarPassword) {
@@ -109,7 +122,7 @@ function AppContent() {
       return;
     }
     setCurrentScreen({ type: 'solicitudesDashboard' });
-    void recargarTiposInspeccion();
+    if (!USE_API_V2) void recargarTiposInspeccion();
   };
 
   const handleLogout = () => {
@@ -141,13 +154,13 @@ function AppContent() {
 
   const handleNewInspection = (solicitudId: number, solicitud: Solicitud, minimoAvance: number) => {
     setCurrentSolicitud(solicitud);
-    setTempPhotos([]);
+    setTempPhotos([]); setInformeBorrador(null);
     setCurrentScreen({ type: 'newInspection', solicitudId, solicitud, minimoAvance });
   };
 
   const handleCancelNewInspection = (solicitudId: number) => {
     try { sessionStorage.removeItem(`newInspectionDraft:${solicitudId}`); } catch {}
-    setTempPhotos([]);
+    setTempPhotos([]); setInformeBorrador(null);
     setCurrentScreen({ type: 'solicitudDetail', solicitudId });
   };
 
@@ -263,6 +276,9 @@ function AppContent() {
 
   const handleSaveInspection = async (solicitudId: number, inspection: {
     type: string;
+    /** Solo v2: tipo de inspección elegido (catálogo de la API) y la acción/evento que le corresponde. */
+    tipoInspeccionId?: number;
+    tipoEvento?: string;
     progress: number;
     comentariosAvance: string;
     observacionesInspeccion: string;
@@ -277,6 +293,18 @@ function AppContent() {
     try {
       const solicitud = currentSolicitud;
 
+      // ── Modo v2: registrar como evento vía la API de eventos (CU-22: pantalla de espera + popup si falla) ──
+      if (USE_API_V2) {
+        await conProgreso(
+          { mensaje: 'Obteniendo ubicación…', tituloError: 'No se pudo guardar la inspección' },
+          async (etapa) => {
+            const ubicacion = await obtenerUbicacion();
+            await guardarInspeccionV2(solicitudId, inspection, ubicacion.latitud, ubicacion.longitud, etapa);
+          },
+        );
+        return;
+      }
+
       let latitud = '';
       let longitud = '';
       if (navigator.geolocation) {
@@ -287,12 +315,6 @@ function AppContent() {
           latitud = position.coords.latitude.toString();
           longitud = position.coords.longitude.toString();
         } catch { /* no disponible */ }
-      }
-
-      // ── Modo v2: registrar como evento vía la API de eventos ──
-      if (USE_API_V2) {
-        await guardarInspeccionV2(solicitudId, inspection, latitud, longitud);
-        return;
       }
 
       // El input entrega un reloj de pared local; se interpreta en
@@ -379,7 +401,7 @@ function AppContent() {
         setPhotos(prev => ({ ...prev, [solicitudId]: [...newPhotos, ...(prev[solicitudId] || [])] }));
       }
 
-      setTempPhotos([]);
+      setTempPhotos([]); setInformeBorrador(null);
       setCurrentScreen({ type: 'solicitudDetail', solicitudId });
       try { sessionStorage.removeItem(`newInspectionDraft:${solicitudId}`); } catch {}
 
@@ -409,66 +431,102 @@ function AppContent() {
   // ── Guardado v2: la inspección se registra como un evento en la API ──
   // Deduce el TipoEvento según los campos llenados (regla acordada) y solo
   // entre las acciones INSPECCION_* realmente habilitadas para la obra.
+  const obtenerUbicacion = async (): Promise<{ latitud: string; longitud: string }> => {
+    if (!navigator.geolocation) return { latitud: '', longitud: '' };
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 0 });
+      });
+      return { latitud: position.coords.latitude.toString(), longitud: position.coords.longitude.toString() };
+    } catch {
+      return { latitud: '', longitud: '' }; // no disponible: se guarda sin coordenadas
+    }
+  };
+
   const guardarInspeccionV2 = async (
       solicitudId: number,
       inspection: Parameters<typeof handleSaveInspection>[1],
       latitud: string,
       longitud: string,
+      etapa: CambiarEtapa,
   ) => {
     const obra = inicio.getObra(solicitudId);
     const habilitadas = obra?.AccionesHabilitadas ?? [];
 
-    // Regla de deducción: si hay avance → INSPECCION_AVANCE; si no, el
-    // informe diario. Solo si la acción está realmente habilitada.
-    const pusoAvance = inspection.progress != null && Number(inspection.progress) > 0;
+    // El tipo de inspección elegido en el formulario determina el evento:
+    // cada acción habilitada trae su TipoInspeccionId (spec 13). Solo si
+    // la acción está realmente habilitada. Sin tipo elegido (no debería
+    // pasar en v2), se cae a la deducción anterior.
     let tipoEvento: string | null = null;
-    if (pusoAvance && habilitadas.includes('INSPECCION_AVANCE')) {
+    if (inspection.tipoEvento && habilitadas.includes(inspection.tipoEvento)) {
+      tipoEvento = inspection.tipoEvento;
+    } else if (Number(inspection.progress) > 0 && habilitadas.includes('INSPECCION_AVANCE')) {
       tipoEvento = 'INSPECCION_AVANCE';
     } else if (habilitadas.includes('INSPECCION_INFORME_DIARIO')) {
       tipoEvento = 'INSPECCION_INFORME_DIARIO';
     } else {
       // Fallback: la primera inspección habilitada, si hay alguna.
-      tipoEvento = habilitadas.find((a) => a.startsWith('INSPECCION_')) ?? null;
+      tipoEvento = habilitadas.find((a) => esAccionInspeccion(a, inicio.catalogo)) ?? null;
     }
 
     if (!tipoEvento) {
-      setToast({ isOpen: true, type: 'error', title: 'No se puede registrar', message: 'Esta obra no tiene inspecciones habilitadas en su estado actual.' });
-      return;
+      throw new Error('Esta obra no tiene inspecciones habilitadas en su estado actual.');
+    }
+
+    // Fecha/hora real de la inspección — la API ahora la respeta (spec 13),
+    // igual que el flujo v1: reloj de pared CL → UTC.
+    let fechaEventoUTC: string;
+    try {
+      fechaEventoUTC = wallChileAUTC(inspection.fechaInspeccion ?? '');
+    } catch (e) {
+      if (e instanceof FechaInvalidaError) throw new Error('Fecha inválida: revisa la fecha y hora de la inspección.');
+      throw e;
     }
 
     // Armar el Payload con el contrato de la API (los 3 canales de archivos).
-    const eventoIdExterno = generarEventoIdExterno();
+    const huella = JSON.stringify([solicitudId, tipoEvento, inspection.tipoInspeccionId, inspection.progress, inspection.status,
+      inspection.comentariosAvance, inspection.fechaInspeccion, inspection.photos.map((p) => p.url.length), inspection.informe?.fileName]);
+    if (intentoInspeccion.current?.huella !== huella) intentoInspeccion.current = { huella, eventoId: generarEventoIdExterno() };
+    const eventoIdExterno = intentoInspeccion.current.eventoId;
     const fotos = inspection.photos.length > 0 ? armarFotos(eventoIdExterno, inspection.photos.map((p) => p.url)) : [];
     const informes = inspection.informe
         ? armarInformes(eventoIdExterno, [{ nombre: inspection.informe.fileName, dataUrl: inspection.informe.fileContentBase64 }])
         : [];
 
+    // Adjunto obligatorio: se revisa contra lo que REALMENTE se va a enviar y la definición vigente de la
+    // acción (la de la obra; el catálogo cacheado solo si falta). El backend lo vuelve a validar.
+    const defAccion = obra?.AccionesDef?.[tipoEvento] ?? inicio.catalogo?.TiposEvento?.find((t) => t.Codigo === tipoEvento);
+    if (defAccion?.RequiereAdjunto && fotos.length === 0 && informes.length === 0) {
+      throw new Error('Este tipo de inspección exige al menos un adjunto: agrega una foto o un informe.');
+    }
+
     try {
       validarPesos({ fotos, informes });
     } catch (err) {
-      if (err instanceof ArchivoInvalidoError) {
-        setToast({ isOpen: true, type: 'error', title: 'Archivo muy pesado', message: err.message });
-        return;
-      }
-      throw err;
+      throw err; // ArchivoInvalidoError ya trae el motivo (archivo muy pesado, formato…)
     }
 
     const payload: Record<string, unknown> = {
       Comentario: inspection.comentariosAvance || '',
       EstadoInspeccion: inspection.status === 'conforme' ? 'Conforme' : 'No Conforme',
-      ObservacionesAvance: inspection.observacionesInspeccion || '',
     };
-    if (tipoEvento === 'INSPECCION_AVANCE') payload.AvancePct = Number(inspection.progress);
+    // Todas las inspecciones reportan avance, sin importar el tipo (confirmado
+    // por el cliente); el formulario ya impide bajar del último avance.
+    payload.AvancePct = Number(inspection.progress);
     if (fotos.length > 0) payload.Fotos = fotos;
     if (informes.length > 0) payload.Informes = informes;
     if (latitud && longitud) { payload.Latitud = Number(latitud); payload.Longitud = Number(longitud); }
+    if (inspection.tipoInspeccionId != null) payload.TipoInspeccionId = inspection.tipoInspeccionId;
 
+    etapa(mensajeEnvio({ fotos: fotos.length, informes: informes.length, porDefecto: 'Guardando inspección…' }));
+    const cancelarAviso = avisarEsperaPlataforma(etapa);
     const res: {
       ok: boolean;
       estadoSync?: string;
       accionNoPermitida?: boolean;
       mensaje?: string;
       acciones?: string[];
+      accionesTipo?: Record<string, { TipoInspeccionId: number; TipoInspeccionNombre: string }>;
       subEstado?: string;
       avanceObraPct?: number;
     } = await eventosService.registrarEvento({
@@ -477,7 +535,8 @@ function AppContent() {
       eventoIdExterno,
       payload,
       sync: true,
-    });
+      fechaEvento: fechaEventoUTC,
+    }).finally(cancelarAviso);
 
     if (!res.ok) {
       if (res.accionNoPermitida) {
@@ -487,8 +546,7 @@ function AppContent() {
         setCurrentScreen({ type: 'solicitudDetail', solicitudId });
         return;
       }
-      setToast({ isOpen: true, type: 'error', title: 'Error al registrar', message: res.mensaje });
-      return;
+      throw new Error(res.mensaje || 'La plataforma no aceptó la inspección.');
     }
 
     // Éxito: si la respuesta trae acciones/estado nuevos, actualizar solo
@@ -496,12 +554,21 @@ function AppContent() {
     if (res.acciones && obra) {
       inicio.actualizarObra(solicitudId, {
         AccionesHabilitadas: res.acciones,
+        AccionesTipo: res.accionesTipo ?? obra.AccionesTipo,
         SubEstado: res.subEstado ?? obra.SubEstado,
         AvanceObraPct: res.avanceObraPct ?? obra.AvanceObraPct,
       });
     }
+    // CU-05: la respuesta del evento es parcial (sin Detencion ni la
+    // inspección nueva); se descarta el caché y se actualiza la obra completa.
+    etapa('Actualizando tus datos…');
+    await refrescarObraTrasEvento(inicio.actualizarObra, solicitudId, {
+      fechaUltimoEventoPrevia: obra?.FechaUltimoEvento,
+      tipoInspeccionEsperado: obra?.AccionesTipo?.[tipoEvento]?.TipoInspeccionNombre,
+    });
 
-    setTempPhotos([]);
+    intentoInspeccion.current = null; // registrada: la próxima inspección es otra
+    setTempPhotos([]); setInformeBorrador(null);
     try { sessionStorage.removeItem(`newInspectionDraft:${solicitudId}`); } catch {}
     setCurrentScreen({ type: 'solicitudDetail', solicitudId });
     setToast({
@@ -585,6 +652,8 @@ function AppContent() {
                 minimoAvance={currentScreen.minimoAvance}
                 tempPhotos={tempPhotos}
                 onRemovePhoto={handleRemovePhoto}
+                informeInicial={informeBorrador}
+                onInformeChange={setInformeBorrador}
                 accionesV2={
                   USE_API_V2
                       ? (inicio.getObra(currentScreen.solicitudId)?.AccionesHabilitadas ?? [])
@@ -623,6 +692,7 @@ function AppContent() {
 
 export default function App() {
   return (
+      <ProgresoProvider>
       <CatalogsProvider>
         <SolicitudProvider>
           <InicioProvider>
@@ -630,5 +700,6 @@ export default function App() {
           </InicioProvider>
         </SolicitudProvider>
       </CatalogsProvider>
+      </ProgresoProvider>
   );
 }

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, FormEvent } from 'react';
+import { useProgreso } from '@/context/ProgresoContext';
+import { ahoraCLParaInput, esFechaFutura } from '@/utils/fechas';
 import { Header } from './Header';
 import { Button } from './Button';
 import {
+  AlertCircle,
   AlertOctagon,
   Camera,
   CheckCircle2,
@@ -15,6 +18,8 @@ import {
 } from 'lucide-react';
 import type { Solicitud, InspectionPhoto } from '../../types/solicitud';
 import { useCatalogs } from '@/context/CatalogsContext';
+import { useInicio } from '@/context/InicioContext';
+import { esAccionInspeccion } from '@/utils/gruposAcciones';
 import { usuariosService } from '@/services/usuarios';
 
 // ── Tipo local de usuario ─────────────────────────────────────
@@ -25,18 +30,31 @@ interface Usuario {
 }
 
 function getLocalDateTimeString(): string {
-  const now = new Date();
-  const offset = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+  return ahoraCLParaInput();
+}
+
+export interface InformeAdjunto {
+  fileName: string;
+  fileContentBase64: string;
+  contentType: string;
+  sizeKb: number;
 }
 
 interface NewInspectionProps {
+  /** Informe ya elegido (guardado por la app): se conserva al ir a la cámara y volver (CU-02). */
+  informeInicial?: InformeAdjunto | null;
+  /** Avisa a la app cada vez que cambia el informe adjunto. */
+  onInformeChange?: (informe: InformeAdjunto | null) => void;
   solicitud: Solicitud;
   onBack: () => void;
   isSaving?: boolean;
   minimoAvance?: number;   // avance de la última inspección — no puede retroceders
   onSave: (inspection: {
     type: string;
+    /** Solo modo v2 — id del catálogo TiposInspeccion de la API (spec 13). */
+    tipoInspeccionId?: number;
+    /** Solo modo v2 — acción/evento asociado al tipo elegido (ej. INSPECCION_AVANCE). */
+    tipoEvento?: string;
     progress: number;
     comentariosAvance: string;
     observacionesInspeccion: string;
@@ -68,6 +86,8 @@ export function NewInspection({
                                 tempPhotos,
                                 onRemovePhoto,
                                 accionesV2,
+                                informeInicial = null,
+                                onInformeChange,
                               }: NewInspectionProps) {
   const draftKey = useMemo(() => `newInspectionDraft:${solicitud.id}`, [solicitud.id]);
 
@@ -75,18 +95,46 @@ export function NewInspection({
   // Si accionesV2 es undefined, es modo viejo: se muestra todo (v1).
   const esV2 = Array.isArray(accionesV2);
   const inspecciones = esV2 ? accionesV2! : [];
-  // Alguna inspección con avance requerido (INSPECCION_AVANCE).
-  const muestraAvance = !esV2 || inspecciones.includes('INSPECCION_AVANCE');
-  // Alguna inspección habilitada (todas las INSPECCION_* aceptan adjunto/fotos).
-  const hayInspeccion = !esV2 || inspecciones.some((a) => a.startsWith('INSPECCION_'));
-  const muestraFotos = hayInspeccion;
-  const muestraInforme = hayInspeccion;
 
   const { tiposInspeccion, tiposInspeccionLoading, tiposInspeccionError, recargarTiposInspeccion } =
       useCatalogs();
+  const inicio = useInicio();
+
+  // En v2 cada acción habilitada trae el tipo de inspección que le
+  // corresponde (spec 13). El selector ofrece SOLO esos tipos — con la obra
+  // paralizada, por ejemplo, queda uno solo (Registro de Observación) — y
+  // el evento a registrar sale de la acción del tipo elegido. Es el
+  // catálogo de la API, no el viejo de Oracle (ids distintos).
+  const opcionesTipoV2 = useMemo(() => {
+    if (!esV2) return [];
+    const accionesTipo = inicio.getObra(solicitud.id)?.AccionesTipo ?? {};
+    return inspecciones
+        .filter((codigo) => esAccionInspeccion(codigo, inicio.catalogo) && accionesTipo[codigo])
+        .map((codigo) => ({
+          codigo,
+          tipoInspeccionId: accionesTipo[codigo].TipoInspeccionId,
+          nombre: accionesTipo[codigo].TipoInspeccionNombre,
+        }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esV2, inicio.obras, solicitud.id, accionesV2]);
+
+  // Todas las inspecciones reportan avance, sin importar el tipo (cliente).
+  const muestraAvance = true;
+  // Alguna inspección habilitada (aceptan adjunto/fotos).
+  const hayInspeccion = !esV2 || opcionesTipoV2.length > 0;
+  const muestraFotos = hayInspeccion;
+  const muestraInforme = hayInspeccion;
 
   // ── Form state ────────────────────────────────────────────
   const [type, setType] = useState('');
+  const [tipoInspeccionId, setTipoInspeccionId] = useState('');
+
+  // Un solo tipo permitido (ej. obra paralizada) → queda preseleccionado.
+  useEffect(() => {
+    if (esV2 && opcionesTipoV2.length === 1) {
+      setTipoInspeccionId(String(opcionesTipoV2[0].tipoInspeccionId));
+    }
+  }, [esV2, opcionesTipoV2]);
   const [fechaInspeccion, setFechaInspeccion] = useState(getLocalDateTimeString);
   const [progress, setProgress] = useState(() => minimoAvance);
   const [progressInput, setProgressInput] = useState(() => String(minimoAvance));
@@ -97,14 +145,38 @@ export function NewInspection({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   // ── Informe adjunto ───────────────────────────────────────
-  const [informe, setInforme] = useState<{
-    fileName: string;
-    fileContentBase64: string;
-    contentType: string;
-    sizeKb: number;
-  } | null>(null);
+  const [informe, setInforme] = useState<InformeAdjunto | null>(informeInicial);
+  useEffect(() => { onInformeChange?.(informe); }, [informe]); // eslint-disable-line react-hooks/exhaustive-deps
   const [loadingInforme, setLoadingInforme] = useState(false);
+  const { mostrarError } = useProgreso();
   const informeInputRef = useRef<HTMLInputElement>(null);
+
+  // ── CU-23: avance bloqueado y adjunto obligatorio (v2) ───────────────
+  const refAdjuntos = useRef<HTMLDivElement>(null);
+  const obraActual = esV2 ? inicio.getObra(solicitud.id) : null;
+  const tipoSeleccionado = esV2 ? opcionesTipoV2.find((o) => String(o.tipoInspeccionId) === tipoInspeccionId) : undefined;
+  const obraDetenida = !!obraActual?.Detencion?.FechaDetencionActual;
+  // Con la obra detenida ninguna inspección cambia el avance (queda en el avance actual). Con la obra en ejecución
+  // el avance es editable en todos los tipos, incluido «Registro de Observación».
+  const avanceBloqueado = esV2 && obraDetenida;
+  useEffect(() => {
+    if (avanceBloqueado) {
+      setProgress(minimoAvance);
+      setProgressInput(String(minimoAvance));
+      setErrors((p) => ({ ...p, progress: '' }));
+    }
+  }, [avanceBloqueado, minimoAvance]);
+
+  // Si el tipo elegido exige adjunto (dato de la API: AccionesDef), debe haber una foto o un informe.
+  const definicionTipo = tipoSeleccionado
+    ? (obraActual?.AccionesDef?.[tipoSeleccionado.codigo]
+        ?? inicio.catalogo?.TiposEvento?.find((t) => t.Codigo === tipoSeleccionado.codigo))
+    : undefined;
+  const requiereAdjunto = esV2 && !!definicionTipo?.RequiereAdjunto;
+  const faltaAdjunto = requiereAdjunto && tempPhotos.length === 0 && !informe;
+  useEffect(() => {
+    if (!faltaAdjunto) setErrors((p) => (p.adjunto ? { ...p, adjunto: '' } : p));
+  }, [faltaAdjunto]);
 
   // ── Usuarios a notificar ──────────────────────────────────
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -120,6 +192,9 @@ export function NewInspection({
 
   // ── Cargar usuarios al montar ─────────────────────────────
   useEffect(() => {
+    // CU-21: en v2 «Notificar a» está oculto (la API no soporta notificaciones) → NO se llama al flow
+    // de usuarios de Power Automate (tardaba ~3,7 s en abrir el formulario).
+    if (esV2) { setLoadingUsuarios(false); return; }
     setLoadingUsuarios(true);
     usuariosService
         .getAll()
@@ -135,6 +210,11 @@ export function NewInspection({
       if (!raw) return;
       const draft = JSON.parse(raw);
       if (typeof draft.type === 'string') setType(draft.type);
+      // El tipo de la API (v2) también va en el borrador; solo se restaura si sigue permitido.
+      if (typeof draft.tipoInspeccionId === 'string' && draft.tipoInspeccionId
+          && (!esV2 || opcionesTipoV2.some((o) => String(o.tipoInspeccionId) === draft.tipoInspeccionId))) {
+        setTipoInspeccionId(draft.tipoInspeccionId);
+      }
       if (typeof draft.fechaInspeccion === 'string') setFechaInspeccion(draft.fechaInspeccion);
       if (typeof draft.progress === 'number') { setProgress(draft.progress); setProgressInput(String(draft.progress)); }
       if (typeof draft.comentariosAvance === 'string') setComentariosAvance(draft.comentariosAvance);
@@ -147,7 +227,7 @@ export function NewInspection({
   const saveDraftToSession = () => {
     try {
       sessionStorage.setItem(draftKey, JSON.stringify({
-        type, fechaInspeccion, progress, comentariosAvance,
+        type, tipoInspeccionId, fechaInspeccion, progress, comentariosAvance,
         observacionesInspeccion, status, solicitarParalizacion,
       }));
     } catch { /* ignorar */ }
@@ -176,14 +256,15 @@ export function NewInspection({
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
     ];
     if (!tiposPermitidos.includes(file.type)) {
-      alert('Solo se permiten archivos PDF (.pdf) o Word (.doc, .docx)');
+      mostrarError(new Error('Solo se permiten archivos PDF, Word o fotos (JPG, PNG).'), 'Archivo no permitido');
       e.target.value = '';
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      alert('El archivo no debe superar los 10 MB');
+      mostrarError(new Error('El archivo no debe superar los 10 MB. Elige uno más liviano.'), 'Archivo demasiado pesado');
       e.target.value = '';
       return;
     }
@@ -204,7 +285,7 @@ export function NewInspection({
       setLoadingInforme(false);
     };
     reader.onerror = () => {
-      alert('Error al leer el archivo. Intenta nuevamente.');
+      mostrarError(new Error('No se pudo leer el archivo. Vuelve a elegirlo e inténtalo de nuevo.'), 'No se pudo leer el archivo');
       setLoadingInforme(false);
     };
     reader.readAsDataURL(file);
@@ -215,14 +296,19 @@ export function NewInspection({
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
     if (!fechaInspeccion) newErrors.fechaInspeccion = 'La fecha es obligatoria';
-    // En v2 el tipo no se envía a la API (no tiene campo) — no se exige.
+    else if (esFechaFutura(fechaInspeccion)) newErrors.fechaInspeccion = 'La fecha de la inspección no puede ser futura: elige hoy o un día anterior.';
     if (!esV2 && !type) newErrors.type = 'Debe seleccionar un tipo de inspección';
-    if (!comentariosAvance.trim()) newErrors.comentariosAvance = 'Los comentarios de avance son obligatorios';
+    if (esV2 && !tipoInspeccionId) newErrors.type = 'Debe seleccionar un tipo de inspección';
+    if (!comentariosAvance.trim()) newErrors.comentariosAvance = esV2 ? 'El comentario es obligatorio' : 'Los comentarios de avance son obligatorios';
+    // v2: el único texto es el Comentario, así que "No Conforme" exige mínimo 10 caracteres ahí.
+    else if (esV2 && status === 'no-conforme' && comentariosAvance.trim().length < 10)
+      newErrors.comentariosAvance = 'Para No Conforme el comentario es obligatorio (mínimo 10 caracteres)';
     // El avance solo se valida si su sección está visible (v2: INSPECCION_AVANCE).
     if (muestraAvance && progress < minimoAvance)
       newErrors.progress = `El avance no puede ser menor al registrado anteriormente (${minimoAvance}%)`;
-    if (status === 'no-conforme' && observacionesInspeccion.trim().length < 10)
+    if (!esV2 && status === 'no-conforme' && observacionesInspeccion.trim().length < 10)
       newErrors.observacionesInspeccion = 'Las observaciones son obligatorias para "No Conforme" (mínimo 10 caracteres)';
+    if (faltaAdjunto) newErrors.adjunto = 'Este tipo de inspección exige al menos un adjunto: una foto O un informe o archivo (con uno basta).';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -233,10 +319,13 @@ export function NewInspection({
     if (!validate()) {
       const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) =>
           ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      if (!fechaInspeccion) { scrollTo(refFecha); return; }
+      if (!fechaInspeccion || esFechaFutura(fechaInspeccion)) { scrollTo(refFecha); return; }
       if (!esV2 && !type) { scrollTo(refTipo); return; }
+      if (esV2 && !tipoInspeccionId) { scrollTo(refTipo); return; }
       if (!comentariosAvance.trim()) { scrollTo(refComentarios); return; }
-      if (status === 'no-conforme' && observacionesInspeccion.trim().length < 10) { scrollTo(refObservaciones); }
+      if (esV2 && status === 'no-conforme' && comentariosAvance.trim().length < 10) { scrollTo(refComentarios); return; }
+      if (faltaAdjunto) { scrollTo(refAdjuntos); return; }
+      if (!esV2 && status === 'no-conforme' && observacionesInspeccion.trim().length < 10) { scrollTo(refObservaciones); }
       return;
     }
 
@@ -248,6 +337,10 @@ export function NewInspection({
 
     onSave({
       type,
+      tipoInspeccionId: esV2 && tipoInspeccionId ? Number(tipoInspeccionId) : undefined,
+      tipoEvento: esV2
+          ? opcionesTipoV2.find((o) => String(o.tipoInspeccionId) === tipoInspeccionId)?.codigo
+          : undefined,
       fechaInspeccion,
       progress,
       comentariosAvance,
@@ -285,7 +378,7 @@ export function NewInspection({
       <div className="min-h-screen bg-[#F5F7FA] pb-20">
         <Header title="Nueva Inspección" showBackButton onBack={onBack} />
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form noValidate onSubmit={handleSubmit} className="p-4 space-y-4">
 
           {/* Proyecto */}
           <div className="bg-white rounded-lg p-4 shadow-sm">
@@ -295,17 +388,13 @@ export function NewInspection({
 
           {/* Fecha y hora */}
           <div ref={refFecha} className="bg-white rounded-lg p-4 shadow-sm">
-            {esV2 && (
-                <div className="mb-2 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 border border-amber-300 rounded text-[10px] font-semibold text-amber-700">
-                  ⚠ Pendiente en la API — no se envía aún
-                </div>
-            )}
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Fecha y Hora de Inspección <span className="text-[#E30613]">*</span>
             </label>
             <input
                 type="datetime-local"
                 value={fechaInspeccion}
+                max={ahoraCLParaInput()}
                 onChange={(e) => { setFechaInspeccion(e.target.value); setErrors(p => ({ ...p, fechaInspeccion: '' })); }}
                 className={`w-full h-11 px-3 bg-white rounded-lg border ${errors.fechaInspeccion ? 'border-[#E30613]' : 'border-[#003D7A]/20'} focus:outline-none focus:ring-2 focus:ring-[#0066CC]`}
             />
@@ -314,15 +403,22 @@ export function NewInspection({
 
           {/* Tipo de inspección */}
           <div ref={refTipo} className="bg-white rounded-lg p-4 shadow-sm">
-            {esV2 && (
-                <div className="mb-2 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 border border-amber-300 rounded text-[10px] font-semibold text-amber-700">
-                  ⚠ Pendiente en la API — no se envía aún
-                </div>
-            )}
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Tipo de Inspección <span className="text-[#E30613]">*</span>
             </label>
-            {tiposInspeccionLoading ? (
+            {esV2 ? (
+                // v2: catálogo de la API nueva (TipoInspeccionId), distinto del viejo de Oracle.
+                <select
+                    value={tipoInspeccionId}
+                    onChange={(e) => { setTipoInspeccionId(e.target.value); setErrors(p => ({ ...p, type: '' })); }}
+                    className={`w-full h-11 px-3 bg-white rounded-lg border ${errors.type ? 'border-[#E30613]' : 'border-[#003D7A]/20'} focus:outline-none focus:ring-2 focus:ring-[#0066CC]`}
+                >
+                  <option value="">Seleccionar tipo...</option>
+                  {opcionesTipoV2.map(o => (
+                      <option key={o.codigo} value={o.tipoInspeccionId}>{o.nombre}</option>
+                  ))}
+                </select>
+            ) : tiposInspeccionLoading ? (
                 <div className="flex items-center gap-2 h-11 px-3 bg-[#F5F7FA] rounded-lg border border-[#003D7A]/20">
                   <Loader2 className="w-4 h-4 text-[#0066CC] animate-spin" />
                   <span className="text-sm text-[#4A4A4A]">Cargando tipos...</span>
@@ -355,13 +451,18 @@ export function NewInspection({
             <div className="flex items-center justify-between mb-3">
               <div>
                 <label className="text-sm text-[#4A4A4A]">% Avance de Obra</label>
-                {minimoAvance > 0 && (
-                    <p className="text-xs text-[#4A4A4A] mt-0.5">Mínimo: {minimoAvance}% (última inspección)</p>
+                {avanceBloqueado ? (
+                    <p className="text-sm font-medium text-[#4A4A4A] mt-0.5">
+                      El avance no se puede cambiar con la obra detenida: queda en {minimoAvance}%.
+                    </p>
+                ) : minimoAvance > 0 && (
+                    <p className="text-xs text-[#4A4A4A] mt-0.5">Mínimo: {minimoAvance}% (avance actual de la obra)</p>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <input
                     type="number" min={minimoAvance} max="100"
+                    disabled={avanceBloqueado}
                     value={progressInput}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -377,19 +478,20 @@ export function NewInspection({
                       setProgress(clamped);
                       setProgressInput(String(clamped));
                     }}
-                    className={`w-16 h-9 px-2 text-center bg-white border-2 ${errors.progress ? 'border-[#E30613]' : 'border-[#0066CC]'} rounded-lg text-[#0066CC] font-bold focus:outline-none`}
+                    className={`w-16 h-9 px-2 text-center bg-white border-2 ${errors.progress ? 'border-[#E30613]' : 'border-[#0066CC]'} rounded-lg text-[#0066CC] font-bold focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed`}
                 />
                 <span className="text-xl text-[#0066CC] font-bold">%</span>
               </div>
             </div>
             <input
                 type="range" min="0" max="100" step="1" value={progress}
+                disabled={avanceBloqueado}
                 onChange={(e) => {
                   const val = Math.max(minimoAvance, Number(e.target.value));
                   setProgress(val);
                   setProgressInput(String(val));
                 }}
-                className="w-full h-2 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#0066CC] [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#0066CC] [&::-moz-range-thumb]:border-0"
+                className="w-full h-2 rounded-full appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#0066CC] [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#0066CC] [&::-moz-range-thumb]:border-0"
                 style={{
                   background: `linear-gradient(to right, #0066CC 0%, #0066CC ${progress}%, #F5F7FA ${progress}%, #F5F7FA 100%)`,
                 }}
@@ -401,16 +503,25 @@ export function NewInspection({
           </div>
           )}
 
-          {/* Comentarios de Avance */}
+          {/* Comentario — v2: único campo de texto (la API solo guarda Comentario, contrato CU-02) */}
           <div ref={refComentarios} className="bg-white rounded-lg p-4 shadow-sm">
             <label className="block text-sm text-[#4A4A4A] mb-2">
-              Comentarios de Avance <span className="text-[#E30613]">*</span>
+              {esV2 ? 'Comentario' : 'Comentarios de Avance'} <span className="text-[#E30613]">*</span>
+              {esV2 && status === 'no-conforme' && (
+                  <span className="text-xs text-[#E30613] ml-1">(Obligatorio para No Conforme, mínimo 10 caracteres)</span>
+              )}
             </label>
             <textarea
                 value={comentariosAvance ?? ''}
                 onChange={(e) => { setComentariosAvance(e.target.value); setErrors(p => ({ ...p, comentariosAvance: '' })); }}
-                placeholder="Agregue cualquier comentario respecto al avance..."
-                rows={3}
+                placeholder={
+                  esV2
+                      ? (status === 'no-conforme'
+                          ? 'Describa los problemas detectados en la inspección...'
+                          : 'Escriba su comentario sobre la inspección...')
+                      : 'Agregue cualquier comentario respecto al avance...'
+                }
+                rows={esV2 ? 4 : 3}
                 className={`w-full px-3 py-2 bg-white rounded-lg border ${errors.comentariosAvance ? 'border-[#E30613]' : 'border-[#003D7A]/20'} focus:outline-none focus:ring-2 focus:ring-[#0066CC] resize-none`}
             />
             {errors.comentariosAvance && <p className="mt-1 text-sm text-[#E30613]">{errors.comentariosAvance}</p>}
@@ -465,7 +576,8 @@ export function NewInspection({
               </div>
           )}
 
-          {/* Observaciones de Inspección */}
+          {/* Observaciones de Inspección — solo v1 (en v2 la API guarda un único Comentario) */}
+          {!esV2 && (
           <div ref={refObservaciones} className="bg-white rounded-lg p-4 shadow-sm">
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Observaciones de Inspección
@@ -495,12 +607,24 @@ export function NewInspection({
               {status === 'no-conforme' && ' (mínimo 10 requerido)'}
             </p>
           </div>
+          )}
 
-          {/* Fotos — v2: solo si hay inspección habilitada */}
-          {muestraFotos && (
-          <div className="bg-white rounded-lg p-4 shadow-sm">
+          {/* Adjuntos — una sola tarjeta: foto O informe/archivo (CU-23) */}
+          {(muestraFotos || muestraInforme) && (
+          <div ref={refAdjuntos} className={`bg-white rounded-lg p-4 shadow-sm ${errors.adjunto ? 'border-2 border-[#E30613]' : ''}`}>
+            <h3 className="text-base font-semibold text-[#003D7A] mb-1">Adjuntos{requiereAdjunto ? '' : ' (opcionales)'}</h3>
+            {requiereAdjunto && (
+              <div className={`flex items-start gap-2 rounded-lg border p-3 mb-3 ${errors.adjunto ? 'bg-red-50 border-[#E30613]/40 text-[#B0000F]' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <p className="text-base font-medium">
+                  {errors.adjunto || 'Obligatorio: una foto O un informe o archivo. Con uno basta.'}
+                </p>
+              </div>
+            )}
+            {muestraFotos && (
+            <div className={`rounded-lg p-3 border-2 ${errors.adjunto ? 'border-[#E30613] bg-red-50/40' : 'border-[#003D7A]/10'}`}>
             <div className="flex items-center justify-between mb-3">
-              <label className="text-sm text-[#4A4A4A]">Fotos Adjuntas</label>
+              <label className="text-sm text-[#4A4A4A]">Foto</label>
               <span className="text-sm text-[#0066CC]">{tempPhotos.length}</span>
             </div>
             <button
@@ -526,25 +650,30 @@ export function NewInspection({
                   ))}
                 </div>
             )}
-          </div>
-          )}
-
-          {/* Informe adjunto — v2: solo si hay inspección habilitada */}
-          {muestraInforme && (
-          <div className="bg-white rounded-lg p-4 shadow-sm">
+            </div>
+            )}
+            {muestraFotos && muestraInforme && (
+            <div className="flex items-center gap-3 my-3" aria-hidden="true">
+              <div className="flex-1 h-px bg-[#003D7A]/15" />
+              <span className="text-base font-semibold text-[#003D7A]">O</span>
+              <div className="flex-1 h-px bg-[#003D7A]/15" />
+            </div>
+            )}
+            {muestraInforme && (
+            <div className={`rounded-lg p-3 border-2 ${errors.adjunto ? 'border-[#E30613] bg-red-50/40' : 'border-[#003D7A]/10'}`}>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm text-[#4A4A4A] flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-[#0066CC]" />
-                Informe Adjunto
+                Informe o archivo adjunto
               </label>
-              <span className="text-xs text-[#4A4A4A]">PDF o Word · opcional</span>
+              <span className="text-xs text-[#4A4A4A]">PDF, Word o foto</span>
             </div>
 
             {/* Input oculto */}
             <input
                 ref={informeInputRef}
                 type="file"
-                accept=".pdf,.doc,.docx"
+                accept=".pdf,.doc,.docx,image/*"
                 onChange={handleInformeSelect}
                 className="hidden"
             />
@@ -587,20 +716,18 @@ export function NewInspection({
                     className="w-full h-11 flex items-center justify-center gap-2 border-2 border-dashed border-[#003D7A]/25 rounded-lg text-[#4A4A4A] active:bg-[#F5F7FA] transition-colors"
                 >
                   <Paperclip className="w-5 h-5" />
-                  Adjuntar Informe
+                  Adjuntar informe o archivo
                 </button>
+            )}
+            </div>
             )}
           </div>
           )}
 
           {/* ── Usuarios a notificar ──────────────────────────────── */}
-          {/* v2: la API aún no tiene campo para notificar — visible pero marcado. */}
+          {/* CU-21: solo v1. En v2 la API no tiene campo para notificar → la sección se oculta. */}
+          {!esV2 && (
           <div className="bg-white rounded-xl shadow-sm p-4">
-            {esV2 && (
-                <div className="mb-2 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 border border-amber-300 rounded text-[10px] font-semibold text-amber-700">
-                  ⚠ Pendiente en la API — no se envía aún
-                </div>
-            )}
             <label className="flex items-center gap-2 text-sm font-medium text-[#003D7A] mb-1">
               <Users className="w-4 h-4 text-[#0066CC]" />
               Notificar a
@@ -706,19 +833,20 @@ export function NewInspection({
                 </>
             )}
           </div>
+          )}
 
           {/* Guardar */}
           <div className="pt-4">
+            {faltaAdjunto && (
+              <div className="flex items-start gap-2 rounded-lg border bg-amber-50 border-amber-300 text-amber-900 p-3 mb-3">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <p className="text-base">
+                  Para guardar falta: <strong>un adjunto: una foto O un informe o archivo (con uno basta)</strong>.
+                </p>
+              </div>
+            )}
             <Button type="submit" variant="primary" size="lg" fullWidth disabled={isSaving}>
-              {isSaving ? (
-                  <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Guardando...
-              </span>
-              ) : 'Guardar Inspección'}
+              Guardar Inspección
             </Button>
           </div>
         </form>

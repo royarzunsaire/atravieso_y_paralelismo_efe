@@ -69,14 +69,13 @@ export function Profile({ onBack, onLogout, onChangePassword }: ProfileProps) {
               </span>
             </div>
 
-            <div className="flex items-center justify-between py-2">
+            <div className="py-2">
               <div className="flex items-center gap-2">
                 <User className="w-5 h-5 text-[#0066CC]" />
                 <span className="text-sm text-[#4A4A4A]">ID de usuario</span>
               </div>
-              <span className="text-sm text-[#003D7A] font-medium">
-                #{user.id}
-              </span>
+              {/* Código largo: va en su propia línea y se parte dentro de la tarjeta (CU-27). */}
+              <p className="mt-1 text-sm text-[#003D7A] font-medium break-all">{user.id}</p>
             </div>
           </div>
         </div>

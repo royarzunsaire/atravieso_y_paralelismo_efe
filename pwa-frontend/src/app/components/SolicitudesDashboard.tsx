@@ -7,6 +7,10 @@ import { solicitudesService } from '@/services/solicitudes';
 import { inspeccionesService } from '@/services/inspecciones';
 import { mapObraToSolicitud } from '@/utils/mapInicio';
 import { useInicio } from '@/context/InicioContext';
+import { detalleService } from '@/services/detalleService';
+import { detalleCache } from '@/services/detalleCache';
+import { cargarMotivoDetencion } from '@/utils/useMotivoDetencion';
+import { etiquetaDashboard } from '@/utils/tramitesObra';
 import type { Solicitud } from '@/types/solicitud.ts';
 
 // Flag de migración (spec 10): cuando está activo, el dashboard usa la
@@ -78,6 +82,9 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
   const [searchQuery, setSearchQuery] = useState('');
   const [filterByUser, setFilterByUser] = useState<boolean>();
   const [stats, setStats] = useState<Stats | null>(null);
+  // Re-dibuja las tarjetas cuando llega un detalle (etiqueta «ACTA RECHAZADA»: depende del comentario del líder).
+  const [, setVersionDetalle] = useState(0);
+  useEffect(() => detalleCache.suscribir(() => setVersionDetalle((v) => v + 1)), []);
 
   // En v2 las solicitudes salen del context (obras mapeadas); en modo viejo,
   // del estado local que llena solicitudesService.
@@ -172,11 +179,38 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
     if (filterByUser) void loadStats();
   }, [filterByUser, loadSolicitudes, loadStats]);
 
+  // Carga en segundo plano (mejora de performance, solo v2): apenas está
+  // el listado de obras, precalienta el detalle de las 2 más recientes
+  // (por FechaUltimoEvento) para que abran instantáneas. Silencioso — si
+  // falla, no pasa nada, el detalle se carga normal al entrar.
+  useEffect(() => {
+    if (!USE_API_V2 || !inicio.cargado) return;
+
+    const masRecientes = [...inicio.obras]
+      .sort((a, b) => {
+        const ta = new Date(a.FechaUltimoEvento ?? 0).getTime();
+        const tb = new Date(b.FechaUltimoEvento ?? 0).getTime();
+        return tb - ta;
+      })
+      .slice(0, 2);
+
+    masRecientes.forEach((obra) => {
+      void detalleService.prefetchDetalle(obra.Id);
+      // Obra detenida: se precarga también el motivo/acta para Ctrl. Obra
+      // (pedidos compartidos con el detalle → sin trabajo doble).
+      const fechaDetencion = obra.Detencion?.FechaDetencionActual;
+      if (fechaDetencion) void cargarMotivoDetencion(obra.Id, fechaDetencion);
+    });
+  }, [inicio.cargado, inicio.obras]);
+
   // ── Refresh ─────────────────────────────────────────────────
 
   const handleRefresh = async () => {
     if (USE_API_V2) {
       // En v2 forceRefresh trae el catálogo completo de nuevo (gesto de recarga).
+      // También se descarta el detalle cacheado (CU-11): si alguien más agregó
+      // algo, al entrar al detalle se ve lo último, no lo guardado.
+      detalleCache.limpiarTodo();
       await loadSolicitudes(true);
       return;
     }
@@ -312,6 +346,10 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
                           onClick={() => onSolicitudSelect(solicitud.id)}
                           ultimoAvance={ultimoAvance}
                           ultimoEstado={avanceData?.estado ?? null}
+                          tramitePendiente={USE_API_V2
+                              ? etiquetaDashboard(inicio.getObra(solicitud.id), inicio.catalogo, detalleCache.get(solicitud.id)?.data?.ComentarioDevolucion)
+                              : null}
+                          diasDetencion={USE_API_V2 ? (solicitud as { diasDetencion?: number | null }).diasDetencion : null}
                       />
                   );
                 })

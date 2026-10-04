@@ -72,7 +72,7 @@ export const inicioService = {
     const data = await response.json().catch(() => ({}));
 
     if (response.status === 404 || data?.error === 'USUARIO_NO_ENCONTRADO') {
-      const err = new Error('Tu usuario no está registrado en el sistema de obras.');
+      const err = new Error('No tienes obras asignadas en el sistema de obras. Si debería tenerlas, pide que te asignen una (o que registren tu correo en el sitio).');
       err.code = 'USUARIO_NO_ENCONTRADO';
       throw err;
     }

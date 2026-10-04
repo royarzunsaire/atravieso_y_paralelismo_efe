@@ -27,6 +27,17 @@ export interface AccionCatalogo {
   TiposDocumento: TipoDocumento[];
 }
 
+/**
+ * Definición fresca de una acción habilitada (viene con cada obra, no del
+ * catálogo cacheado, cuya versión no detecta cambios de contenido).
+ */
+export interface DefinicionAccion {
+  RequiereComentario: boolean;
+  RequiereAdjunto: boolean;
+  RequiereAvance: boolean;
+  TiposDocumento: TipoDocumento[];
+}
+
 /** Un subestado posible de una obra. */
 export interface SubEstadoCatalogo {
   Id: number;
@@ -34,11 +45,22 @@ export interface SubEstadoCatalogo {
   Label: string;
 }
 
+/**
+ * Un tipo de inspección seleccionable (catálogo nuevo de la API directa a
+ * SharePoint, spec 13 — antes "type" no existía en el Payload, ahora se
+ * manda como TipoInspeccionId).
+ */
+export interface TipoInspeccionCatalogo {
+  Id: number;
+  Nombre: string;
+}
+
 /** El catálogo completo que trae API_Inicio (cacheable por CatalogosVersion). */
 export interface CatalogoInicio {
   TiposEvento: AccionCatalogo[];
   SubEstados: SubEstadoCatalogo[];
   TiposDocumento: TipoDocumento[];
+  TiposInspeccion: TipoInspeccionCatalogo[];
 }
 
 /** Bloque de ubicación de una obra. */
@@ -82,6 +104,14 @@ export interface ObraInicio {
   Detencion: DetencionObra;
   /** Lista de códigos permitidos AHORA, en orden de pintado. */
   AccionesHabilitadas: string[];
+  /**
+   * Tipo de inspección que corresponde a cada acción habilitada (lo agrega
+   * nuestro backend a partir de TipoInspeccionId/Nombre de la API). Con la
+   * obra paralizada, por ejemplo, solo queda un tipo posible.
+   */
+  AccionesTipo?: Record<string, { TipoInspeccionId: number; TipoInspeccionNombre: string }>;
+  /** Definición fresca de cada acción habilitada (banderas Requiere* y tipos de documento). */
+  AccionesDef?: Record<string, DefinicionAccion>;
 }
 
 /** Resultado normalizado de inicioService.getInicio(). */
