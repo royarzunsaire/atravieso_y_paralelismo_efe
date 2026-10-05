@@ -187,12 +187,12 @@ const REGLAS = [
   // ── Acta de inicio como requisito previo (CU-15) ──
   { id: 'CU-15a', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '<TramitePendienteCard',
     msg: 'Información muestra la tarjeta para subir el acta de inicio cuando falta.' },
-  { id: 'CU-15b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: "USE_API_V2 && !obraSinActa ? [{ id: 'control'",
+  { id: 'CU-15b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: "!obraSinActa ? [{ id: 'control'",
     msg: 'Sin acta de inicio NO se muestra la pestaña Ctrl. Obra.' },
   { id: 'CU-15c', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'obraSinActa || obraCerrada',
     msg: 'Sin acta de inicio (o sin tipos de inspección habilitados) NO se muestra «+ Inspección».' },
-  { id: 'CU-15d', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '!USE_API_V2 && ultimaInspeccion?.progress === 100',
-    msg: 'El botón «Término de Ejecución de Obra» es solo del flujo v1.' },
+  { id: 'CU-15d', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'noDebe', texto: 'Término de Ejecución de Obra',
+    msg: 'El botón «Término de Ejecución de Obra» era del flujo v1 (retirado): el cierre es «Finalizar obra» en Ctrl. Obra.' },
   { id: 'CU-15e', archivo: 'app/components/SolicitudCard.tsx', tipo: 'debe', texto: '<EtiquetaTramitePendiente',
     msg: 'La tarjeta del dashboard muestra «FALTA ACTA DE INICIO».' },
   { id: 'CU-15f', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'enviarAccionObra(',
@@ -227,7 +227,7 @@ const REGLAS = [
     msg: 'La pestaña Inspecciones explica por qué no hay «+ Inspección» en una obra finalizada.' },
 
   // ── Borrador del formulario y espera del líder (CU-02 / CU-18) ──
-  { id: 'CU-02e', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'type, tipoInspeccionId, fechaInspeccion',
+  { id: 'CU-02e', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'tipoInspeccionId, fechaInspeccion, progress',
     msg: 'El borrador guarda el tipo de inspección de la API (se perdía al volver de la foto).' },
   { id: 'CU-02f', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'setTipoInspeccionId(draft.tipoInspeccionId)',
     msg: 'El borrador restaura el tipo de inspección de la API.' },
@@ -281,16 +281,16 @@ const REGLAS = [
     msg: 'Una carga de la sesión anterior no pisa los datos de la sesión nueva.' },
 
   // ── Sin flows de Power Automate en v2 (CU-21) ──
-  { id: 'CU-21a', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'if (esV2) { setLoadingUsuarios(false); return; }',
-    msg: 'En v2 NO se llama al flow de usuarios al abrir «+ Inspección».' },
+  { id: 'CU-21a', archivo: 'app/components/NewInspection.tsx', tipo: 'noDebe', texto: 'usuariosService',
+    msg: 'No se llama al flow de usuarios al abrir «+ Inspección» (v1 retirado).' },
   { id: 'CU-21b', archivo: 'app/components/NewInspection.tsx', tipo: 'noDebe', texto: '<PendienteApiBadge',
     msg: 'En v2 «Notificar a» se oculta: no queda ningún cartel «Pendiente en la API».' },
   { id: 'CU-21c', archivo: 'app/components/NewInspection.tsx', tipo: 'debeAntes', ancla: 'Selecciona los usuarios que recibirán notificación', ventana: 1500, texto: '{!esV2 && (',
     msg: 'La sección «Notificar a» solo se dibuja en v1.' },
-  { id: 'CU-21d', archivo: 'context/CatalogsContext.tsx', tipo: 'debe', texto: '!USE_API_V2 && authService.isAuthenticated()',
-    msg: 'En v2 no se pide /api/tipos-inspeccion al iniciar la app.' },
-  { id: 'CU-21e', archivo: 'app/App.tsx', tipo: 'debe', texto: 'if (!USE_API_V2) void recargarTiposInspeccion();',
-    msg: 'En v2 no se piden los tipos viejos al iniciar sesión.' },
+  { id: 'CU-21d', archivo: 'app/App.tsx', tipo: 'noDebe', texto: 'CatalogsProvider',
+    msg: 'No se piden los tipos viejos de Oracle (/api/tipos-inspeccion): v1 retirado.' },
+  { id: 'CU-21e', archivo: 'app/App.tsx', tipo: 'noDebe', texto: 'recargarTiposInspeccion',
+    msg: 'Al iniciar sesión no se piden los tipos viejos (v1 retirado).' },
 
   // ── Espera visible y errores explicados (CU-22) ──
   { id: 'CU-22a', archivo: 'app/App.tsx', tipo: 'debe', texto: '<ProgresoProvider>',
@@ -389,7 +389,7 @@ const REGLAS = [
     msg: 'Entre foto e informe se muestra el separador «O».' },
 
   // ── Avance, avisos pastel, informe en borrador y Perfil (CU-23 / CU-02 / CU-27) ──
-  { id: 'CU-23n', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'const avanceBloqueado = esV2 && obraDetenida;',
+  { id: 'CU-23n', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'const avanceBloqueado = obraDetenida;',
     msg: 'El avance se bloquea SOLO con la obra detenida (no en Registro de Observación).' },
   { id: 'CU-23o', archivo: 'app/components/NewInspection.tsx', tipo: 'noDebe', texto: 'TIPO_REGISTRO_OBSERVACION_ID',
     msg: 'Registro de Observación ya no tiene un tratamiento especial de avance.' },
@@ -431,7 +431,7 @@ const REGLAS = [
   // ── Detalle sin acceso (CU-29) ──
   { id: 'CU-29a', archivo: 'services/detalleService.js', tipo: 'debe', texto: "err.code = 'SIN_ACCESO'",
     msg: 'El 403 del detalle se distingue del resto de errores.' },
-  { id: 'CU-29b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'detalleV2.sinAcceso && USE_API_V2',
+  { id: 'CU-29b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '{detalleV2.sinAcceso',
     msg: 'Ante un 403 no se ofrece «Reintentar» (se explica qué hacer).' },
   { id: 'CU-29c', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'No se pudo leer el detalle de las inspecciones',
     msg: 'Si el detalle no se leyó, la tarjeta de progreso no inventa «0 % / sin inspecciones».' },
@@ -447,6 +447,20 @@ const REGLAS = [
     msg: 'El formulario avisa que hay que subir todos los documentos.' },
   { id: 'CU-30d', archivo: '../../pwa-backend/routes/eventos.js', tipo: 'debe', texto: 'DOCUMENTOS_INCOMPLETOS',
     msg: 'El backend rechaza el envío si falta algún tipo de documento de la acción.' },
+
+  // ── Retiro de v1 (CU-31): la app es siempre v2, sin flag ni servicios de flows ──
+  { id: 'CU-31a', archivo: 'app/App.tsx', tipo: 'noDebe', texto: 'USE_API_V2',
+    msg: 'El flag VITE_USE_API_V2 ya no existe: la app es siempre v2.' },
+  { id: 'CU-31b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'noDebe', texto: 'USE_API_V2',
+    msg: 'El detalle no tiene ramas v1.' },
+  { id: 'CU-31c', archivo: 'app/components/NewInspection.tsx', tipo: 'noDebe', texto: 'const esV2',
+    msg: 'El formulario de inspección no tiene ramas v1.' },
+  { id: 'CU-31d', archivo: 'app/components/SolicitudesDashboard.tsx', tipo: 'noDebe', texto: 'solicitudesService',
+    msg: 'El dashboard no usa el listado viejo de flows.' },
+  { id: 'CU-31e', archivo: 'app/App.tsx', tipo: 'noDebe', texto: 'CierreObra',
+    msg: 'La pantalla de cierre de obra v1 fue retirada (el cierre es «Finalizar obra»).' },
+  { id: 'CU-31f', archivo: 'app/components/SolicitudCard.tsx', tipo: 'noDebe', texto: 'const esV2',
+    msg: 'La tarjeta no distingue v1/v2.' },
 
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',

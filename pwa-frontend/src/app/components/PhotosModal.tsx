@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { fotosService } from '@/services/fotos';
 import { fotosBlobCache } from '@/services/fotosBlobCache';
 import { formatearFechaHoraCL } from '@/utils/fechas';
 
@@ -24,17 +23,10 @@ interface PhotosModalProps {
   loading: boolean;
   error: string | null;
   onClose: () => void;
-  /**
-   * true cuando `photo.url` ya es una URL directa y usable (ej. API_Detalle
-   * v2) — se descarga con `fetch()` directo a esa URL (sin pasar por
-   * nuestro backend) en vez de `fotosService.getContentBlob`. Sigue
-   * necesitando blob: el gateway del cliente manda
-   * `Cross-Origin-Resource-Policy: same-origin`, que bloquea un <img src>
-   * directo entre orígenes (ERR_BLOCKED_BY_RESPONSE.NotSameOrigin) aunque
-   * el fetch() sí funciona (el servidor sí manda CORS abierto). La URL
-   * expira (~1h en v2); si eso pasa, queda el link "Abrir en SharePoint".
-   */
-  useDirectUrl?: boolean;
+  // Cada `photo.url` es una URL directa a SharePoint (API_Detalle): se descarga con `fetch()` directo (sin pasar
+  // por nuestro backend) y se muestra como blob. El gateway del cliente manda `Cross-Origin-Resource-Policy:
+  // same-origin`, que bloquearía un <img src> directo entre orígenes, aunque el fetch() sí funciona. La URL
+  // expira (~1h); si eso pasa, queda el link "Abrir en SharePoint".
 }
 
 export function PhotosModal({
@@ -45,7 +37,6 @@ export function PhotosModal({
   loading,
   error,
   onClose,
-  useDirectUrl = false,
 }: PhotosModalProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [objectUrls, setObjectUrls] = useState<Record<string, string>>({});
@@ -89,11 +80,9 @@ export function PhotosModal({
         if (!item) return;
         const fileName = item.fileName as string;
         try {
-          // useDirectUrl: comparte cache con la precarga de SolicitudDetail
-          // — si ya se descargó en segundo plano, aparece al instante.
-          const url = useDirectUrl
-            ? await fotosBlobCache.getOrFetch(item.url as string)
-            : URL.createObjectURL(await fotosService.getContentBlob({ inspeccionId, fileName }));
+          // Comparte cache con la precarga de SolicitudDetail — si ya se descargó en segundo plano,
+          // aparece al instante.
+          const url = await fotosBlobCache.getOrFetch(item.url as string);
           if (cancelled) return;
           setObjectUrls((prev) => (prev[fileName] ? prev : { ...prev, [fileName]: url }));
         } catch (err: any) {

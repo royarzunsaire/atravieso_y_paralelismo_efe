@@ -23,9 +23,6 @@ import {
   X,
   Search,
   Filter,
-  Lock,
-  RefreshCw,
-  AlertTriangle,
 } from 'lucide-react';
 import { getEstadoColor, getPrioridadTextColor } from '@/utils/solicitudUtils';
 import type { Solicitud, InspeccionDetalle, Archivo, FotoInspeccion } from '@/types/solicitud';
@@ -33,9 +30,7 @@ import { getFileIconInfo, getTipoDocumentoBadgeColor, isImageFile } from '@/util
 import { formatearFechaCL, formatearFechaHoraCL, diasDesdeCL } from '@/utils/fechas';
 import { PhotosModal } from './PhotosModal';
 import { InformesModal } from './InformesModal';
-import { useSolicitudContext } from '@/context/SolicitudContext';
 import { useInicio } from '@/context/InicioContext';
-import { inspeccionesService } from '@/services/inspecciones';
 import { detalleService } from '@/services/detalleService';
 import { detalleCache } from '@/services/detalleCache';
 import { fotosBlobCache } from '@/services/fotosBlobCache';
@@ -53,16 +48,12 @@ import { useProgreso } from '@/context/ProgresoContext';
 import { tramitePendiente, tramitesNuevos, puedeValidarInforme, esperaValidacionInforme } from '@/utils/tramitesObra';
 import { cambiosDesdeDetalle } from '@/utils/refrescarObra';
 
-// Flag de migración (spec 10): en v2 aparece la pestaña "Control de obra".
-const USE_API_V2 = import.meta.env.VITE_USE_API_V2 === 'true';
-
 type TabId = 'info' | 'documentos' | 'inspections' | 'control';
 
 interface SolicitudDetailProps {
   solicitudId: number;
   onBack: () => void;
   onNewInspection: (solicitud: Solicitud, minimoAvance: number) => void;
-  onCierreObra: (solicitud: Solicitud) => void;
 }
 
 interface InfoRowProps {
@@ -125,58 +116,41 @@ const STATUS_CONFIG = {
   },
 } as const;
 
-export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierreObra }: SolicitudDetailProps) {
-  const {
-    solicitudActual,
-    inspecciones: inspeccionesV1, archivos: archivosV1,
-    fotos: fotosV1, fotosLoadingIds: fotosLoadingIdsV1,
-    informes: informesV1, informesLoadingIds: informesLoadingIdsV1,
-    loadingSolicitud: loadingSolicitudV1, loadingInspecciones: loadingInspeccionesV1, loadingArchivos: loadingArchivosV1,
-    errorSolicitud: errorSolicitudV1, errorInspecciones: errorInspeccionesV1, errorArchivos: errorArchivosV1,
-    cargarSolicitud, recargarInspecciones: recargarInspeccionesV1, recargarArchivos: recargarArchivosV1,
-  } = useSolicitudContext();
-
+export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: SolicitudDetailProps) {
   const inicio = useInicio();
   const { conProgreso, mostrarError } = useProgreso();
   const inicioRef = useRef(inicio);
   inicioRef.current = inicio;
 
-  // En v2, "Información" sale directo de InicioContext (ya cargado en
-  // memoria desde que se abrió la app) en vez de SolicitudContext (que
-  // dispara los flows viejos de Power Automate) — así el detalle abre
-  // instantáneo, sin esperar ningún fetch nuevo para esta pestaña.
-  const obraV2 = USE_API_V2 ? inicio.getObra(solicitudId) : null;
-  const solicitud = USE_API_V2 ? (obraV2 ? mapObraToSolicitud(obraV2) : null) : solicitudActual;
-  const loadingSolicitud = USE_API_V2 ? false : loadingSolicitudV1;
+  // "Información" sale directo de InicioContext (ya cargado en memoria desde que se abrió la app),
+  // así el detalle abre instantáneo, sin esperar ningún fetch nuevo para esta pestaña.
+  const obraV2 = inicio.getObra(solicitudId);
+  const solicitud = obraV2 ? mapObraToSolicitud(obraV2) : null;
   // CU-10: motivo de la detención vigente (solo en Ctrl. Obra).
-  const { motivo: motivoDetencion, cargando: cargandoMotivo } = useMotivoDetencion(solicitudId, USE_API_V2 ? obraV2?.Detencion?.FechaDetencionActual : null);
+  const { motivo: motivoDetencion, cargando: cargandoMotivo } = useMotivoDetencion(solicitudId, obraV2?.Detencion?.FechaDetencionActual);
   // CU-15: sin acta de inicio no hay Ctrl. Obra ni inspecciones.
-  const obraSinActa = USE_API_V2 && !!obraV2 && faltaActaInicio(obraV2, inicio.catalogo);
+  const obraSinActa = !!obraV2 && faltaActaInicio(obraV2, inicio.catalogo);
   // CU-16: trámite documental pendiente (acta de inicio / acta de recepción firmada): aviso en Información.
-  const tramite = USE_API_V2 && obraV2 ? tramitePendiente(obraV2, inicio.catalogo) : null;
+  const tramite = obraV2 ? tramitePendiente(obraV2, inicio.catalogo) : null;
   // CU-28: acciones nuevas que la API habilita y la app no conoce de antemano → tarjeta genérica.
-  const tramitesNuevosObra = USE_API_V2 && obraV2 ? tramitesNuevos(obraV2, inicio.catalogo) : [];
+  const tramitesNuevosObra = obraV2 ? tramitesNuevos(obraV2, inicio.catalogo) : [];
   // CU-18: acta de recepción enviada → solo queda esperar la aprobación del líder.
-  const esperaLider = USE_API_V2 && !!obraV2 && esperaAprobacionRecepcion(obraV2, inicio.catalogo);
+  const esperaLider = !!obraV2 && esperaAprobacionRecepcion(obraV2, inicio.catalogo);
   // CU-19: el Supervisor valida el informe final; quien no puede, solo espera.
-  const validaInforme = USE_API_V2 && puedeValidarInforme(obraV2);
-  const esperaInforme = USE_API_V2 && !validaInforme && esperaValidacionInforme(obraV2, inicio.catalogo);
+  const validaInforme = puedeValidarInforme(obraV2);
+  const esperaInforme = !validaInforme && esperaValidacionInforme(obraV2, inicio.catalogo);
   // CU-17: desde la finalización («En recepción de obra» en adelante) no se aceptan más inspecciones.
-  const obraCerrada = USE_API_V2 && !!obraV2 && !obraSinActa && !estadoPermiteInspecciones(obraV2, inicio.catalogo);
+  const obraCerrada = !!obraV2 && !obraSinActa && !estadoPermiteInspecciones(obraV2, inicio.catalogo);
   // Solo se puede abrir «+ Inspección» si la API habilita al menos un tipo de inspección.
-  const hayTipoInspeccion = !USE_API_V2 || hayTipoInspeccionHabilitado(obraV2, inicio.catalogo);
+  const hayTipoInspeccion = hayTipoInspeccionHabilitado(obraV2, inicio.catalogo);
 
   // CU-09: inicio de obra y días corridos (calendario de Chile) en "Información".
   const fechaInicioObra = obraV2 ? formatearFechaCL(obraV2.FechaInicioObra) : '';
   const diasObra = obraV2 ? diasDesdeCL(obraV2.FechaInicioObra) : null;
-  const errorSolicitud = USE_API_V2
-    ? (obraV2 ? null : 'No se pudo cargar la información de la obra.')
-    : errorSolicitudV1;
+  const errorSolicitud = obraV2 ? null : 'No se pudo cargar la información de la obra.';
 
-  // ── Etapa B (spec 13): en v2, inspecciones/documentos/fotos/informes
-  // vienen de API_Detalle en un solo llamado (no del SolicitudContext
-  // viejo, que sigue activo solo para la pestaña Información). Las URLs
-  // de archivos son directas a SharePoint y expiran ~1h — no se cachean
+  // ── Etapa B (spec 13): inspecciones/documentos/fotos/informes vienen de API_Detalle en un solo
+  // llamado. Las URLs de archivos son directas a SharePoint y expiran ~1h — no se cachean
   // más allá de esta carga de pantalla.
   const [detalleV2, setDetalleV2] = useState<{
     inspecciones: InspeccionDetalle[];
@@ -329,28 +303,23 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
     }
   }, [aplicarDatosDetalle]);
 
-  const inspeccionesList: InspeccionDetalle[] = USE_API_V2 ? detalleV2.inspecciones : (inspeccionesV1[solicitudId] ?? []);
-  const archivosList: Archivo[] = USE_API_V2 ? detalleV2.archivos : (archivosV1[solicitudId] ?? []);
-  const fotos = USE_API_V2 ? detalleV2.fotos : fotosV1;
-  const fotosLoadingIds = USE_API_V2 ? inspCargando : fotosLoadingIdsV1;
-  const informes = USE_API_V2 ? detalleV2.informes : informesV1;
-  const informesLoadingIds = USE_API_V2 ? inspCargando : informesLoadingIdsV1;
-  const loadingInspecciones = USE_API_V2 ? detalleV2.loading : loadingInspeccionesV1;
-  const loadingArchivos = USE_API_V2 ? detalleV2.loading : loadingArchivosV1;
-  const errorInspecciones = USE_API_V2 ? detalleV2.error : errorInspeccionesV1;
-  const errorArchivos = USE_API_V2 ? detalleV2.error : errorArchivosV1;
-  const recargarInspecciones = USE_API_V2
-    ? (id: number) => cargarDetalleV2(id, { forzar: true })
-    : recargarInspeccionesV1;
-  const recargarArchivos = USE_API_V2
-    ? (id: number) => cargarDetalleV2(id, { forzar: true })
-    : recargarArchivosV1;
+  const inspeccionesList: InspeccionDetalle[] = detalleV2.inspecciones;
+  const archivosList: Archivo[] = detalleV2.archivos;
+  const fotos = detalleV2.fotos;
+  const fotosLoadingIds = inspCargando;
+  const informes = detalleV2.informes;
+  const informesLoadingIds = inspCargando;
+  const loadingInspecciones = detalleV2.loading;
+  const loadingArchivos = detalleV2.loading;
+  const errorInspecciones = detalleV2.error;
+  const errorArchivos = detalleV2.error;
+  const recargarInspecciones = (id: number) => cargarDetalleV2(id, { forzar: true });
+  const recargarArchivos = (id: number) => cargarDetalleV2(id, { forzar: true });
 
   // Documentos recién subidos: la API tarda en mostrarlos. El refresco los espera en segundo plano (refrescarObra.ts)
   // y al llegar se guardan en el caché: acá se completa la pestaña «Documentos» sola, sin recargar nada más.
   const [, setTickDocs] = useState(0);
   useEffect(() => {
-    if (!USE_API_V2) return;
     return detalleCache.suscribir(() => {
       setTickDocs((t) => t + 1);
       const data = detalleCache.get(solicitudId)?.data;
@@ -363,16 +332,16 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
       });
     });
   }, [solicitudId]);
-  const esperandoDocumentos = USE_API_V2 && detalleCache.esperaDocumentos(solicitudId);
+  const esperandoDocumentos = detalleCache.esperaDocumentos(solicitudId);
 
   const [activeTab, setActiveTab] = useState<TabId>('info');
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (obraSinActa && activeTab === 'control') setActiveTab('info');
   }, [obraSinActa, activeTab]);
-  // En v2 la API no manda fecha de modificación de documentos (spec 13) —
+  // La API no manda fecha de modificación de documentos (spec 13) —
   // "Ordenar por fecha" no tendría ningún efecto, se arranca por nombre.
-  const [sortBy, setSortBy] = useState<'fecha' | 'nombre' | 'categoria' | 'formato'>(USE_API_V2 ? 'nombre' : 'fecha');
+  const [sortBy, setSortBy] = useState<'fecha' | 'nombre' | 'categoria' | 'formato'>('nombre');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filtros, setFiltros] = useState<InspeccionFiltros>(FILTROS_INICIALES);
   const [showEstadoMenu, setShowEstadoMenu] = useState(false);
@@ -383,28 +352,21 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   const [currentInspectionForPhotos, setCurrentInspectionForPhotos] = useState<{ id: string; title: string } | null>(null);
   const [isInformesModalOpen, setIsInformesModalOpen] = useState(false);
   const [currentInspectionForInformes, setCurrentInspectionForInformes] = useState<{ id: string; title: string } | null>(null);
-  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
-  const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (USE_API_V2) {
-      // La Información ya está en InicioContext (instantánea); solo falta
-      // el detalle (inspecciones/documentos) vía API_Detalle.
-      cargarDetalleV2(solicitudId);
-    } else {
-      cargarSolicitud(solicitudId);
-    }
+    // La Información ya está en InicioContext (instantánea); solo falta el detalle (inspecciones/documentos).
+    cargarDetalleV2(solicitudId);
     setActiveTab('info');
     setExpandedCards(new Set());
     setFiltros(FILTROS_INICIALES);
-  }, [solicitudId, cargarSolicitud, cargarDetalleV2]);
+  }, [solicitudId, cargarDetalleV2]);
 
   const tiposUnicos = useMemo(() => {
     const tipos = inspeccionesList.map(i => i.type).filter(Boolean);
     return Array.from(new Set(tipos)).sort();
   }, [inspeccionesList]);
 
-  // Los archivos ya vienen filtrados por tipo desde el flow de Power Automate
+  // Los archivos ya vienen filtrados por tipo desde la API (VisibleMobile).
   const archivosPermitidos = archivosList;
 
   // Última inspección por fechaInspeccion (fallback a fechaCreacion)
@@ -423,7 +385,6 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   // formulario y la tarjeta de progreso. Solo si la obra viniera en 0 se usa la
   // última inspección con avance mayor a 0 (por fecha).
   const avanceReferencia = useMemo(() => {
-    if (!USE_API_V2) return ultimaInspeccion?.progress ?? 0;
     const deObra = Math.round(obraV2?.AvanceObraPct ?? 0);
     if (deObra > 0) return deObra;
     const conAvance = [...inspeccionesList]
@@ -433,7 +394,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   }, [inspeccionesList, obraV2, ultimaInspeccion]);
 
   // CU-29: si el detalle no se pudo leer, la tarjeta de progreso no inventa «0 % / sin inspecciones»: muestra el avance de la obra.
-  const detalleNoLeido = USE_API_V2 && !!detalleV2.error;
+  const detalleNoLeido = !!detalleV2.error;
   const avanceSinDetalle = detalleNoLeido ? Math.round(obraV2?.AvanceObraPct ?? 0) : 0;
 
   const inspeccionesFiltradas = useMemo(() => {
@@ -474,7 +435,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   const toggleCard = (inspectionId: string) => {
     // v2: si esta inspección aún no completó su detalle (comentario, fotos),
     // se pide ya, sin esperar su turno en la cola.
-    if (USE_API_V2 && !(inspectionId in detalleV2.fotos)) {
+    if (!(inspectionId in detalleV2.fotos)) {
       void cargarInspeccionCompleta(inspectionId, generacionRef.current);
     }
     setExpandedCards(prev => {
@@ -510,36 +471,12 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
 
   const closePhotosModal = () => { setIsPhotosModalOpen(false); setCurrentInspectionForPhotos(null); };
 
-  const handleReintentarSync = async (oracleId: string) => {
-    setRetryingIds(prev => new Set(prev).add(oracleId));
-    setRetryErrors(prev => { const next = { ...prev }; delete next[oracleId]; return next; });
-    try {
-      await inspeccionesService.reintentar(oracleId);
-      await recargarInspecciones(solicitudId);
-    } catch (error) {
-      setRetryErrors(prev => ({ ...prev, [oracleId]: error instanceof Error ? error.message : 'No se pudo sincronizar' }));
-    } finally {
-      setRetryingIds(prev => { const next = new Set(prev); next.delete(oracleId); return next; });
-    }
-  };
-
   const openInformesModal = (inspection: InspeccionDetalle) => {
     if (!inspection?.id) return;
     setCurrentInspectionForInformes({ id: String(inspection.id), title: String(inspection.type) });
     setIsInformesModalOpen(true);
   };
   const closeInformesModal = () => { setIsInformesModalOpen(false); setCurrentInspectionForInformes(null); };
-
-  if (loadingSolicitud) {
-    return (
-        <div className="min-h-screen bg-[#F5F7FA]">
-          <Header title="Cargando..." showBackButton onBack={onBack} />
-          <div className="flex items-center justify-center h-[calc(100vh-56px)]">
-            <Loader2 className="w-12 h-12 text-[#0066CC] animate-spin" />
-          </div>
-        </div>
-    );
-  }
 
   if (errorSolicitud || !solicitud) {
     return (
@@ -548,7 +485,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
           <div className="p-4">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <p className="text-red-800">{errorSolicitud ?? 'Solicitud no encontrada'}</p>
-              <button onClick={() => cargarSolicitud(solicitudId)} className="mt-3 text-sm text-[#0066CC] hover:underline">Reintentar</button>
+              <button onClick={() => inicio.refrescar()} className="mt-3 text-sm text-[#0066CC] hover:underline">Reintentar</button>
             </div>
           </div>
         </div>
@@ -559,10 +496,6 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   // (no se confía en la lista guardada). Si la consulta falla: popup con «Reintentar» y
   // «Continuar con los datos guardados».
   const abrirNuevaInspeccion = () => {
-    if (!USE_API_V2) {
-      onNewInspection(solicitud, avanceReferencia);
-      return;
-    }
     void conProgreso(
       {
         mensaje: 'Consultando tipos de inspección habilitados…',
@@ -589,9 +522,8 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
   const tabs: { id: TabId; label: string }[] = [
     { id: 'info', label: 'Información' },
     { id: 'documentos', label: 'Documentos' },
-    // En modo v2, el control de obra (detener/reactivar/cierre) tiene su
-    // propia pestaña, antes de Inspecciones.
-    ...(USE_API_V2 && !obraSinActa ? [{ id: 'control' as TabId, label: 'Ctrl. Obra' }] : []),
+    // El control de obra (detener/reactivar/finalizar) tiene su propia pestaña, antes de Inspecciones.
+    ...(!obraSinActa ? [{ id: 'control' as TabId, label: 'Ctrl. Obra' }] : []),
     { id: 'inspections', label: 'Inspecciones' },
   ];
 
@@ -625,7 +557,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
         <Header title={`Solicitud #${solicitud.codigo ?? solicitud.id}`} showBackButton onBack={onBack} />
 
         {/* CU-07: obra detenida siempre visible, en todas las pestañas */}
-        {USE_API_V2 && obraV2?.Detencion?.FechaDetencionActual && (
+        {obraV2?.Detencion?.FechaDetencionActual && (
           <BannerDetencion dias={calcularDiasDetencion(obraV2.Detencion)} />
         )}
 
@@ -831,7 +763,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                       <p className={`font-medium ${getPrioridadTextColor(solicitud.prioridad)}`}>{solicitud.prioridad ?? 'Sin prioridad'}</p>
                     </div>
                   </div>
-                  {USE_API_V2 && fechaInicioObra && (
+                  {fechaInicioObra && (
                     <div className="grid grid-cols-2 gap-4 mt-3">
                       <div>
                         <p className="text-sm text-[#4A4A4A] mb-1">Inicio de obra</p>
@@ -1042,7 +974,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                 ) : errorInspecciones ? (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                       <p className="text-sm text-red-800">{errorInspecciones}</p>
-                      {detalleV2.sinAcceso && USE_API_V2
+                      {detalleV2.sinAcceso
                         ? <p className="mt-2 text-sm text-red-800">Pide que te asignen esta obra como ITO o Supervisor para ver su detalle.</p>
                         : <button onClick={() => recargarInspecciones(solicitudId)} className="mt-3 text-sm text-[#0066CC] hover:underline">Reintentar</button>}
                     </div>
@@ -1073,47 +1005,11 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                       {inspection.desfase === '1' && (
                                           <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300">Desfase</span>
                                       )}
-                                      {inspection.estadoSync === 'pendiente' && (
-                                          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-[#0066CC] border border-blue-300">
-                                            <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando...
-                                          </span>
-                                      )}
-                                      {inspection.estadoSync === 'error' && (
-                                          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-[#E30613] border border-red-300">
-                                            <AlertTriangle className="w-3 h-3" /> Error de sincronización
-                                          </span>
-                                      )}
                                     </div>
                                   </div>
                                 </div>
                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${config.badgeColor} whitespace-nowrap`}>{config.label}</span>
                               </div>
-                              {inspection.estadoSync === 'error' && (() => {
-                                // Inspección aún pendiente en Oracle → usar el oracleId puro (sin
-                                // el prefijo "outbox-" que trae inspection.id para lectura). Ya
-                                // sincronizada (solo archivo con error) → inspection.id ya es el
-                                // id real de SharePoint, sin prefijo.
-                                const retryId = inspection.oracleId ?? String(inspection.id);
-                                return (
-                                  <div className="mt-2 flex items-center justify-between gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-                                    <p className="text-xs text-red-800">
-                                      No se pudo sincronizar con SharePoint{retryErrors[retryId] ? `: ${retryErrors[retryId]}` : '.'}
-                                    </p>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleReintentarSync(retryId)}
-                                        disabled={retryingIds.has(retryId)}
-                                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-[#E30613] text-white hover:bg-red-700 disabled:opacity-50 whitespace-nowrap"
-                                    >
-                                      {retryingIds.has(retryId) ? (
-                                          <><Loader2 className="w-3 h-3 animate-spin" /> Reintentando...</>
-                                      ) : (
-                                          <><RefreshCw className="w-3 h-3" /> Reintentar</>
-                                      )}
-                                    </button>
-                                  </div>
-                                );
-                              })()}
                             </div>
 
                             <div className="p-4 space-y-3">
@@ -1194,7 +1090,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                                     </div>
                                   </div>
 
-                                  {USE_API_V2 && inspCargando.has(inspeccionIdStr) && (
+                                  {inspCargando.has(inspeccionIdStr) && (
                                       <div className="flex items-center gap-2 text-xs text-[#4A4A4A]">
                                         <Loader2 className="w-4 h-4 text-[#0066CC] animate-spin" />
                                         Cargando observaciones y archivos...
@@ -1307,7 +1203,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                     <div className="bg-white rounded-lg p-3 shadow-sm">
                       <p className="text-sm text-[#4A4A4A] mb-2">Ordenar por:</p>
                       <div className="flex gap-2">
-                        {(USE_API_V2 ? (['nombre', 'categoria', 'formato'] as const) : (['fecha', 'nombre', 'categoria', 'formato'] as const)).map(field => (
+                        {(['nombre', 'categoria', 'formato'] as const).map(field => (
                             <button key={field} onClick={() => handleSort(field)}
                                     className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors ${sortBy === field ? 'bg-[#0066CC] text-white' : 'bg-gray-100 text-[#4A4A4A]'}`}>
                               {SORT_LABELS[field]}
@@ -1325,7 +1221,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                 ) : errorArchivos ? (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                       <p className="text-sm text-red-800">{errorArchivos}</p>
-                      {detalleV2.sinAcceso && USE_API_V2
+                      {detalleV2.sinAcceso
                         ? <p className="mt-2 text-sm text-red-800">Pide que te asignen esta obra como ITO o Supervisor para ver sus documentos.</p>
                         : <button onClick={() => recargarArchivos(solicitudId)} className="mt-3 text-sm text-[#0066CC] hover:underline">Reintentar</button>}
                     </div>
@@ -1363,8 +1259,8 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
               </div>
           )}
 
-          {/* ── TAB: CONTROL DE OBRA (solo v2) ── */}
-          {activeTab === 'control' && USE_API_V2 && (
+          {/* ── TAB: CONTROL DE OBRA ── */}
+          {activeTab === 'control' && (
               <ControlObra
                   solicitudId={solicitudId}
                   comentarioDevolucion={detalleV2.comentarioDevolucion}
@@ -1377,17 +1273,8 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
           )}
         </div>
 
-        {/* FAB — cambia a "Cerrar Obra" cuando el avance llega al 100% */}
-        {!USE_API_V2 && ultimaInspeccion?.progress === 100 ? (
-            <button
-                onClick={() => onCierreObra(solicitud)}
-                className="fixed bottom-20 right-4 flex items-center gap-2 h-14 px-5 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-full shadow-lg active:scale-95 transition-transform z-30 font-semibold"
-                aria-label="Término de Ejecución de Obra"
-            >
-              <Lock className="w-5 h-5 flex-shrink-0" />
-              <span>Término de Ejecución de Obra</span>
-            </button>
-        ) : obraSinActa || obraCerrada || !hayTipoInspeccion ? null : (
+        {/* FAB «+ Inspección» (CU-15/CU-17: no aparece sin acta de inicio, con la obra cerrada ni sin tipos habilitados) */}
+        {obraSinActa || obraCerrada || !hayTipoInspeccion ? null : (
             <FloatingActionButton
                 onClick={abrirNuevaInspeccion}
                 icon={<Plus className="w-6 h-6" />}
@@ -1404,7 +1291,6 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection, onCierre
                 loading={fotosLoadingIds.has(currentInspectionForPhotos.id)}
                 error={null}
                 onClose={closePhotosModal}
-                useDirectUrl={USE_API_V2}
             />
         )}
 

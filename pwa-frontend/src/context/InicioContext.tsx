@@ -8,8 +8,7 @@
  * refrescar(), y tras escribir un evento se actualiza SOLO la obra tocada
  * con la respuesta, sin re-llamar a la API.
  *
- * Solo se usa en modo v2 (flag VITE_USE_API_V2). Los componentes leen de
- * aquí con useInicio(); no llaman a inicioService directamente.
+ * Los componentes leen de aquí con useInicio(); no llaman a inicioService directamente.
  */
 import {
   createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode,
