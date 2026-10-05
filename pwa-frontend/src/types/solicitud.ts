@@ -54,20 +54,7 @@ export interface Solicitud {
 }
 
 /**
- * Inspección resumida — usada en los estados locales de App.tsx
- */
-export interface Inspection {
-  id: string;
-  /** Texto de fecha/hora ya formateado en hora de Chile (lo arma el frontend). */
-  date?: string;
-  type: string;
-  progress: number;
-  status: 'conforme' | 'observaciones' | 'no-conforme';
-  observations: string;
-}
-
-/**
- * Inspección con todos los campos — usada por SolicitudContext y SolicitudDetail
+ * Inspección con todos los campos — usada por SolicitudDetail
  */
 export interface InspeccionDetalle {
   id: string;
@@ -99,7 +86,7 @@ export interface InspeccionDetalle {
 }
 
 /**
- * Foto de una inspección — usada por SolicitudContext y PhotosModal
+ * Foto de una inspección — usada por SolicitudDetail y PhotosModal
  */
 export interface FotoInspeccion {
   id: string;
@@ -116,28 +103,6 @@ export interface InspectionPhoto {
   id: string;
   url: string;
   description: string;
-}
-
-/**
- * Foto con información completa (ya subida, vista en galería)
- */
-export interface Photo {
-  id: string;
-  url: string;
-  description: string;
-  date: string;
-}
-
-export interface SolicitudStats {
-  total: number;
-  porEstado: Record<string, number>;
-  porPrioridad: {
-    Alta: number;
-    Media: number;
-    Baja: number;
-  };
-  conAdjuntos: number;
-  finalizadas: number;
 }
 
 export interface Archivo {

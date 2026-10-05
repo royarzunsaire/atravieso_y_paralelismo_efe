@@ -9,8 +9,9 @@ services:
     build:
       context: ./pwa-backend
     image: ayp-backend:local
-    # El .env del backend (Oracle ORDS, JWT, session, flows) NO se commitea:
-    # es el mismo que ya usas localmente. Debe existir en ./pwa-backend/.env
+    # El .env del backend (Oracle ORDS, JWT, session y la API del cliente:
+    # SHAREPOINT_API_URL / SHAREPOINT_API_SECRET) NO se commitea: es el mismo que ya
+    # usas localmente. Debe existir en ./pwa-backend/.env
     env_file:
       - ./pwa-backend/.env
     environment:
@@ -25,7 +26,6 @@ services:
       context: ./pwa-frontend
       args:
         VITE_API_URL: ""          # rutas relativas → reverse proxy de nginx
-        VITE_USE_API_V2: "false"  # producción con flujo v1 estable
     image: ayp-frontend:local
     environment:
       # nginx alcanza al backend por el nombre de servicio de compose.

@@ -16,9 +16,7 @@ COPY . .
 # nginx hace de reverse proxy hacia el backend. Así la imagen es INMUTABLE
 # entre ambientes: no se hornea ninguna URL del backend en el build.
 ARG VITE_API_URL=""
-ARG VITE_USE_API_V2="false"
 ENV VITE_API_URL=${VITE_API_URL}
-ENV VITE_USE_API_V2=${VITE_USE_API_V2}
 
 RUN npm run build
 
