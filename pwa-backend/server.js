@@ -4,15 +4,7 @@ const session = require('express-session');
 const passport = require('./config/auth');
 require('dotenv').config();
 
-const datosRoutes = require('./routes/datos');
 const authRoutes = require('./routes/auth');
-const solicitudesRoutes = require('./routes/solicitudes');
-const archivosRoutes = require('./routes/archivos');
-const inspeccionesRoutes = require('./routes/inspecciones');
-const fotosRouter = require('./routes/fotos');
-const informesRouter = require('./routes/informes');
-const tiposInspeccionRoutes = require('./routes/tiposInspeccion');
-const usuariosRouter = require('./routes/usuarios');
 const eventosRouter = require('./routes/eventos');
 const { startSyncJob } = require('./syncJob');
 
@@ -100,16 +92,9 @@ app.get('/health', (req, res) => {
     jwt:               !!process.env.JWT_SECRET,
     session:           !!process.env.SESSION_SECRET,
     frontend_url:      !!process.env.FRONTEND_URL,
+    sharepoint_api:    !!(process.env.SHAREPOINT_API_URL && process.env.SHAREPOINT_API_SECRET),
     // azure_ad: deshabilitado temporalmente — ver spec 02-azure-ad-login.md
     // azure_ad:          !!(process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_TENANT_ID),
-    flow_solicitudes:  !!process.env.FLOW_SOLICITUD_READ_ALL_URL,
-    flow_inspecciones: !!process.env.FLOW_INSPECCIONES_CREAR_URL,
-    flow_archivos:     !!process.env.FLOW_ARCHIVOS_LISTAR_URL,
-    flow_subir_archivos: !!process.env.FLOW_SUBIR_ARCHIVOS_URL,
-    flow_tipos:        !!process.env.FLOW_TIPOS_INSPECCION_URL,
-    flow_usuarios:     !!process.env.FLOW_USUARIOS_URL,
-    flow_documentos_subir:  !!process.env.FLOW_DOCUMENTOS_SUBIR_URL,
-    flow_documentos_listar: !!process.env.FLOW_DOCUMENTOS_LISTAR_URL,
   };
 
   const allCriticalOk = checks.oracle && checks.jwt && checks.session;
@@ -127,14 +112,6 @@ app.get('/health', (req, res) => {
 // ROUTES
 // ========================================
 app.use('/auth', authRoutes);
-app.use('/api/datos', datosRoutes);
-app.use('/api/solicitudes', solicitudesRoutes);
-app.use('/api/archivos', archivosRoutes);
-app.use('/api/inspecciones', inspeccionesRoutes);
-app.use('/api/fotos', fotosRouter);
-app.use('/api/informes', informesRouter);
-app.use('/api/tipos-inspeccion', tiposInspeccionRoutes);
-app.use('/api/usuarios', usuariosRouter);
 app.use('/api/v2', eventosRouter);
 
 // ========================================
@@ -186,17 +163,9 @@ app.listen(PORT, '0.0.0.0', () => {
   // Azure AD deshabilitado temporalmente — ver spec 02-azure-ad-login.md
   // console.log(`  ✓ Azure AD:           ${process.env.AZURE_AD_CLIENT_ID     ? '✅' : '⚠️  No configurado (solo login local)'}`);
   console.log(separator);
-  console.log('  Flows Power Automate:');
-  console.log(`  ✓ Solicitudes:        ${process.env.FLOW_SOLICITUD_READ_ALL_URL  ? '✅' : '❌'}`);
-  console.log(`  ✓ Inspecciones:       ${process.env.FLOW_INSPECCIONES_CREAR_URL  ? '✅' : '❌'}`);
-  console.log(`  ✓ Archivos:           ${process.env.FLOW_ARCHIVOS_LISTAR_URL     ? '✅' : '❌'}`);
-  console.log(`  ✓ Subir archivos:     ${process.env.FLOW_SUBIR_ARCHIVOS_URL      ? '✅' : '❌'}`);
-  console.log(`  ✓ Fotos listar:       ${process.env.FLOW_FOTOS_LISTAR_URL        ? '✅' : '❌'}`);
-  console.log(`  ✓ Fotos contenido:    ${process.env.FLOW_FOTOS_CONTENIDO_URL     ? '✅' : '❌'}`);
-  console.log(`  ✓ Tipos inspección:   ${process.env.FLOW_TIPOS_INSPECCION_URL    ? '✅' : '❌'}`);
-  console.log(`  ✓ Usuarios:           ${process.env.FLOW_USUARIOS_URL            ? '✅' : '❌'}`);
-  console.log(`  ✓ Documentos subir:   ${process.env.FLOW_DOCUMENTOS_SUBIR_URL     ? '✅' : '❌'}`);
-  console.log(`  ✓ Documentos listar:  ${process.env.FLOW_DOCUMENTOS_LISTAR_URL    ? '✅' : '❌'}`);
+  console.log('  API del cliente (SharePoint):');
+  console.log(`  ✓ URL:               ${process.env.SHAREPOINT_API_URL    ? '✅' : '❌ NO CONFIGURADO'}`);
+  console.log(`  ✓ Secreto JWT:       ${process.env.SHAREPOINT_API_SECRET ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(separator);
 
   startSyncJob();
