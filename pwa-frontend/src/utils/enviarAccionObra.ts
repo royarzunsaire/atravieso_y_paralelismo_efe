@@ -2,6 +2,7 @@ import { eventosService } from '@/services/eventosService';
 import { refrescarObraTrasEvento } from '@/utils/refrescarObra';
 import { ACCION_ACTA_INICIO } from '@/utils/obraIniciada';
 import { avisarEsperaPlataforma, type CambiarEtapa } from '@/utils/etapasProgreso';
+import { avanceVigente } from '@/utils/avanceVigente';
 import type { ObraInicio } from '@/types/eventos';
 
 /** Lo mínimo que se necesita del InicioContext. */
@@ -41,13 +42,15 @@ interface Parametros {
 export async function enviarAccionObra({
   inicio, obra, solicitudId, tipoEvento, eventoIdExterno, payload, fechaEvento, creaInspeccion, alRegistrar, etapa,
 }: Parametros): Promise<ResultadoAccion> {
+  // Toda acción crea una inspección en la API: sin avance propio, lleva el vigente de la obra para no quedar en 0 % (CU-13).
+  const payloadFinal = payload.AvancePct == null ? { ...payload, AvancePct: avanceVigente(obra) } : payload;
   const res: {
     ok: boolean; accionNoPermitida?: boolean; mensaje?: string;
     acciones?: string[]; accionesTipo?: ObraInicio['AccionesTipo']; subEstado?: string; avanceObraPct?: number;
   } = await (async () => {
     const cancelarAviso = avisarEsperaPlataforma(etapa);
     try {
-      return await eventosService.registrarEvento({ solicitudId, tipoEvento, eventoIdExterno, payload, fechaEvento, sync: true });
+      return await eventosService.registrarEvento({ solicitudId, tipoEvento, eventoIdExterno, payload: payloadFinal, fechaEvento, sync: true });
     } finally {
       cancelarAviso();
     }

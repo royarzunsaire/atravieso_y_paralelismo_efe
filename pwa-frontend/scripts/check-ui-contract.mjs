@@ -239,7 +239,7 @@ const REGLAS = [
   // ── Acta rechazada por el líder (CU-16) ──
   { id: 'CU-16d', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "etiqueta: 'ACTA RECHAZADA'",
     msg: 'El dashboard marca «ACTA RECHAZADA» cuando el líder devolvió el acta.' },
-  { id: 'CU-16e', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'Comentario del líder',
+  { id: 'CU-16e', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'Comentario rechazo',
     msg: 'La tarjeta muestra el comentario del líder cuando rechazó el documento.' },
   { id: 'CU-16f', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debeAntes', ancla: 'bloquea={obraSinActa}', ventana: 160, texto: 'comentarioDevolucion=',
     msg: 'Información le pasa a la tarjeta del trámite el comentario de devolución.' },
@@ -259,9 +259,9 @@ const REGLAS = [
   // ── Validación del informe final (CU-19) ──
   { id: 'CU-19a', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '<ValidarInformeCard',
     msg: 'El Supervisor ve la tarjeta «Informe final por validar» en Información.' },
-  { id: 'CU-19b', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'debe', texto: 'Aprobar informe final',
+  { id: 'CU-19b', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "aprobar: 'Aprobar informe final'",
     msg: 'La tarjeta tiene el botón «Aprobar informe final».' },
-  { id: 'CU-19c', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'debe', texto: 'Rechazar informe final',
+  { id: 'CU-19c', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "rechazar: 'Rechazar informe final'",
     msg: 'La tarjeta tiene el botón «Rechazar informe final».' },
   { id: 'CU-19d', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'debe', texto: '<BotonDescargar',
     msg: 'El Supervisor puede descargar el informe antes de decidir.' },
@@ -375,7 +375,7 @@ const REGLAS = [
     msg: 'Un rechazo de negocio de la API no se reintenta.' },
 
   // ── Fecha no futura y adjunto «foto O informe» (CU-02 / CU-23) ──
-  { id: 'CU-02f', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'max={ahoraCLParaInput()}',
+  { id: 'CU-02j', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'max={ahoraCLParaInput()}',
     msg: 'La fecha de la inspección no puede ser futura (max = ahora en hora de Chile).' },
   { id: 'CU-02g', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'no puede ser futura',
     msg: 'Una fecha futura se marca con su motivo al guardar.' },
@@ -461,6 +461,85 @@ const REGLAS = [
     msg: 'La pantalla de cierre de obra v1 fue retirada (el cierre es «Finalizar obra»).' },
   { id: 'CU-31f', archivo: 'app/components/SolicitudCard.tsx', tipo: 'noDebe', texto: 'const esV2',
     msg: 'La tarjeta no distingue v1/v2.' },
+
+  // ── Toda acción lleva el avance vigente (CU-13) ──
+  { id: 'CU-13i', archivo: 'utils/avanceVigente.ts', tipo: 'debe', texto: 'export function avanceVigente(',
+    msg: 'Existe una única función para el avance vigente de la obra.' },
+  { id: 'CU-13j', archivo: 'utils/enviarAccionObra.ts', tipo: 'debe', texto: 'AvancePct: avanceVigente(obra)',
+    msg: 'Toda acción sin avance propio se envía con el avance vigente (nunca queda en 0 %).' },
+  { id: 'CU-13g', archivo: 'utils/tramitesObra.ts', tipo: 'noDebe', texto: 'enviaAvance',
+    msg: 'El avance ya no se decide trámite por trámite: lo completa enviarAccionObra.' },
+  { id: 'CU-13h', archivo: '../../pwa-backend/routes/eventos.js', tipo: 'debe', texto: 'payload.AvancePct = Math.round(Number(obraInicio.AvanceObraPct))',
+    msg: 'El backend completa el avance si el cliente no lo mandó.' },
+
+  // ── Documentación del ITO rechazada (CU-16): se ve en la etiqueta y en la tarjeta, NO en el «Estado» ──
+  { id: 'CU-16p', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "etiqueta: 'DOCUMENTACIÓN RECHAZADA'",
+    msg: 'La documentación del ITO rechazada por el líder tiene su etiqueta.' },
+  { id: 'CU-16q', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: 'La documentación de la obra fue rechazada',
+    msg: 'La tarjeta de la documentación rechazada lo dice.' },
+
+  { id: 'CU-16t', archivo: 'app/components/SolicitudCard.tsx', tipo: 'noDebe', texto: 'estadoExtra',
+    msg: 'El rechazo NO se agrega al texto «Estado» (decisión de Rodrigo): solo etiqueta y tarjeta.' },
+  { id: 'CU-16u', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'noDebe', texto: 'sufijoEstadoRechazo',
+    msg: 'El «Estado» de Información no lleva sufijo de rechazo.' },
+
+  // ── Validación de la documentación del ITO (CU-19) ──
+  { id: 'CU-19h', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "'ESPERANDO VALIDACIÓN DOCUMENTACIÓN'",
+    msg: 'Mientras el líder valida la documentación del ITO, la etiqueta lo dice (no «INFORME FINAL»).' },
+  { id: 'CU-19i', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'titulo="Documentación enviada"',
+    msg: 'La tarjeta de espera de la documentación se llama «Documentación enviada».' },
+  { id: 'CU-19j', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: '/documentaci[oó]n/i.test(obra?.Estado',
+    msg: 'La validación de documentación se distingue por el Estado de la obra (el sub-estado es genérico).' },
+
+  // ── Validación de la documentación: mismos botones, otros textos, con los 2 documentos en la tarjeta (CU-19) ──
+  { id: 'CU-19k', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "aprobar: 'Aprobar documentación'",
+    msg: 'Al validar la documentación los botones dicen «Aprobar/Rechazar documentación», no «informe final».' },
+  { id: 'CU-19l', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "etiqueta: 'VALIDAR DOCUMENTACIÓN'",
+    msg: 'La etiqueta del dashboard del Supervisor dice «VALIDAR DOCUMENTACIÓN» en esa etapa.' },
+  { id: 'CU-19m', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'debe', texto: 'TEXTOS_VALIDACION[contexto]',
+    msg: 'Todos los textos de la tarjeta salen del contexto (informe final o documentación).' },
+  { id: 'CU-19n', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'documentos={documentosAValidar}',
+    msg: 'Los documentos a validar se muestran en la misma tarjeta donde se aprueba o rechaza.' },
+  { id: 'CU-19o', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'noDebe', texto: 'Informe final por validar',
+    msg: 'El título no está fijo en «informe final»: depende del contexto.' },
+
+
+  { id: 'CU-19p', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'noDebe', texto: 'RequiereComentario: false',
+    msg: 'La bandera de comentario la manda la API y se respeta: no se fuerza a «sin comentario» (decisión de Rodrigo, 06-10-2026).' },
+  { id: 'CU-19q', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'debe', texto: 'textos.ayudaAprobar : textos.ayudaRechazo',
+    msg: 'Aprobar y rechazar tienen cada uno su propio texto de ayuda del comentario.' },
+
+  // ── Devolver documentación = rechazar la entrega de terreno (CU-32) ──
+  { id: 'CU-32a', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "ACCION_DEVOLVER_DOCUMENTACION = 'DEVOLVER_DOCUMENTACION'",
+    msg: 'La acción DEVOLVER_DOCUMENTACION es conocida (no cae en la tarjeta genérica).' },
+  { id: 'CU-32b', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'TEXTOS_DEVOLUCION.devolver',
+    msg: 'La tarjeta del acta de inicio ofrece el botón rojo «Devolver documentación».' },
+  { id: 'CU-32c', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'documentosEntrega : documentosDelTramite',
+    msg: 'La tarjeta muestra el acta de entrega a revisar junto a los botones.' },
+  { id: 'CU-32d', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "etiqueta: 'ACTA DE ENTREGA RECHAZADA'",
+    msg: 'El ITO ve la etiqueta de rechazo cuando le devuelven el acta de entrega.' },
+  { id: 'CU-32e', archivo: 'utils/gruposAcciones.ts', tipo: 'debe', texto: "'RECHAZAR_INFORME', 'DEVOLVER_DOCUMENTACION'",
+    msg: 'DEVOLVER_DOCUMENTACION tiene pantalla propia: no cae en la tarjeta genérica de acciones nuevas.' },
+  { id: 'CU-32f', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '<DevolverDocumentacionCard',
+    msg: 'En cualquier etapa distinta de «Gestión de Obra», devolver documentación tiene su tarjeta con los documentos del ITO.' },
+  { id: 'CU-32g', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "'REVISAR DOCUMENTACIÓN'",
+    msg: 'El Supervisor ve una etiqueta cuando puede devolver la documentación.' },
+
+  // ── Quien devolvió espera la corrección (CU-33) ──
+  { id: 'CU-33a', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "etiqueta: 'ESPERANDO CORRECCIÓN DEL ITO'",
+    msg: 'Quien devolvió un documento ve en el dashboard que espera la corrección del ITO.' },
+  { id: 'CU-33b', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'TEXTOS_ESPERA_CORRECCION.titulo',
+    msg: 'La tarjeta de quien espera la corrección lo dice y muestra comentario y documento.' },
+
+  // ── Ubicación de cada inspección (CU-34) ──
+  { id: 'CU-34a', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'Ver ubicación',
+    msg: 'Cada inspección con coordenadas ofrece el botón «Ver ubicación».' },
+  { id: 'CU-34b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: "lazy(() => import('./UbicacionModal'))",
+    msg: 'El mapa se carga bajo demanda, no en la carga inicial.' },
+  { id: 'CU-34c', archivo: 'app/components/UbicacionModal.tsx', tipo: 'debe', texto: 'tile.openstreetmap.org',
+    msg: 'El mapa usa OpenStreetMap.' },
+  { id: 'CU-34d', archivo: 'app/components/UbicacionModal.tsx', tipo: 'debe', texto: 'Mapa no disponible sin conexión',
+    msg: 'Sin conexión el pop-up avisa y deja las coordenadas.' },
 
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',

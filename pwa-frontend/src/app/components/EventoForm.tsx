@@ -42,6 +42,10 @@ interface EventoFormProps {
   accion: AccionCatalogo;
   /** Avance actual de la obra (%): se reenvía en los eventos sin avance propio para que la inspección no quede en 0. */
   avanceActual?: number;
+  /** Aviso de confirmación propio (si no, el de AVISO_CONFIRMACION según la acción). */
+  avisoConfirmacion?: string;
+  /** Texto de ayuda del comentario propio (si no, el de la acción). */
+  ayudaComentario?: string;
   /** UUID ya generado (se reusa en reintentos) — para nombrar archivos. */
   eventoIdExterno: string;
   onCancel: () => void;
@@ -51,7 +55,7 @@ interface EventoFormProps {
   onSubmit: (payload: Record<string, unknown>, opciones?: { fechaEvento?: string; etapa?: CambiarEtapa }) => Promise<void>;
 }
 
-export function EventoForm({ accion, avanceActual, eventoIdExterno, pedirFechaInicio, onCancel, onSubmit }: EventoFormProps) {
+export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComentario, eventoIdExterno, pedirFechaInicio, onCancel, onSubmit }: EventoFormProps) {
   const tiposDoc = Array.isArray(accion.TiposDocumento) ? accion.TiposDocumento : [];
   const tieneTiposDoc = tiposDoc.length > 0;
   const unSoloTipoDoc = tiposDoc.length === 1;
@@ -97,7 +101,7 @@ export function EventoForm({ accion, avanceActual, eventoIdExterno, pedirFechaIn
   const puedeEnviar = faltantes.length === 0;
   // Acciones sin campos (ej. aprobar informe): solo se confirma.
   const sinCampos = !accion.RequiereComentario && !accion.RequiereAdjunto && !accion.RequiereAvance;
-  const aviso = AVISO_CONFIRMACION[accion.Codigo];
+  const aviso = avisoConfirmacion ?? AVISO_CONFIRMACION[accion.Codigo];
 
   const handleFotos = async (files: File[]) => {
     const urls = await Promise.all(files.map(fileADataUrl));
@@ -261,7 +265,7 @@ export function EventoForm({ accion, avanceActual, eventoIdExterno, pedirFechaIn
                 onChange={(e) => setComentario(e.target.value)}
                 rows={4}
                 className="w-full px-3 py-3 text-base rounded-lg border-2 border-[#003D7A]/20 focus:outline-none focus:border-[#0066CC]"
-                placeholder={AYUDA_COMENTARIO[accion.Codigo] ?? 'Escribe aquí los detalles…'}
+                placeholder={ayudaComentario ?? AYUDA_COMENTARIO[accion.Codigo] ?? 'Escribe aquí los detalles…'}
               />
             </div>
           )}

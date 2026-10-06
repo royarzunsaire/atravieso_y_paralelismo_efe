@@ -264,6 +264,12 @@ router.post('/eventos', verifyToken, async (req, res) => {
       }
     }
 
+    // Cada evento crea una inspección en la API y, sin AvancePct, queda en 0 %. Red de seguridad: si el cliente no
+    // mandó un avance y la obra ya tiene uno, se envía ese (el frontend ya lo completa; esto cubre cualquier otro cliente).
+    if (payload.AvancePct == null && Number(obraInicio?.AvanceObraPct) > 0) {
+      payload.AvancePct = Math.round(Number(obraInicio.AvanceObraPct));
+    }
+
     // Este es el shape EXACTO que espera API_Evento_Obra_v2 — se guarda tal
     // cual en payload_json para que el sync job lo reenvíe sin transformar.
     const eventoPayload = {

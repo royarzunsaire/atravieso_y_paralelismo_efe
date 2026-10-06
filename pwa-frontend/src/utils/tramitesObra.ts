@@ -21,8 +21,6 @@ export interface Tramite {
   sinPermiso: string;
   /** Pide «Fecha de inicio de la obra» (→ FechaEvento). */
   pedirFechaInicio: boolean;
-  /** Reenvía el avance actual de la obra (CU-13). */
-  enviaAvance: boolean;
   /** El evento crea una inspección en la API (afecta cuánto espera el refresco). */
   creaInspeccion: boolean;
   /** Sub-estado (código del catálogo) en el que el trámite sigue pendiente aunque el usuario no pueda subirlo. */
@@ -52,10 +50,17 @@ export const TRAMITES: readonly Tramite[] = [
     boton: 'Subir acta de entrega de terreno',
     sinPermiso: 'Aún no se sube el acta de entrega de terreno. Debe hacerlo el ITO de esta obra.',
     pedirFechaInicio: false,
-    enviaAvance: false,
     creaInspeccion: false,
     subEstadoCodigo: 'EnEntregaTerreno',
     toastOk: 'Acta de entrega de terreno registrada. Ahora falta el acta de inicio.',
+    rechazo: {
+      titulo: 'El acta de entrega de terreno fue rechazada',
+      mensaje: 'El Supervisor devolvió el acta. Corrígela según su comentario y súbela de nuevo.',
+      boton: 'Subir acta corregida',
+      sinPermiso: 'El ITO debe subir el acta de entrega de terreno corregida.',
+      etiqueta: 'ACTA DE ENTREGA RECHAZADA',
+      toastOk: 'Acta de entrega corregida enviada.',
+    },
   },
   {
     codigo: 'ACTA_INICIO',
@@ -66,7 +71,6 @@ export const TRAMITES: readonly Tramite[] = [
     boton: 'Subir acta de inicio de obra',
     sinPermiso: 'Aún no se sube el acta de inicio. Debe hacerlo quien tiene el permiso para esta obra.',
     pedirFechaInicio: true,
-    enviaAvance: false,
     creaInspeccion: false,
     subEstadoCodigo: 'PorIniciar',
     toastOk: 'Acta de inicio registrada. La obra ya puede comenzar.',
@@ -80,7 +84,6 @@ export const TRAMITES: readonly Tramite[] = [
     boton: 'Subir acta de recepción firmada',
     sinPermiso: 'Aún no se sube el acta de recepción firmada. Debe hacerlo quien tiene el permiso para esta obra.',
     pedirFechaInicio: false,
-    enviaAvance: true,
     creaInspeccion: false,
     subEstadoCodigo: 'EnRecepcion',
     toastOk: 'Acta de recepción firmada registrada.',
@@ -102,7 +105,6 @@ export const TRAMITES: readonly Tramite[] = [
     boton: 'Subir informe final de obra',
     sinPermiso: 'Aún no se sube el informe final. Debe hacerlo el ITO de esta obra.',
     pedirFechaInicio: false,
-    enviaAvance: false,
     creaInspeccion: false,
     subEstadoCodigo: 'EnInformeFinal',
     toastOk: 'Informe final enviado.',
@@ -124,10 +126,17 @@ export const TRAMITES: readonly Tramite[] = [
     boton: 'Subir documentación de obra',
     sinPermiso: 'Aún no se sube la documentación. Debe hacerlo el ITO de esta obra.',
     pedirFechaInicio: false,
-    enviaAvance: false,
     creaInspeccion: false,
     subEstadoCodigo: 'EnDocumentacionITO',
     toastOk: 'Documentación enviada.',
+    rechazo: {
+      titulo: 'La documentación de la obra fue rechazada',
+      mensaje: 'El líder rechazó los documentos. Corrígelos según su comentario y súbelos de nuevo (los dos).',
+      boton: 'Subir documentación corregida',
+      sinPermiso: 'El ITO debe subir la documentación corregida.',
+      etiqueta: 'DOCUMENTACIÓN RECHAZADA',
+      toastOk: 'Documentación corregida enviada.',
+    },
   },
 ];
 
@@ -157,7 +166,6 @@ function tramiteGenerico(codigo: string, label: string): Tramite {
     boton: label,
     sinPermiso: '',
     pedirFechaInicio: false,
-    enviaAvance: false,
     creaInspeccion: false,
     subEstadoCodigo: '',
     toastOk: 'Acción registrada correctamente.',
@@ -228,18 +236,92 @@ export function etiquetaDashboard(
 ): { texto: string; espera: boolean } | null {
   if (!obra) return null;
   // El Supervisor debe aprobar o rechazar el informe final (CU-19); el resto solo espera.
-  if (puedeValidarInforme(obra)) return { texto: 'VALIDAR INFORME FINAL', espera: false };
+  if (puedeValidarInforme(obra)) {
+    const contexto: ContextoValidacion = esperaValidacionDocumentacion(obra, catalogo) ? 'documentacion' : 'informe';
+    return { texto: TEXTOS_VALIDACION[contexto].etiqueta, espera: false };
+  }
   const t = tramitePendiente(obra, catalogo);
   if (!t) {
+    if (esperaValidacionDocumentacion(obra, catalogo)) return { texto: 'ESPERANDO VALIDACIÓN DOCUMENTACIÓN', espera: true };
     if (esperaValidacionInforme(obra, catalogo)) return { texto: 'ESPERANDO VALIDACIÓN INFORME FINAL', espera: true };
     if (esperaAprobacionRecepcion(obra, catalogo)) return { texto: 'ESPERANDO APROBACIÓN DEL ACTA', espera: true };
+    // CU-32: el Supervisor puede devolver la documentación del ITO en esta etapa.
+    if (obra.AccionesHabilitadas.includes(ACCION_DEVOLVER_DOCUMENTACION)) return { texto: 'REVISAR DOCUMENTACIÓN', espera: false };
     // CU-28: una acción nueva que la API habilita y la app no conoce también se avisa en el dashboard.
     const nuevo = tramitesNuevos(obra, catalogo)[0];
     return nuevo ? { texto: nuevo.etiqueta, espera: false } : null;
   }
-  if (!obra.AccionesHabilitadas.includes(t.codigo)) return { texto: t.etiquetaEspera, espera: true };
+  if (!obra.AccionesHabilitadas.includes(t.codigo)) {
+    // CU-33: documento devuelto/rechazado y el usuario no puede subir la corrección → está esperando al ITO.
+    if (tramiteRechazado(t, comentarioDevolucion)) return { texto: TEXTOS_ESPERA_CORRECCION.etiqueta, espera: true };
+    return { texto: t.etiquetaEspera, espera: true };
+  }
   return { texto: etiquetaTramite(t, comentarioDevolucion) ?? t.etiqueta, espera: false };
 }
+
+/**
+ * El Supervisor puede DEVOLVER la documentación del ITO (acción `DEVOLVER_DOCUMENTACION`): equivale a rechazar; no sube
+ * nada, solo escribe en el comentario las correcciones y el ITO debe cargar de nuevo el documento (contrato CU-32).
+ */
+export const ACCION_DEVOLVER_DOCUMENTACION = 'DEVOLVER_DOCUMENTACION';
+
+/** Quien devolvió/rechazó un documento y espera la corrección del ITO (no puede subirla él; contrato CU-33). */
+export const TEXTOS_ESPERA_CORRECCION = {
+  etiqueta: 'ESPERANDO CORRECCIÓN DEL ITO',
+  titulo: 'Devuelto al ITO · en espera de la corrección',
+  mensaje: 'El documento fue devuelto con el comentario de abajo. Cuando el ITO suba la corrección podrás revisarlo de nuevo. Por ahora no hay nada más que hacer.',
+  comentario: 'Comentario de devolución',
+};
+
+export const TEXTOS_DEVOLUCION = {
+  /** Tarjeta propia (cualquier etapa distinta de «Gestión de Obra»). */
+  tituloGeneral: 'Documentación por revisar',
+  mensajeGeneral: 'Revisa los últimos documentos que subió el ITO. Si algo no está bien, devuélvelos con tus correcciones.',
+  /** Dentro de la tarjeta del acta de inicio («Gestión de Obra»). */
+  titulo: 'Entrega de terreno por revisar',
+  mensaje: 'Revisa el acta de entrega de terreno que subió el ITO. Si está bien, sube el acta de inicio de obra; si no, devuélvela con tus correcciones.',
+  devolver: 'Devolver documentación',
+  aviso: 'Vas a devolver la documentación al ITO: deberá cargar de nuevo el documento. Escribe en el comentario las correcciones.',
+  ayuda: 'Escribe las correcciones que debe hacer el ITO…',
+  toastOk: 'Documentación devuelta al ITO.',
+};
+
+/** Qué está validando el Supervisor: el informe final o la documentación del ITO (contrato CU-19). */
+export type ContextoValidacion = 'informe' | 'documentacion';
+
+/** Textos de la tarjeta/formularios de validación según lo que se valida (las acciones de la API son las mismas). */
+export const TEXTOS_VALIDACION: Record<ContextoValidacion, {
+  titulo: string; mensaje: string; aprobar: string; rechazar: string;
+  avisoAprobar: string; avisoRechazar: string; ayudaAprobar: string; ayudaRechazo: string;
+  toastAprobar: string; toastRechazar: string; etiqueta: string;
+}> = {
+  informe: {
+    titulo: 'Informe final por validar',
+    mensaje: 'El ITO envió el informe final de la obra. Revísalo y decide si lo apruebas o lo rechazas.',
+    aprobar: 'Aprobar informe final',
+    rechazar: 'Rechazar informe final',
+    avisoAprobar: 'Vas a aprobar el informe final.',
+    avisoRechazar: 'Vas a rechazar el informe final. El ITO deberá corregirlo: explica el motivo.',
+    ayudaAprobar: 'Escribe un comentario sobre la aprobación del informe…',
+    ayudaRechazo: 'Explica por qué se rechaza el informe…',
+    toastAprobar: 'Informe final aprobado.',
+    toastRechazar: 'Informe final rechazado. El ITO deberá corregirlo.',
+    etiqueta: 'VALIDAR INFORME FINAL',
+  },
+  documentacion: {
+    titulo: 'Documentación por validar',
+    mensaje: 'El ITO envió la documentación de la obra (2 documentos). Revísala y decide si la apruebas o la rechazas.',
+    aprobar: 'Aprobar documentación',
+    rechazar: 'Rechazar documentación',
+    avisoAprobar: 'Vas a aprobar la documentación de la obra.',
+    avisoRechazar: 'Vas a rechazar la documentación. El ITO deberá corregirla (los dos documentos): explica el motivo.',
+    ayudaAprobar: 'Escribe un comentario sobre la aprobación de la documentación…',
+    ayudaRechazo: 'Explica por qué se rechaza la documentación…',
+    toastAprobar: 'Documentación aprobada.',
+    toastRechazar: 'Documentación rechazada. El ITO deberá corregirla.',
+    etiqueta: 'VALIDAR DOCUMENTACIÓN',
+  },
+};
 
 /** Acciones con las que el Supervisor revisa el informe final (contrato CU-19). */
 export const ACCION_VALIDAR_INFORME = 'VALIDAR_INFORME';
@@ -250,12 +332,28 @@ export function puedeValidarInforme(obra: ObraInicio | null | undefined): boolea
   return !!obra && (obra.AccionesHabilitadas.includes(ACCION_VALIDAR_INFORME) || obra.AccionesHabilitadas.includes(ACCION_RECHAZAR_INFORME));
 }
 
-/** ¿La obra está en «En validación del Líder AyP» (informe final enviado, esperando la decisión)? */
+/**
+ * ¿La obra está en «En validación del Líder AyP»? Ese sub-estado es genérico: la API distingue QUÉ se está
+ * validando en el campo `Estado` de la obra (ej. «Validación Documentación con ITO»).
+ */
+function enValidacionDelLider(obra: ObraInicio | null | undefined, catalogo: CatalogoInicio | null | undefined): boolean {
+  if (!obra) return false;
+  const label = catalogo?.SubEstados?.find((x) => x.Codigo === 'EnValidacion')?.Label;
+  return !!label && obra.SubEstado === label;
+}
+
+/** ¿El líder está validando la DOCUMENTACIÓN del ITO (documentos enviados, esperando la decisión)? (CU-19) */
+export function esperaValidacionDocumentacion(
+  obra: ObraInicio | null | undefined,
+  catalogo: CatalogoInicio | null | undefined,
+): boolean {
+  return enValidacionDelLider(obra, catalogo) && /documentaci[oó]n/i.test(obra?.Estado ?? '');
+}
+
+/** ¿La obra está en «En validación del Líder AyP» con el informe final enviado, esperando la decisión? */
 export function esperaValidacionInforme(
   obra: ObraInicio | null | undefined,
   catalogo: CatalogoInicio | null | undefined,
 ): boolean {
-  if (!obra) return false;
-  const label = catalogo?.SubEstados?.find((x) => x.Codigo === 'EnValidacion')?.Label;
-  return !!label && obra.SubEstado === label;
+  return enValidacionDelLider(obra, catalogo) && !esperaValidacionDocumentacion(obra, catalogo);
 }

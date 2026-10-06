@@ -252,7 +252,7 @@ export function ControlObra({ solicitudId, comentarioDevolucion, motivoDetencion
       {accionActiva && (
         <EventoForm
           accion={accionActiva}
-          avanceActual={accionActiva.Codigo === ACCION_FINALIZAR_OBRA ? 100 : Math.round(obra.AvanceObraPct || 0)}
+          avanceActual={accionActiva.Codigo === ACCION_FINALIZAR_OBRA ? 100 : undefined}
           eventoIdExterno={eventoIdActivo}
           onCancel={cerrarForm}
           onSubmit={enviarEvento}

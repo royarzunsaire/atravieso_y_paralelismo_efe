@@ -10,8 +10,8 @@ export const GRUPOS_CTRL = ['Control de obra'];
 export const GRUPOS_FORM_INSPECCION = ['Inspecciones', 'Registro'];
 /** Acciones que a propósito NO se muestran en la app (se hacen en escritorio). */
 export const ACCIONES_OCULTAS = ['ACTA_RECEPCION_DATOS', 'CORREGIR_ACTA'];
-/** Acciones con pantalla propia (validación del informe final, CU-19). */
-export const ACCIONES_CON_PANTALLA_PROPIA = ['VALIDAR_INFORME', 'RECHAZAR_INFORME'];
+/** Acciones con pantalla propia (validación del informe final, CU-19; devolver documentación, CU-32). */
+export const ACCIONES_CON_PANTALLA_PROPIA = ['VALIDAR_INFORME', 'RECHAZAR_INFORME', 'DEVOLVER_DOCUMENTACION'];
 
 export function definicionDe(codigo: string, catalogo: CatalogoInicio | null | undefined): AccionCatalogo | undefined {
   return catalogo?.TiposEvento?.find((t) => t.Codigo === codigo);

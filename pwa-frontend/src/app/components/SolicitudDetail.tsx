@@ -1,5 +1,7 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { Header } from './Header';
+// CU-34: el mapa (Leaflet) se descarga solo al abrir una ubicación, para no engordar la carga inicial.
+const UbicacionModal = lazy(() => import('./UbicacionModal'));
 import { FloatingActionButton } from './FloatingActionButton';
 import {
   MapPin,
@@ -41,11 +43,12 @@ import { useMotivoDetencion } from '@/utils/useMotivoDetencion';
 import { ControlObra } from './ControlObra';
 import { BotonDescargar } from './BotonDescargar';
 import { TramitePendienteCard } from './TramitePendienteCard';
+import { DevolverDocumentacionCard } from './DevolverDocumentacionCard';
 import { ValidarInformeCard } from './ValidarInformeCard';
 import { EsperaCard } from './EsperaCard';
 import { faltaActaInicio, estadoPermiteInspecciones, esperaAprobacionRecepcion, hayTipoInspeccionHabilitado } from '@/utils/obraIniciada';
 import { useProgreso } from '@/context/ProgresoContext';
-import { tramitePendiente, tramitesNuevos, puedeValidarInforme, esperaValidacionInforme } from '@/utils/tramitesObra';
+import { tramitePendiente, tramitesNuevos, puedeValidarInforme, esperaValidacionInforme, esperaValidacionDocumentacion, ACCION_DEVOLVER_DOCUMENTACION } from '@/utils/tramitesObra';
 import { cambiosDesdeDetalle } from '@/utils/refrescarObra';
 
 type TabId = 'info' | 'documentos' | 'inspections' | 'control';
@@ -139,6 +142,8 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
   // CU-19: el Supervisor valida el informe final; quien no puede, solo espera.
   const validaInforme = puedeValidarInforme(obraV2);
   const esperaInforme = !validaInforme && esperaValidacionInforme(obraV2, inicio.catalogo);
+  // CU-19: el líder está validando la DOCUMENTACIÓN del ITO (no el informe final): su propio mensaje.
+  const esperaDocumentacion = esperaValidacionDocumentacion(obraV2, inicio.catalogo);
   // CU-17: desde la finalización («En recepción de obra» en adelante) no se aceptan más inspecciones.
   const obraCerrada = !!obraV2 && !obraSinActa && !estadoPermiteInspecciones(obraV2, inicio.catalogo);
   // Solo se puede abrir «+ Inspección» si la API habilita al menos un tipo de inspección.
@@ -303,6 +308,53 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
     }
   }, [aplicarDatosDetalle]);
 
+  // CU-19: documentos que el Supervisor revisa en la tarjeta de validación. Informe final: los de tipo «Informe final».
+  // Documentación del ITO: el ÚLTIMO documento de cada tipo que pide esa acción (la API los lista en orden de subida y
+  // no trae fecha; así no se mezclan con los de una entrega anterior que fue rechazada).
+  const tiposDocumentacion = inicio.catalogo?.TiposEvento?.find((t) => t.Codigo === 'DOCUMENTACION_ITO')?.TiposDocumento ?? [];
+  const documentosAValidar = esperaDocumentacion
+    ? tiposDocumentacion
+        .map((t) => [...detalleV2.archivos].reverse().find((a) => a.tipoDocumentoId === String(t.Id)))
+        .filter((a): a is Archivo => !!a)
+        .map((a) => ({ nombre: a.fileName, url: a.link, etiqueta: a.tipoDocumento }))
+    : [...detalleV2.archivos].reverse()
+        .filter((a) => /informe final/i.test(a.tipoDocumento ?? ''))
+        .slice(0, 1) // solo el más reciente: si el anterior fue rechazado, no se vuelve a mostrar
+        .map((a) => ({ nombre: a.fileName, url: a.link }));
+
+  // CU-32: el Supervisor que puede «Devolver documentación» revisa en la tarjeta del acta de inicio el acta de entrega de
+  // terreno MÁS RECIENTE del ITO (la API lista los documentos en orden de subida).
+  const idActaEntrega = inicio.catalogo?.TiposEvento?.find((t) => t.Codigo === 'ACTA_ENTREGA_TERRENO')?.TiposDocumento?.[0]?.Id;
+  const documentosEntrega = [...detalleV2.archivos].reverse()
+    .filter((a) => idActaEntrega != null && a.tipoDocumentoId === String(idActaEntrega))
+    .slice(0, 1)
+    .map((a) => ({ nombre: a.fileName, url: a.link, etiqueta: a.tipoDocumento }));
+
+  // CU-32: «Devolver documentación» en cualquier etapa. En «Gestión de Obra» va dentro de la tarjeta del acta de inicio; en las
+  // demás, en su propia tarjeta con los documentos más recientes del ITO (el último de cada tipo; la API los lista en orden de subida).
+  const puedeDevolver = !!obraV2 && obraV2.AccionesHabilitadas.includes(ACCION_DEVOLVER_DOCUMENTACION);
+  const devolverEnTarjetaPropia = puedeDevolver && tramite?.codigo !== 'ACTA_INICIO';
+  const documentosUltimosPorTipo = (() => {
+    const vistos = new Set<string>();
+    const ultimos: Archivo[] = [];
+    for (const a of [...detalleV2.archivos].reverse()) {
+      const clave = a.tipoDocumentoId || a.tipoDocumento;
+      if (vistos.has(clave)) continue;
+      vistos.add(clave);
+      ultimos.push(a);
+    }
+    return ultimos.reverse().map((a) => ({ nombre: a.fileName, url: a.link, etiqueta: a.tipoDocumento }));
+  })();
+
+  // CU-33: documentos del trámite devuelto/rechazado (el último de cada tipo que pide esa acción), para quien espera la corrección.
+  const documentosDelTramite = (() => {
+    const tipos = inicio.catalogo?.TiposEvento?.find((t) => t.Codigo === tramite?.codigo)?.TiposDocumento ?? [];
+    return tipos
+      .map((t) => [...detalleV2.archivos].reverse().find((a) => a.tipoDocumentoId === String(t.Id)))
+      .filter((a): a is Archivo => !!a)
+      .map((a) => ({ nombre: a.fileName, url: a.link, etiqueta: a.tipoDocumento }));
+  })();
+
   const inspeccionesList: InspeccionDetalle[] = detalleV2.inspecciones;
   const archivosList: Archivo[] = detalleV2.archivos;
   const fotos = detalleV2.fotos;
@@ -348,6 +400,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
   const [showTipoMenu, setShowTipoMenu] = useState(false);
   const [showDesfaseMenu, setShowDesfaseMenu] = useState(false);
   const [showParalizacionMenu, setShowParalizacionMenu] = useState(false);
+  const [ubicacionAbierta, setUbicacionAbierta] = useState<{ lat: number; lng: number; titulo: string } | null>(null);
   const [isPhotosModalOpen, setIsPhotosModalOpen] = useState(false);
   const [currentInspectionForPhotos, setCurrentInspectionForPhotos] = useState<{ id: string; title: string } | null>(null);
   const [isInformesModalOpen, setIsInformesModalOpen] = useState(false);
@@ -587,10 +640,22 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                 {validaInforme && (
                   <ValidarInformeCard
                     solicitudId={solicitudId}
-                    informes={archivosList
-                      .filter((a) => /informe final/i.test(a.tipoDocumento ?? ''))
-                      .map((a) => ({ nombre: a.fileName, url: a.link }))}
+                    contexto={esperaDocumentacion ? 'documentacion' : 'informe'}
+                    documentos={documentosAValidar}
                     onRegistrado={() => cargarDetalleV2(solicitudId)}
+                  />
+                )}
+                {devolverEnTarjetaPropia && (
+                  <DevolverDocumentacionCard
+                    solicitudId={solicitudId}
+                    documentos={documentosUltimosPorTipo}
+                    onRegistrado={() => cargarDetalleV2(solicitudId)}
+                  />
+                )}
+                {esperaDocumentacion && !validaInforme && (
+                  <EsperaCard
+                    titulo="Documentación enviada"
+                    texto="Quedó en espera de la validación del líder. Por ahora no hay nada más que hacer en esta obra."
                   />
                 )}
                 {esperaInforme && (
@@ -619,6 +684,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                     tramite={tramite}
                     comentarioDevolucion={detalleV2.comentarioDevolucion}
                     bloquea={obraSinActa}
+                    revision={{ documentos: tramite.codigo === 'ACTA_INICIO' ? documentosEntrega : documentosDelTramite }}
                     onRegistrado={() => cargarDetalleV2(solicitudId)}
                   />
                 )}
@@ -1022,6 +1088,24 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                                     </div>
                                   </div>
                               )}
+                              {(() => {
+                                // CU-34: ubicación donde se registró la inspección (llega con el detalle completo de la inspección).
+                                const lat = parseFloat(inspection.latitud);
+                                const lng = parseFloat(inspection.longitud);
+                                if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => setUbicacionAbierta({ lat, lng, titulo: inspection.type })}
+                                      className="w-full min-h-12 flex items-center justify-center gap-2 rounded-lg bg-white border-2 border-[#0066CC] text-[#0066CC] text-base font-semibold active:bg-blue-50"
+                                    >
+                                      <MapPin className="w-5 h-5" />
+                                      Ver ubicación
+                                    </button>
+                                  );
+                                }
+                                return fotosLoaded ? <p className="text-sm text-[#4A4A4A]">Sin ubicación registrada</p> : null;
+                              })()}
                               <div className="grid grid-cols-3 gap-2">
                                 {/* Avance */}
                                 <div className="flex items-center gap-2">
@@ -1280,6 +1364,17 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                 icon={<Plus className="w-6 h-6" />}
                 label="Inspección"
             />
+        )}
+
+        {ubicacionAbierta && (
+            <Suspense fallback={null}>
+              <UbicacionModal
+                latitud={ubicacionAbierta.lat}
+                longitud={ubicacionAbierta.lng}
+                titulo={ubicacionAbierta.titulo}
+                onClose={() => setUbicacionAbierta(null)}
+              />
+            </Suspense>
         )}
 
         {currentInspectionForPhotos && (
