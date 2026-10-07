@@ -371,6 +371,7 @@ function AppContent() {
     await refrescarObraTrasEvento(inicio.actualizarObra, solicitudId, {
       fechaUltimoEventoPrevia: obra?.FechaUltimoEvento,
       tipoInspeccionEsperado: obra?.AccionesTipo?.[tipoEvento]?.TipoInspeccionNombre,
+      esperaAdjuntosInspeccion: { fotos: fotos.length, informes: informes.length },
     });
 
     intentoInspeccion.current = null; // registrada: la próxima inspección es otra

@@ -439,11 +439,11 @@ const REGLAS = [
     msg: 'Sin detalle, el progreso muestra el avance real de la obra.' },
 
   // ── Varios documentos obligatorios en una acción (CU-30) ──
-  { id: 'CU-30a', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'const multiDoc = !inspeccion && accion.RequiereAdjunto && tiposDoc.length > 1;',
-    msg: 'Una acción con varios tipos de documento exige un archivo por cada tipo.' },
+  { id: 'CU-30a', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'const multiDoc = !inspeccion && tiposDoc.length > 1;',
+    msg: 'Una acción con varios tipos de documento ofrece un archivo por cada tipo (todos exigidos si la API pide adjunto).' },
   { id: 'CU-30b', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'else if (documentosB64.length > 0) payload.Documentos = documentosB64;',
     msg: 'Se envía un documento por cada tipo, con su TipoDocumentoId.' },
-  { id: 'CU-30c', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'debes subir los dos para poder enviarla',
+  { id: 'CU-30c', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'debes subir todos para poder enviarla',
     msg: 'El formulario avisa que hay que subir todos los documentos.' },
   { id: 'CU-30d', archivo: '../../pwa-backend/routes/eventos.js', tipo: 'debe', texto: 'DOCUMENTOS_INCOMPLETOS',
     msg: 'El backend rechaza el envío si falta algún tipo de documento de la acción.' },
@@ -540,6 +540,58 @@ const REGLAS = [
     msg: 'El mapa usa OpenStreetMap.' },
   { id: 'CU-34d', archivo: 'app/components/UbicacionModal.tsx', tipo: 'debe', texto: 'Mapa no disponible sin conexión',
     msg: 'Sin conexión el pop-up avisa y deja las coordenadas.' },
+
+  // ── Campos siempre visibles, banderas siempre frescas (CU-35) ──
+  { id: 'CU-35a', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: '{accion.RequiereComentario && (',
+    msg: 'El comentario solo se muestra cuando la API lo exige.' },
+  { id: 'CU-35b', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'const mostrarAvance = inspeccion || accion.RequiereAvance;',
+    msg: 'El avance solo se pide al registrar una inspección (o si la API lo exige): los pasos del flujo no son inspecciones.' },
+  { id: 'CU-35c', archivo: 'app/components/EventoForm.tsx', tipo: 'noDebe', texto: 'Comentario <Marca',
+    msg: 'No hay comentario «(opcional)»: solo se muestra cuando es obligatorio.' },
+  { id: 'CU-35d', archivo: 'app/components/EventoForm.tsx', tipo: 'noDebe', texto: '{accion.RequiereAvance && (',
+    msg: 'El avance no se oculta cuando la API no lo exige.' },
+  { id: 'CU-35e', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'obligatorio={accion.RequiereAdjunto}',
+    msg: 'El adjunto solo se marca obligatorio si la API lo exige.' },
+  { id: 'CU-35h', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: '!inspeccion && !multiDoc && tiposDoc.length > 0 && (',
+    msg: 'El documento se ofrece según los tipos de documento de la acción: sin tipos (rechazar/aprobar/devolver) no hay archivo.' },
+  { id: 'CU-35f', archivo: 'utils/definicionVigente.ts', tipo: 'debe', texto: '...porDefecto, ...def, ...fresca,',
+    msg: 'Las banderas salen de la definición fresca de la obra (AccionesDef), por encima del catálogo.' },
+  { id: 'CU-35g', archivo: 'services/inicioService.js', tipo: 'debe', texto: 'const SIEMPRE_CATALOGO_FRESCO = true;',
+    msg: 'El catálogo se pide completo en cada carga (la versión no detecta cambios de banderas).' },
+
+  // ── Documentos opcionales de una acción (CU-36) ──
+  { id: 'CU-36a', archivo: 'app/components/DocumentosOpcionalesBoton.tsx', tipo: 'debe', texto: 'Agregar documento opcional',
+    msg: 'El botón de documentos opcionales se llama «Agregar documento opcional».' },
+  { id: 'CU-36b', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'accion?.TiposDocumentoOpcional?.length',
+    msg: 'La tarjeta de la acción muestra el botón solo si la API entrega TiposDocumentoOpcional.' },
+  { id: 'CU-36c', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'accion.TiposDocumentoOpcional?.length',
+    msg: 'Las acciones de Ctrl. Obra también ofrecen sus documentos opcionales.' },
+  { id: 'CU-36d', archivo: 'services/eventosService.js', tipo: 'debe', texto: '/documentos`',
+    msg: 'Los opcionales se suben por el endpoint propio /solicitudes/{id}/documentos (no dentro del evento).' },
+  { id: 'CU-36e', archivo: '../../pwa-backend/routes/eventos.js', tipo: 'debe', texto: 'TIPO_DOCUMENTO_NO_PERMITIDO',
+    msg: 'El backend revalida que el tipo esté en TiposDocumentoOpcional de una acción habilitada.' },
+  { id: 'CU-36f', archivo: '../../pwa-backend/apiEventos.js', tipo: 'debe', texto: 'TiposDocumentoOpcional: Array.isArray(a.TiposDocumentoOpcional)',
+    msg: 'El backend conserva TiposDocumentoOpcional de cada acción.' },
+
+  // ── Adjuntos de una inspección nueva (CU-37) ──
+  { id: 'CU-37a', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'fotosCargando ? <Loader2',
+    msg: 'Mientras llegan las fotos se muestra «cargando», no un 0.' },
+  { id: 'CU-37b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'informesCargando ? <Loader2',
+    msg: 'Mientras llegan los informes se muestra «cargando», no un 0.' },
+  { id: 'CU-37c', archivo: 'utils/refrescarObra.ts', tipo: 'debe', texto: 'esperarAdjuntosInspeccionEnSegundoPlano(',
+    msg: 'La inspección nueva espera en segundo plano a que lleguen sus fotos e informes.' },
+  { id: 'CU-37d', archivo: 'app/App.tsx', tipo: 'debe', texto: 'esperaAdjuntosInspeccion:',
+    msg: 'Al guardar una inspección se indica cuántas fotos e informes se esperan.' },
+  { id: 'CU-37e', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '...conservar(prev.fotos), ...fotosMap',
+    msg: 'Recargar el detalle no vacía las fotos ya cargadas de las otras inspecciones.' },
+
+  // ── Actualizar el detalle de una obra (CU-38) ──
+  { id: 'CU-38a', archivo: 'app/components/Header.tsx', tipo: 'debe', texto: "refreshing ? 'Actualizando…' : 'Actualizar'",
+    msg: 'El encabezado ofrece el botón «Actualizar» (y dice «Actualizando…» mientras trabaja).' },
+  { id: 'CU-38b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'onRefresh={actualizarDatos}',
+    msg: 'El detalle de la obra muestra «Actualizar» en su encabezado, para todas las pestañas.' },
+  { id: 'CU-38c', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'setTimeout(() => setEnfriando(false), 5000)',
+    msg: 'Tras actualizar el botón queda bloqueado unos segundos (límite de peticiones de la API).' },
 
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',

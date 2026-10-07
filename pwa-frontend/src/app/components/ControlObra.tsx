@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PauseCircle, PlayCircle, CheckCircle, XCircle, FileUp, ClipboardCheck, CircleHelp, Clock, Activity, AlertTriangle, FileText, Download } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { EventoForm } from './EventoForm';
+import { DocumentosOpcionalesBoton } from './DocumentosOpcionalesBoton';
 import { useInicio } from '@/context/InicioContext';
 import { generarEventoIdExterno } from '@/services/eventosService';
 import { calcularDiasDetencion } from '@/utils/mapInicio';
@@ -234,6 +235,12 @@ export function ControlObra({ solicitudId, comentarioDevolucion, motivoDetencion
                       <span className="text-base font-medium text-[#003D7A]">{accion.Label}</span>
                     </button>
                     {bloqueo && <p className="text-base text-[#E30613] mt-1 px-1">{bloqueo}</p>}
+                    {/* CU-36: documentos opcionales de la acción (solo si la API los entrega) */}
+                    {!bloqueo && (accion.TiposDocumentoOpcional?.length ?? 0) > 0 && (
+                      <div className="mt-2">
+                        <DocumentosOpcionalesBoton solicitudId={solicitudId} tipos={accion.TiposDocumentoOpcional!} onSubido={onEventoRegistrado} />
+                      </div>
+                    )}
                   </div>
                 );
               })}

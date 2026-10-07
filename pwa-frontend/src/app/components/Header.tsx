@@ -1,4 +1,4 @@
-import { ArrowLeft, LogOut } from 'lucide-react';
+import { ArrowLeft, LogOut, RefreshCw } from 'lucide-react';
 import { authService } from '../../services/auth';
 
 interface HeaderProps {
@@ -7,6 +7,12 @@ interface HeaderProps {
   onBack?: () => void;
   showLogout?: boolean;
   onLogout?: () => void;
+  /** Botón «Actualizar» (detalle de una obra, CU-38). Si no se pasa, no se muestra. */
+  onRefresh?: () => void;
+  /** true mientras se actualiza: el ícono gira. */
+  refreshing?: boolean;
+  /** true para bloquear el botón (actualizando o en espera para no saturar la API). */
+  refreshDisabled?: boolean;
 }
 
 export function Header({ 
@@ -14,7 +20,10 @@ export function Header({
   showBackButton = false, 
   onBack,
   showLogout = false,
-  onLogout
+  onLogout,
+  onRefresh,
+  refreshing = false,
+  refreshDisabled = false
 }: HeaderProps) {
   const user = authService.getUser();
 
@@ -48,6 +57,19 @@ export function Header({
             {title || 'Sistema AyP - Ejecución de Obras'}
           </h1>
         </div>
+
+        {onRefresh && (
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshDisabled}
+            aria-label="Actualizar los datos de esta obra"
+            className="flex items-center justify-center gap-2 min-h-10 px-3 rounded-lg bg-white/10 active:bg-white/20 transition-colors disabled:opacity-60 text-base font-medium"
+          >
+            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{refreshing ? 'Actualizando…' : 'Actualizar'}</span>
+          </button>
+        )}
 
         {/* Usuario y Logout */}
         {showLogout && user && (

@@ -25,6 +25,8 @@ export interface AccionCatalogo {
   RequiereAdjunto: boolean;
   RequiereAvance: boolean;
   TiposDocumento: TipoDocumento[];
+  /** Documentos OPCIONALES que la acción admite (se suben aparte, sin avanzar el flujo; CU-36). */
+  TiposDocumentoOpcional?: TipoDocumento[];
 }
 
 /**
@@ -36,6 +38,7 @@ export interface DefinicionAccion {
   RequiereAdjunto: boolean;
   RequiereAvance: boolean;
   TiposDocumento: TipoDocumento[];
+  TiposDocumentoOpcional?: TipoDocumento[];
 }
 
 /** Un subestado posible de una obra. */

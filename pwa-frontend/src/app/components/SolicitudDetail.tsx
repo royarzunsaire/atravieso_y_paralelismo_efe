@@ -177,6 +177,8 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
   // `fotos`/`informes` solo tienen entrada para las inspecciones ya
   // completas: eso distingue "cargando" de "sin fotos".
   const [inspCargando, setInspCargando] = useState<Set<string>>(new Set());
+  // Inspecciones cuya carga falló: se muestran con lo que hay (el indicador «cargando» no gira para siempre).
+  const [inspFallidas, setInspFallidas] = useState<Set<string>>(new Set());
   const enVueloRef = useRef<Map<string, Promise<void>>>(new Map());
   const generacionRef = useRef(0);
 
@@ -190,6 +192,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
         .getInspeccion(Number(inspId), { forzar })
         .then((completa) => {
           if (gen !== generacionRef.current) return; // se cambió de obra mientras cargaba
+          setInspFallidas((prev) => { if (!prev.has(inspId)) return prev; const n = new Set(prev); n.delete(inspId); return n; });
           const { patch, fotos: fotosInsp, informes: informesInsp } = mapInspeccionCompleta(completa);
           setDetalleV2((prev) => ({
             ...prev,
@@ -202,6 +205,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
         })
         .catch(() => {
           // Queda con el resumen; se reintenta al expandir la tarjeta.
+          setInspFallidas((prev) => new Set(prev).add(inspId));
         })
         .finally(() => {
           if (enVueloRef.current.get(inspId) === promesa) enVueloRef.current.delete(inspId);
@@ -259,16 +263,22 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
       if (insp.Fotos) fotosMap[String(insp.Id)] = insp.Fotos.map(mapFotoOInformeApi);
       if (insp.Informes) informesMap[String(insp.Id)] = insp.Informes.map(mapFotoOInformeApi);
     }
-    setDetalleV2({
+    // CU-37: al recargar el detalle NO se vacían las fotos/informes ya cargados de las demás inspecciones (volverían a
+    // mostrar 0 hasta recargarse una por una). Solo la recarga forzada («Actualizar») parte de cero.
+    const idsActuales = new Set<string>(inspeccionesApi.map((i: any) => String(i.Id)));
+    const conservar = <T,>(previo: Record<string, T>): Record<string, T> => (forzar
+      ? {}
+      : Object.fromEntries(Object.entries(previo).filter(([k]) => idsActuales.has(k))));
+    setDetalleV2((prev) => ({
       inspecciones: inspeccionesApi.map((i: any) => mapInspeccionApi(i, id, codigo)),
       archivos: (data.Documentos ?? []).map(mapDocumentoApi),
-      fotos: fotosMap,
-      informes: informesMap,
+      fotos: { ...conservar(prev.fotos), ...fotosMap },
+      informes: { ...conservar(prev.informes), ...informesMap },
       comentarioDevolucion: data.ComentarioDevolucion ?? null,
       loading: false,
       error: null,
       sinAcceso: false,
-    });
+    }));
 
     // Precarga en segundo plano (mejora de performance): fetch() directo
     // al gateway del cliente, no <img> (bloqueado por CORP — ver spec 13).
@@ -365,6 +375,34 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
   const loadingArchivos = detalleV2.loading;
   const errorInspecciones = detalleV2.error;
   const errorArchivos = detalleV2.error;
+  // CU-38: «Actualizar» del encabezado. Una sola acción para TODAS las pestañas (comparten los mismos datos): descarta el
+  // caché de esta obra (detalle, detalle de cada inspección, fotos descargadas) y vuelve a pedir el estado actual de la
+  // obra y su detalle. Queda bloqueado unos segundos después para no saturar la API del cliente (límite de peticiones).
+  const [actualizando, setActualizando] = useState(false);
+  const [enfriando, setEnfriando] = useState(false);
+  const [avisoActualizar, setAvisoActualizar] = useState<{ tipo: 'ok' | 'warn'; msg: string } | null>(null);
+  const actualizarDatos = async () => {
+    if (actualizando || enfriando) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setAvisoActualizar({ tipo: 'warn', msg: 'Sin conexión: no se pueden actualizar los datos. Mostramos lo último guardado.' });
+      setTimeout(() => setAvisoActualizar(null), 4000);
+      return;
+    }
+    setActualizando(true);
+    try {
+      detalleCache.invalidarObra(solicitudId);
+      detalleV2.inspecciones.forEach((i) => detalleCache.invalidarInspeccion(Number(i.id)));
+      fotosBlobCache.limpiar();
+      await Promise.all([inicio.cargar(true), cargarDetalleV2(solicitudId, { forzar: true })]);
+      setAvisoActualizar({ tipo: 'ok', msg: 'Datos actualizados.' });
+    } finally {
+      setActualizando(false);
+      setEnfriando(true);
+      setTimeout(() => setEnfriando(false), 5000);
+      setTimeout(() => setAvisoActualizar(null), 3000);
+    }
+  };
+
   const recargarInspecciones = (id: number) => cargarDetalleV2(id, { forzar: true });
   const recargarArchivos = (id: number) => cargarDetalleV2(id, { forzar: true });
 
@@ -381,6 +419,32 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
         const mismos = prev.archivos.length === docs.length
           && prev.archivos.every((a, i) => a.name === docs[i].name);
         return mismos ? prev : { ...prev, archivos: docs };
+      });
+    });
+  }, [solicitudId]);
+
+  // CU-37: las fotos/informes de una inspección recién creada llegan con retraso (refrescarObra.ts los espera en segundo
+  // plano y los guarda en el caché): acá se completan solos en la tarjeta, sin recargar nada.
+  useEffect(() => {
+    return detalleCache.suscribir(() => {
+      setDetalleV2((prev) => {
+        let cambio = false;
+        const fotos = { ...prev.fotos };
+        const informes = { ...prev.informes };
+        let inspecciones = prev.inspecciones;
+        for (const insp of prev.inspecciones) {
+          const cacheada = detalleCache.getInspeccion(Number(insp.id));
+          if (!cacheada) continue;
+          const { patch, fotos: f, informes: inf } = mapInspeccionCompleta(cacheada.data);
+          if (!fotos[insp.id] || fotos[insp.id].length !== f.length || !informes[insp.id] || informes[insp.id].length !== inf.length) {
+            fotos[insp.id] = f;
+            informes[insp.id] = inf;
+            inspecciones = inspecciones.map((x) => (x.id === insp.id ? { ...x, ...patch } : x));
+            f.forEach((foto) => { if (foto.url) fotosBlobCache.prefetch(foto.url); });
+            cambio = true;
+          }
+        }
+        return cambio ? { ...prev, inspecciones, fotos, informes } : prev;
       });
     });
   }, [solicitudId]);
@@ -607,7 +671,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
 
   return (
       <div className="min-h-screen bg-[#F5F7FA] pb-20">
-        <Header title={`Solicitud #${solicitud.codigo ?? solicitud.id}`} showBackButton onBack={onBack} />
+        <Header title={`Solicitud #${solicitud.codigo ?? solicitud.id}`} showBackButton onBack={onBack} onRefresh={actualizarDatos} refreshing={actualizando} refreshDisabled={actualizando || enfriando} />
 
         {/* CU-07: obra detenida siempre visible, en todas las pestañas */}
         {obraV2?.Detencion?.FechaDetencionActual && (
@@ -1055,6 +1119,11 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                       const fotosImagenesCount = fotosLoaded ? fotosList.filter(f => isImageFile(f.fileName ?? '')).length : inspection.cantidadFotos;
                       // Informes vienen de su propio listado (DocumentosInspecciones), independiente de fotos
                       const informesCount = (informes[inspeccionIdStr] ?? []).length;
+                      // CU-37: mientras llegan los adjuntos se muestra «cargando», nunca un 0 que parezca definitivo.
+                      const esperandoAdj = detalleCache.esperaInspeccion(Number(inspection.id));
+                      const sinCargarAdj = !fotosLoaded && !inspFallidas.has(inspeccionIdStr);
+                      const fotosCargando = esperandoAdj ? fotosImagenesCount === 0 : sinCargarAdj && fotosImagenesCount === 0;
+                      const informesCargando = esperandoAdj ? informesCount === 0 : sinCargarAdj;
                       return (
                           <div key={inspection.id} className={`bg-white rounded-xl shadow-md border-l-4 ${config.borderColor} overflow-hidden`}>
                             <div className={`${config.bgColor} p-4 border-b ${config.borderColor}`}>
@@ -1127,7 +1196,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                                   </div>
                                   <div>
                                     <p className="text-xs text-[#4A4A4A]">Fotos</p>
-                                    <p className="text-lg font-bold text-purple-600">{fotosImagenesCount}</p>
+                                    <p className="text-lg font-bold text-purple-600">{fotosCargando ? <Loader2 className="w-5 h-5 animate-spin" aria-label="Cargando fotos" /> : fotosImagenesCount}</p>
                                   </div>
                                 </button>
                                 {/* Informes — PDF/Word, desde DocumentosInspecciones */}
@@ -1142,7 +1211,7 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                                   </div>
                                   <div>
                                     <p className="text-xs text-[#4A4A4A]">Informes</p>
-                                    <p className="text-lg font-bold text-orange-600">{informesCount}</p>
+                                    <p className="text-lg font-bold text-orange-600">{informesCargando ? <Loader2 className="w-5 h-5 animate-spin" aria-label="Cargando informes" /> : informesCount}</p>
                                   </div>
                                 </button>
                               </div>
@@ -1364,6 +1433,15 @@ export function SolicitudDetail({ solicitudId, onBack, onNewInspection }: Solici
                 icon={<Plus className="w-6 h-6" />}
                 label="Inspección"
             />
+        )}
+
+        {avisoActualizar && (
+            <div
+              className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-lg shadow-lg text-sm text-white ${avisoActualizar.tipo === 'ok' ? 'bg-green-600' : 'bg-orange-500'}`}
+              onClick={() => setAvisoActualizar(null)}
+            >
+              {avisoActualizar.msg}
+            </div>
         )}
 
         {ubicacionAbierta && (

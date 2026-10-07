@@ -3,7 +3,7 @@ const router = express.Router();
 const { verifyToken } = require('./auth');
 const { createInspeccionOutbox, getInspeccionOutboxById } = require('../database');
 const { procesarInspeccion } = require('../syncJob');
-const { obtenerInicio, obtenerDetalleSolicitud, obtenerInspeccion, obtenerObraInicio } = require('../apiEventos');
+const { obtenerInicio, obtenerDetalleSolicitud, obtenerInspeccion, obtenerObraInicio, subirDocumentosOpcionales } = require('../apiEventos');
 const { parseFechaEventoOpcional, FechaInvalidaError } = require('../utils/fechas');
 
 // ============================================================
@@ -329,6 +329,112 @@ router.post('/eventos', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('❌ Error creando evento:', error);
     res.status(500).json({ success: false, error: 'Failed to create event', message: error.message });
+  }
+});
+
+// ── Documentos OPCIONALES (contrato CU-36) ─────────────────────────────────────────────────────────────────
+const EXT_DOC_OPCIONAL = ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'];
+const MAX_DOCS_OPCIONALES = 10;
+const MAX_DOC_BYTES = 10 * 1024 * 1024;
+
+/**
+ * POST /api/v2/solicitudes/:id/documentos
+ * Proxy a POST /v1/solicitudes/{id}/documentos. Sube documentos opcionales: no avanza el flujo ni crea eventos.
+ * Seguridad: antes de reenviar se vuelve a consultar la obra (API_Inicio, según el usuario del token) y solo se aceptan tipos
+ * que alguna acción habilitada hoy declare en `TiposDocumentoOpcional`. Sin cola ni reintentos: la API no es idempotente.
+ *
+ * Body: { Documentos: [{ TipoDocumentoId, Nombre, Contenido (base64 sin prefijo data:) }] }
+ */
+router.post('/solicitudes/:id/documentos', verifyToken, async (req, res) => {
+  try {
+    const usuario = req.user?.email;
+    const nombre = req.user?.nombre;
+    const solicitudId = Number(req.params.id);
+
+    if (!usuario) {
+      return res.status(400).json({ success: false, error: 'Usuario no identificado en el token' });
+    }
+    if (!Number.isInteger(solicitudId) || solicitudId <= 0) {
+      return res.status(400).json({ success: false, error: 'SOLICITUD_INVALIDA', message: 'Id de solicitud inválido.' });
+    }
+
+    const docs = req.body?.Documentos;
+    if (!Array.isArray(docs) || docs.length === 0 || docs.length > MAX_DOCS_OPCIONALES) {
+      return res.status(400).json({
+        success: false,
+        error: 'DOCUMENTOS_INVALIDOS',
+        message: `Envía entre 1 y ${MAX_DOCS_OPCIONALES} documentos.`,
+      });
+    }
+
+    // Estructura, extensión y peso de cada archivo (la validación del cliente no basta: es manipulable).
+    const limpios = [];
+    for (const d of docs) {
+      const tipo = Number(d?.TipoDocumentoId);
+      const archivo = typeof d?.Nombre === 'string' ? d.Nombre.trim() : '';
+      const contenido = typeof d?.Contenido === 'string' ? d.Contenido : '';
+      const ext = archivo.includes('.') ? archivo.split('.').pop().toLowerCase() : '';
+      const invalido = (motivo) => res.status(400).json({
+        success: false,
+        error: 'DOCUMENTO_INVALIDO',
+        message: `El documento «${archivo.slice(0, 60) || 'sin nombre'}» no es válido: ${motivo}.`,
+      });
+      if (!Number.isInteger(tipo) || tipo <= 0) return invalido('falta su tipo de documento');
+      if (!archivo || archivo.length > 200 || /[\\/]/.test(archivo)) return invalido('el nombre del archivo no es válido');
+      if (!EXT_DOC_OPCIONAL.includes(ext)) return invalido(`solo se admiten ${EXT_DOC_OPCIONAL.join(', ')}`);
+      if (contenido.length < 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(contenido)) return invalido('el contenido no es base64 válido');
+      if (Math.floor((contenido.length * 3) / 4) > MAX_DOC_BYTES) return invalido('pesa más de 10 MB');
+      limpios.push({ TipoDocumentoId: tipo, Nombre: archivo, Contenido: contenido });
+    }
+
+    // ── SEGURIDAD: la obra y los tipos permitidos se vuelven a consultar a la fuente de verdad ──
+    let obra;
+    try {
+      obra = await obtenerObraInicio({ usuario, nombre, solicitudId });
+    } catch (validationError) {
+      console.error('❌ Error validando documentos opcionales contra API_Inicio:', validationError.message);
+      return res.status(502).json({
+        success: false,
+        error: 'No se pudo validar la acción',
+        message: 'No se pudo verificar los permisos de la obra. Intenta de nuevo.',
+      });
+    }
+    if (!obra) {
+      return res.status(403).json({
+        success: false,
+        error: 'OBRA_NO_ACCESIBLE',
+        message: 'No tienes acceso a esta obra o ya no está disponible.',
+      });
+    }
+    const permitidos = new Set();
+    for (const codigo of Array.isArray(obra.AccionesHabilitadas) ? obra.AccionesHabilitadas : []) {
+      for (const t of obra.AccionesDef?.[codigo]?.TiposDocumentoOpcional || []) permitidos.add(Number(t.Id));
+    }
+    if (limpios.some((d) => !permitidos.has(d.TipoDocumentoId))) {
+      return res.status(400).json({
+        success: false,
+        error: 'TIPO_DOCUMENTO_NO_PERMITIDO',
+        message: 'Alguno de los documentos no corresponde a un tipo opcional habilitado hoy para esta obra.',
+      });
+    }
+
+    console.log(`📎 POST /api/v2/solicitudes/${solicitudId}/documentos - ${limpios.length} documento(s) opcional(es) - Usuario: ${usuario}`);
+    const data = await subirDocumentosOpcionales({ usuario, nombre, solicitudId, documentos: limpios });
+    res.json({ success: true, data });
+  } catch (error) {
+    if ([400, 403, 404].includes(error.status)) {
+      return res.status(error.status).json({
+        success: false,
+        error: error.code || 'DOCUMENTOS_RECHAZADOS',
+        message: error.message,
+      });
+    }
+    console.error(`❌ Error subiendo documentos opcionales (solicitud ${req.params.id}):`, error.message);
+    res.status(502).json({
+      success: false,
+      error: 'DOCUMENTOS_NO_SUBIDOS',
+      message: 'No se pudieron subir los documentos. Revisa tu conexión e inténtalo de nuevo.',
+    });
   }
 });
 

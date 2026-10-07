@@ -40,6 +40,31 @@ export const eventosService = {
   },
 
   /**
+   * Sube documentos OPCIONALES de una obra (POST /solicitudes/{id}/documentos): no avanza el flujo ni crea eventos.
+   * La API no es idempotente: NO se reintenta sola (un reintento podría duplicar el archivo).
+   *
+   * @param {{ solicitudId: number, documentos: Array<{ TipoDocumentoId: number, Nombre: string, Contenido: string }> }} p
+   */
+  async subirDocumentosOpcionales({ solicitudId, documentos }) {
+    const response = await fetch(`${API_URL}/api/v2/solicitudes/${solicitudId}/documentos`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ Documentos: documentos }),
+    });
+
+    if (response.status === 401) {
+      authService.logout();
+      throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.success === false) {
+      throw new Error(data?.message || data?.error || `No se pudo subir el documento (error ${response.status}).`);
+    }
+    return data?.data ?? {};
+  },
+
+  /**
    * Registra un evento sobre una obra (escritura). Sigue el patrón outbox:
    * el backend guarda en Oracle y responde. Con sync=true el backend además
    * sincroniza inline contra la API real y devuelve el estado nuevo de la

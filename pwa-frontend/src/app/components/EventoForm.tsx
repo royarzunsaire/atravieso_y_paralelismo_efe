@@ -19,6 +19,13 @@ function esInspeccion(accion: AccionCatalogo): boolean {
   return accion.Grupo ? accion.Grupo === 'Inspecciones' : accion.Codigo.startsWith('INSPECCION_');
 }
 
+/** Marca de cada campo: asterisco rojo si la API lo exige; «(opcional)» si se muestra pero no se exige (CU-35). */
+function Marca({ obligatorio }: { obligatorio: boolean }) {
+  return obligatorio
+    ? <span className="text-[#E30613]">*</span>
+    : <span className="text-[#4A4A4A] font-normal">(opcional)</span>;
+}
+
 function fileADataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -57,14 +64,13 @@ interface EventoFormProps {
 
 export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComentario, eventoIdExterno, pedirFechaInicio, onCancel, onSubmit }: EventoFormProps) {
   const tiposDoc = Array.isArray(accion.TiposDocumento) ? accion.TiposDocumento : [];
-  const tieneTiposDoc = tiposDoc.length > 0;
   const unSoloTipoDoc = tiposDoc.length === 1;
 
   const [comentario, setComentario] = useState('');
   const [fechaInicio, setFechaInicio] = useState(() => hoyCL());
   const [avance, setAvance] = useState('');
   // Con un único tipo de documento posible se selecciona solo.
-  const [tipoDocumentoId, setTipoDocumentoId] = useState<number | ''>(unSoloTipoDoc ? tiposDoc[0].Id : '');
+  const tipoDocumentoId: number | '' = unSoloTipoDoc ? tiposDoc[0].Id : '';
   const [fotos, setFotos] = useState<string[]>([]); // data URLs
   const [adjunto, setAdjunto] = useState<{ nombre: string; dataUrl: string } | null>(null);
   // Una acción con VARIOS tipos de documento (ej. documentación del ITO) exige un archivo por cada tipo (CU-30).
@@ -74,7 +80,12 @@ export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComen
   const { conProgreso } = useProgreso();
 
   const inspeccion = esInspeccion(accion);
-  const multiDoc = !inspeccion && accion.RequiereAdjunto && tiposDoc.length > 1;
+  // El avance solo se pide al registrar una inspección de verdad (o si la API lo exigiera en otra acción). Los demás pasos del
+  // flujo (aprobar, devolver, subir actas…) generan una inspección en la API pero no son inspecciones: heredan el avance vigente.
+  const mostrarAvance = inspeccion || accion.RequiereAvance;
+  // El documento depende de `TiposDocumento` (CU-35): sin tipos no hay campo de archivo, diga lo que diga RequiereAdjunto.
+  // Una acción con varios tipos de documento ofrece un archivo por tipo (todos obligatorios solo si la API lo exige).
+  const multiDoc = !inspeccion && tiposDoc.length > 1;
   // Requisitos nuevos de la API que la app aún no sabe pedir: se avisa, pero se deja enviar igual (CU-28).
   const desconocidas = banderasDesconocidas(accion);
 
@@ -83,24 +94,21 @@ export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComen
     const f: string[] = [];
     if (pedirFechaInicio && !fechaInicio) f.push('la fecha de inicio de la obra');
     if (accion.RequiereComentario && comentario.trim().length === 0) f.push('el comentario');
-    if (accion.RequiereAvance && avance === '') f.push('el porcentaje de avance');
+    if (mostrarAvance && accion.RequiereAvance && avance === '') f.push('el porcentaje de avance');
     if (accion.RequiereAdjunto) {
       if (multiDoc) {
         for (const t of tiposDoc) if (!adjuntosTipo[t.Id]) f.push(`el archivo (${t.Value})`);
       } else {
         if (inspeccion && fotos.length === 0 && !adjunto) f.push('al menos una foto');
-        if (!inspeccion && tieneTiposDoc && tipoDocumentoId === '') f.push('el tipo de documento');
-        if (!inspeccion && !adjunto) {
+        if (!inspeccion && tiposDoc.length > 0 && !adjunto) {
           f.push(unSoloTipoDoc ? `el archivo (${tiposDoc[0].Value})` : 'el archivo');
         }
       }
     }
     return f;
-  }, [accion, comentario, avance, fotos, adjunto, adjuntosTipo, multiDoc, inspeccion, tieneTiposDoc, tipoDocumentoId, unSoloTipoDoc, tiposDoc, pedirFechaInicio, fechaInicio]);
+  }, [accion, comentario, avance, fotos, adjunto, adjuntosTipo, multiDoc, inspeccion, unSoloTipoDoc, tiposDoc, pedirFechaInicio, fechaInicio]);
 
   const puedeEnviar = faltantes.length === 0;
-  // Acciones sin campos (ej. aprobar informe): solo se confirma.
-  const sinCampos = !accion.RequiereComentario && !accion.RequiereAdjunto && !accion.RequiereAvance;
   const aviso = avisoConfirmacion ?? AVISO_CONFIRMACION[accion.Codigo];
 
   const handleFotos = async (files: File[]) => {
@@ -135,14 +143,15 @@ export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComen
       setError('El comentario es obligatorio para esta acción.');
       return;
     }
-    if (multiDoc) {
+    if (multiDoc && accion.RequiereAdjunto) {
       const faltan = tiposDoc.filter((t) => !adjuntosTipo[t.Id]);
       if (faltan.length > 0) {
         setError(`Falta subir: ${faltan.map((t) => t.Value).join(', ')}.`);
         return;
       }
     }
-    if (accion.RequiereAvance) {
+    // Avance: obligatorio si la API lo exige; opcional si no, pero si se escribe debe ser válido.
+    if (mostrarAvance && (accion.RequiereAvance || avance !== '')) {
       const n = Number(avance);
       if (avance === '' || isNaN(n) || n < 0 || n > 100) {
         setError('Ingresa un porcentaje de avance entre 0 y 100.');
@@ -155,7 +164,7 @@ export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComen
     if (comentario.trim()) payload.Comentario = comentario.trim();
     // Cada evento crea una inspección en la API y, sin AvancePct, queda en 0 %.
     // Si la acción no pide avance, se conserva el actual de la obra (CU-13).
-    if (accion.RequiereAvance) payload.AvancePct = Number(avance);
+    if (mostrarAvance && avance !== '') payload.AvancePct = Number(avance);
     else if (avanceActual != null) payload.AvancePct = avanceActual;
 
     let fotosB64: ReturnType<typeof armarFotos> = [];
@@ -167,7 +176,7 @@ export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComen
       if (fotos.length > 0) fotosB64 = armarFotos(eventoIdExterno, fotos);
       if (adjunto) informesB64 = armarInformes(eventoIdExterno, [adjunto]);
     } else if (multiDoc) {
-      documentosB64 = tiposDoc.map((t, i) => armarDocumento(eventoIdExterno, {
+      documentosB64 = tiposDoc.filter((t) => adjuntosTipo[t.Id]).map((t, i) => armarDocumento(eventoIdExterno, {
         nombre: adjuntosTipo[t.Id].nombre,
         dataUrl: adjuntosTipo[t.Id].dataUrl,
         tipoDocumentoId: t.Id,
@@ -255,6 +264,7 @@ export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComen
             </div>
           )}
 
+          {/* CU-35: el comentario solo se muestra si la API lo exige; el documento según los tipos de documento de la acción (vacío = sin archivo). */}
           {accion.RequiereComentario && (
             <div>
               <label className="block text-base font-semibold text-[#003D7A] mb-1">
@@ -270,33 +280,35 @@ export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComen
             </div>
           )}
 
-          {accion.RequiereAvance && (
-            <div>
-              <label className="block text-base font-semibold text-[#003D7A] mb-1">
-                Avance de obra (%) <span className="text-[#E30613]">*</span>
-              </label>
-              <input
-                type="number" min={0} max={100}
-                value={avance}
-                onChange={(e) => setAvance(e.target.value)}
-                className="w-full h-12 px-3 text-base rounded-lg border-2 border-[#003D7A]/20 focus:outline-none focus:border-[#0066CC]"
-                placeholder="Un número entre 0 y 100"
-              />
-            </div>
+          {mostrarAvance && (
+          <div>
+            <label className="block text-base font-semibold text-[#003D7A] mb-1">
+              Avance de obra (%) <Marca obligatorio={accion.RequiereAvance} />
+            </label>
+            <input
+              type="number" min={0} max={100}
+              value={avance}
+              onChange={(e) => setAvance(e.target.value)}
+              className="w-full h-12 px-3 text-base rounded-lg border-2 border-[#003D7A]/20 focus:outline-none focus:border-[#0066CC]"
+              placeholder={accion.RequiereAvance
+                ? 'Un número entre 0 y 100'
+                : `Si lo dejas vacío se mantiene el avance actual${avanceActual != null ? ` (${avanceActual} %)` : ''}`}
+            />
+          </div>
           )}
 
-          {accion.RequiereAdjunto && inspeccion && (
+          {inspeccion && (
             <>
               <div>
                 <p className="text-base font-semibold text-[#003D7A] mb-2">
-                  Fotos <span className="text-[#E30613]">*</span>
+                  Fotos <Marca obligatorio={accion.RequiereAdjunto} />
                 </p>
                 <SubirArchivo
                   etiquetaBoton="Agregar fotos"
                   ayuda="Elige una o varias fotos. Máximo 1 MB cada una."
                   accept="image/*"
                   multiple
-                  obligatorio={fotos.length === 0 && !adjunto}
+                  obligatorio={accion.RequiereAdjunto && fotos.length === 0 && !adjunto}
                   seleccionados={fotos.map((_, i) => `Foto ${i + 1}`)}
                   onElegir={handleFotos}
                   onQuitarTodo={() => setFotos([])}
@@ -320,19 +332,21 @@ export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComen
             <>
               <div className="flex items-start gap-2 rounded-lg border bg-amber-50 border-amber-300 text-amber-900 p-3">
                 <p className="text-base font-medium">
-                  Esta acción exige <strong>{tiposDoc.length} documentos</strong>: debes subir los dos para poder enviarla.
+                  {accion.RequiereAdjunto
+                    ? <>Esta acción exige <strong>{tiposDoc.length} documentos</strong>: debes subir todos para poder enviarla.</>
+                    : <>Esta acción acepta hasta <strong>{tiposDoc.length} documentos</strong>; subirlos es opcional.</>}
                 </p>
               </div>
               {tiposDoc.map((t) => (
                 <div key={t.Id}>
                   <p className="text-base font-semibold text-[#003D7A] mb-2">
-                    {t.Value} <span className="text-[#E30613]">*</span>
+                    {t.Value} <Marca obligatorio={accion.RequiereAdjunto} />
                   </p>
                   <SubirArchivo
                     etiquetaBoton={`Subir ${t.Value.toLowerCase()}`}
                     ayuda="PDF, Word o foto. Máximo 10 MB."
                     accept=".pdf,.doc,.docx,image/*"
-                    obligatorio
+                    obligatorio={accion.RequiereAdjunto}
                     seleccionados={adjuntosTipo[t.Id] ? [adjuntosTipo[t.Id].nombre] : []}
                     onElegir={handleAdjuntoTipo(t.Id)}
                     onQuitarTodo={() => setAdjuntosTipo((prev) => { const { [t.Id]: _quitado, ...resto } = prev; return resto; })}
@@ -342,34 +356,18 @@ export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComen
             </>
           )}
 
-          {accion.RequiereAdjunto && !inspeccion && !multiDoc && (
+          {/* Un archivo solo si la API lo exige o la acción define tipos de documento (si no, ej. rechazar/devolver, no se ofrece). */}
+          {!inspeccion && !multiDoc && tiposDoc.length > 0 && (
             <>
-              {tieneTiposDoc && !unSoloTipoDoc && (
-                <div>
-                  <label className="block text-base font-semibold text-[#003D7A] mb-1">
-                    ¿Qué tipo de documento es? <span className="text-[#E30613]">*</span>
-                  </label>
-                  <select
-                    value={tipoDocumentoId}
-                    onChange={(e) => setTipoDocumentoId(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full h-12 px-3 text-base rounded-lg border-2 border-[#003D7A]/20 focus:outline-none focus:border-[#0066CC] bg-white"
-                  >
-                    <option value="">Selecciona una opción…</option>
-                    {tiposDoc.map((t) => (
-                      <option key={t.Id} value={t.Id}>{t.Value}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <div>
                 <p className="text-base font-semibold text-[#003D7A] mb-2">
-                  {unSoloTipoDoc ? tiposDoc[0].Value : 'Documento'} <span className="text-[#E30613]">*</span>
+                  {unSoloTipoDoc ? tiposDoc[0].Value : 'Documento'} <Marca obligatorio={accion.RequiereAdjunto} />
                 </p>
                 <SubirArchivo
                   etiquetaBoton={`Subir ${nombreDocumento.toLowerCase()}`}
                   ayuda="PDF, Word o foto. Máximo 10 MB."
                   accept=".pdf,.doc,.docx,image/*"
-                  obligatorio
+                  obligatorio={accion.RequiereAdjunto}
                   seleccionados={adjunto ? [adjunto.nombre] : []}
                   onElegir={handleAdjunto}
                   onQuitarTodo={() => setAdjunto(null)}
@@ -395,7 +393,7 @@ export function EventoForm({ accion, avanceActual, avisoConfirmacion, ayudaComen
               Cancelar
             </Button>
             <Button type="submit" variant="primary" size="lg" fullWidth disabled={!puedeEnviar || enviando}>
-              {sinCampos ? 'Confirmar' : 'Enviar'}
+              Enviar
             </Button>
           </div>
         </form>

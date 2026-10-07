@@ -58,7 +58,38 @@ function esperarDocumentoEnSegundoPlano(
   })();
 }
 
+// Una inspección recién creada aparece en el detalle antes que sus fotos e informe: la API los indexa con retraso, igual
+// que los documentos. Se vuelve a pedir SU detalle en segundo plano hasta que lleguen los adjuntos enviados y la tarjeta se
+// completa sola (CU-37). Mientras tanto la pantalla muestra «cargando» en vez de un 0 engañoso.
+const ESPERAS_ADJUNTOS_MS = [2000, 4000, 7000, 12000, 20000];
+
+function esperarAdjuntosInspeccionEnSegundoPlano(
+  inspeccionId: number,
+  esperados: { fotos: number; informes: number },
+): void {
+  detalleCache.marcarEsperaInspeccion(inspeccionId, true);
+  void (async () => {
+    try {
+      for (const ms of ESPERAS_ADJUNTOS_MS) {
+        await esperar(ms);
+        const d = (await detalleService.getInspeccion(inspeccionId, { forzar: true })) as
+          { Fotos?: unknown[]; Documentos?: unknown[]; Informes?: unknown[] } | undefined;
+        detalleCache.notificar();
+        const fotos = (d?.Fotos ?? []).length;
+        const informes = (d?.Documentos ?? d?.Informes ?? []).length;
+        if (fotos >= esperados.fotos && informes >= esperados.informes) return;
+      }
+    } catch {
+      // Sin red u otro fallo: queda lo ya mostrado y el botón «Actualizar» del usuario.
+    } finally {
+      detalleCache.marcarEsperaInspeccion(inspeccionId, false);
+    }
+  })();
+}
+
 interface OpcionesRefresco {
+  /** Fotos e informes que subió el evento: se espera en segundo plano a que la inspección nueva los muestre (CU-37). */
+  esperaAdjuntosInspeccion?: { fotos: number; informes: number };
   /** FechaUltimoEvento de la obra ANTES del evento. */
   fechaUltimoEventoPrevia?: string | null;
   /** false para eventos que no crean inspección (ej. el acta de inicio). Por defecto true. */
@@ -132,6 +163,13 @@ export async function refrescarObraTrasEvento(
     detalleCache.set(solicitudId, data);
     const cambios = cambiosDesdeDetalle(data);
     actualizarObra(solicitudId, cambios);
+    const esperadosAdj = opciones.esperaAdjuntosInspeccion;
+    if (esperadosAdj && (esperadosAdj.fotos > 0 || esperadosAdj.informes > 0) && creaInspeccion && hayReferencia) {
+      const candidatas = nuevas(data);
+      const delTipo = tipoEsperado ? candidatas.filter((i) => i.Tipo === tipoEsperado) : candidatas;
+      const elegida = [...(delTipo.length ? delTipo : candidatas)].sort((a, b) => b.Id - a.Id)[0];
+      if (elegida) esperarAdjuntosInspeccionEnSegundoPlano(elegida.Id, esperadosAdj);
+    }
     if (opciones.esperaDocumento && !((data as DetalleDocs)?.Documentos ?? []).some((d) => !docsPrevios.has(claveDoc(d)))) {
       esperarDocumentoEnSegundoPlano(actualizarObra, solicitudId, docsPrevios);
     }

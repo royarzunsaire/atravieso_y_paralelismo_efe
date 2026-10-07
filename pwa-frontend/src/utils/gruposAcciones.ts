@@ -26,7 +26,7 @@ export function esAccionInspeccion(codigo: string, catalogo: CatalogoInicio | nu
 /** Claves que la app ya sabe interpretar de una acción. */
 const CLAVES_CONOCIDAS = new Set([
   'Codigo', 'Label', 'Icono', 'Grupo', 'Orden', 'Activo',
-  'RequiereComentario', 'RequiereAdjunto', 'RequiereAvance', 'TiposDocumento',
+  'RequiereComentario', 'RequiereAdjunto', 'RequiereAvance', 'TiposDocumento', 'TiposDocumentoOpcional',
 ]);
 
 /** Requisitos nuevos (`Requiere…`) que la API agregó y la app aún no sabe pedir. */

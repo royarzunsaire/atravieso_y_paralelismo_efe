@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { FileUp, AlertTriangle, Lock, Clock, Undo2 } from 'lucide-react';
 import { EventoForm } from './EventoForm';
+import { DocumentosOpcionalesBoton } from './DocumentosOpcionalesBoton';
 import { BotonDescargar } from './BotonDescargar';
 import { useInicio } from '@/context/InicioContext';
 import { generarEventoIdExterno } from '@/services/eventosService';
 import { enviarAccionObra } from '@/utils/enviarAccionObra';
 import type { CambiarEtapa } from '@/utils/etapasProgreso';
 import { tramiteRechazado, ACCION_DEVOLVER_DOCUMENTACION, TEXTOS_DEVOLUCION, TEXTOS_ESPERA_CORRECCION, type Tramite } from '@/utils/tramitesObra';
-import type { AccionCatalogo } from '@/types/eventos';
+import { definicionVigente } from '@/utils/definicionVigente';
 
 /** Etiqueta pequeña para la tarjeta del dashboard: ámbar si hay que actuar, gris si se espera a otro. */
 export function EtiquetaTramitePendiente({ texto, espera }: { texto: string; espera?: boolean }) {
@@ -54,31 +55,18 @@ export function TramitePendienteCard({ solicitudId, tramite, bloquea, comentario
 
   if (!obra) return null;
 
-  // La definición fresca de la obra (AccionesDef) manda sobre el catálogo cacheado.
-  const def = inicio.catalogo?.TiposEvento?.find((t) => t.Codigo === tramite.codigo);
-  const fresca = obra.AccionesDef?.[tramite.codigo];
-  // Una acción nueva puede no estar todavía en el catálogo guardado: se arma con la definición fresca de la obra.
-  const accion: AccionCatalogo | null = (def || fresca)
-    ? {
-        Codigo: tramite.codigo, Label: tramite.boton, Icono: 'file-up', Grupo: '', Orden: 99,
-        RequiereComentario: false, RequiereAdjunto: false, RequiereAvance: false, TiposDocumento: [],
-        ...def, ...fresca,
-      }
-    : null;
+  // Banderas siempre de la definición vigente de la obra (CU-35); una acción nueva puede no estar en el catálogo guardado.
+  const accion = definicionVigente(obra, inicio.catalogo, tramite.codigo, { Label: tramite.boton });
   const puedeSubir = obra.AccionesHabilitadas.includes(tramite.codigo) && !!accion;
   // Rechazado por el líder: se muestra su comentario y se pide el documento corregido (CU-16).
   const rechazado = tramiteRechazado(tramite, comentarioDevolucion);
   const textos = rechazado ? tramite.rechazo! : tramite;
 
   // «Devolver documentación» (CU-32): solo si la API la habilita; mismo EventoForm (comentario, sin adjunto).
-  const defDevolver = inicio.catalogo?.TiposEvento?.find((t) => t.Codigo === ACCION_DEVOLVER_DOCUMENTACION);
-  const frescaDevolver = obra.AccionesDef?.[ACCION_DEVOLVER_DOCUMENTACION];
-  const accionDevolver: AccionCatalogo | null = obra.AccionesHabilitadas.includes(ACCION_DEVOLVER_DOCUMENTACION) && (defDevolver || frescaDevolver)
-    ? {
-        Codigo: ACCION_DEVOLVER_DOCUMENTACION, Label: TEXTOS_DEVOLUCION.devolver, Icono: 'corner-down-left', Grupo: '', Orden: 50,
-        RequiereComentario: true, RequiereAdjunto: false, RequiereAvance: false, TiposDocumento: [],
-        ...defDevolver, ...frescaDevolver,
-      }
+  const accionDevolver = obra.AccionesHabilitadas.includes(ACCION_DEVOLVER_DOCUMENTACION)
+    ? definicionVigente(obra, inicio.catalogo, ACCION_DEVOLVER_DOCUMENTACION, {
+        Label: TEXTOS_DEVOLUCION.devolver, Icono: 'corner-down-left', Orden: 50, RequiereComentario: true,
+      })
     : null;
   const enRevision = !!revision && !!accionDevolver;
   // CU-33: devuelto/rechazado y este usuario no puede subir la corrección → espera al ITO (ve su comentario y el documento).
@@ -133,6 +121,12 @@ export function TramitePendienteCard({ solicitudId, tramite, bloquea, comentario
           </button>
         ) : !esperaCorreccion && (
           <p className="text-base font-medium text-amber-900">{textos.sinPermiso}</p>
+        )}
+        {/* CU-36: documentos opcionales de la acción (solo si la API los entrega) */}
+        {puedeSubir && (accion?.TiposDocumentoOpcional?.length ?? 0) > 0 && (
+          <div className="mt-2">
+            <DocumentosOpcionalesBoton solicitudId={solicitudId} tipos={accion!.TiposDocumentoOpcional!} onSubido={onRegistrado} />
+          </div>
         )}
         {enRevision && (
           <button

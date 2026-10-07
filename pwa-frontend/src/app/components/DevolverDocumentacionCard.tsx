@@ -7,7 +7,7 @@ import { generarEventoIdExterno } from '@/services/eventosService';
 import { enviarAccionObra } from '@/utils/enviarAccionObra';
 import type { CambiarEtapa } from '@/utils/etapasProgreso';
 import { ACCION_DEVOLVER_DOCUMENTACION, TEXTOS_DEVOLUCION } from '@/utils/tramitesObra';
-import type { AccionCatalogo } from '@/types/eventos';
+import { definicionVigente } from '@/utils/definicionVigente';
 
 interface DevolverDocumentacionCardProps {
   solicitudId: number;
@@ -31,14 +31,11 @@ export function DevolverDocumentacionCard({ solicitudId, documentos, onRegistrad
 
   if (!obra) return null;
 
-  const def = inicio.catalogo?.TiposEvento?.find((t) => t.Codigo === ACCION_DEVOLVER_DOCUMENTACION);
-  const fresca = obra.AccionesDef?.[ACCION_DEVOLVER_DOCUMENTACION];
-  if (!obra.AccionesHabilitadas.includes(ACCION_DEVOLVER_DOCUMENTACION) || !(def || fresca)) return null;
-  const accion: AccionCatalogo = {
-    Codigo: ACCION_DEVOLVER_DOCUMENTACION, Label: TEXTOS_DEVOLUCION.devolver, Icono: 'corner-down-left', Grupo: '', Orden: 50,
-    RequiereComentario: true, RequiereAdjunto: false, RequiereAvance: false, TiposDocumento: [],
-    ...def, ...fresca,
-  };
+  if (!obra.AccionesHabilitadas.includes(ACCION_DEVOLVER_DOCUMENTACION)) return null;
+  const accion = definicionVigente(obra, inicio.catalogo, ACCION_DEVOLVER_DOCUMENTACION, {
+    Label: TEXTOS_DEVOLUCION.devolver, Icono: 'corner-down-left', Orden: 50, RequiereComentario: true,
+  });
+  if (!accion) return null;
 
   const abrir = () => { setEventoId(generarEventoIdExterno()); setAbierto(true); };
   const cerrar = () => { setAbierto(false); setEventoId(''); };

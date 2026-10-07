@@ -1,3 +1,4 @@
+import { definicionVigente } from '@/utils/definicionVigente';
 import { useState } from 'react';
 import { ClipboardCheck, CheckCircle, XCircle } from 'lucide-react';
 import { EventoForm } from './EventoForm';
@@ -41,12 +42,10 @@ export function ValidarInformeCard({ solicitudId, contexto, documentos, onRegist
 
   if (!obra) return null;
 
-  // La definición fresca de la obra (AccionesDef) manda sobre el catálogo cacheado.
+  // Banderas siempre de la definición vigente de la obra (CU-35).
   const resolver = (codigo: string): AccionCatalogo | null => {
     if (!obra.AccionesHabilitadas.includes(codigo)) return null;
-    const def = inicio.catalogo?.TiposEvento?.find((t) => t.Codigo === codigo);
-    const fresca = obra.AccionesDef?.[codigo];
-    return def ? (fresca ? { ...def, ...fresca } : def) : null;
+    return definicionVigente(obra, inicio.catalogo, codigo);
   };
   const validar = resolver(ACCION_VALIDAR_INFORME);
   const rechazar = resolver(ACCION_RECHAZAR_INFORME);
