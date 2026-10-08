@@ -13,7 +13,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
-| **Media** | 9 (2 corregidas: H-06, H-07; 1 parcial: H-08) | ~~H-06~~, ~~H-07~~, H-08 (parcial), H-09 a H-14 |
+| **Media** | 9 (3 corregidas: H-06, H-07, H-09; 1 parcial: H-08) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, H-10 a H-14 |
 | **Baja** | 8 | H-15 a H-22 |
 | **Informativa** | 2 | H-23, H-24 |
 
@@ -101,9 +101,10 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 - **Pendiente de H-08:** acortar la vida del token (hoy 7 días), que depende de cómo se defina el modo offline (inspectores sin señal), y la cookie `HttpOnly` a largo plazo.
 - **Límites conocidos:** la caché y la lista de revocados viven en la memoria del proceso: se pierden al reiniciar el contenedor (un token cerrado volvería a valer hasta su vencimiento) y no se comparten entre réplicas (hoy hay una).
 
-**H-09 — `AuthCallback` guarda cualquier token recibido por `?token=` en la URL** · CWE-384, CWE-598 · ASVS 3.2
+**H-09 — ✅ CORREGIDO (08-10-2026) — `AuthCallback` guardaba cualquier token recibido por `?token=` en la URL** · CWE-384, CWE-598 · ASVS 3.2
 - **Evidencia:** `src/app/App.tsx:65` activa `AuthCallback` en `/auth/callback`, que guarda `token` en `localStorage`. Es código del login con Azure, hoy deshabilitado. Un enlace malicioso `…/auth/callback?token=<token del atacante>` inicia sesión a la víctima en la cuenta del atacante.
 - **Mitigación:** eliminar el componente y la ruta mientras Azure esté deshabilitado.
+- **Corrección aplicada:** se eliminaron `AuthCallback.tsx`, su import, su tipo de pantalla y la rama de `App.tsx` que lo activaba en `/auth/callback`. Verificado en el navegador: abrir `/auth/callback?token=<cualquier cosa>` ya no guarda nada en `localStorage` ni inicia sesión; la app muestra el login. En el código comentado de Azure del backend y en la spec 02 quedó una advertencia para no volver a pasar el token por la URL al reactivarlo (usar un código de un solo uso por POST o el fragmento `#`, y validar `state`).
 
 **H-10 — Cuerpos de hasta 15 MB se procesan antes de autenticar; errores de entrada devuelven 500** · CWE-770, CWE-209 · ASVS 13.1 / API4:2023
 - **Evidencia:** `server.js:48` (`express.json({ limit: '15mb' })` global). D8: un cuerpo de 14 MB en `/auth/login/local` se parsea completo y recién ahí responde 401; con 16 MB responde **500** (debería ser 413). D10: JSON malformado responde **500** con el mensaje del analizador (debería ser 400).

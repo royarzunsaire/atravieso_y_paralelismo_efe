@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { BottomNav } from './components/BottomNav';
 import { Login } from './components/Login';
-import { AuthCallback } from './components/AuthCallback';
 import { authService } from '@/services/auth';
 import { Profile } from './components/Profile';
 import { ChangePassword } from './components/ChangePassword';
@@ -27,7 +26,6 @@ import { InicioProvider, useInicio } from '@/context/InicioContext';
 
 type Screen =
     | { type: 'login' }
-    | { type: 'authCallback' }
     | { type: 'profile' }
     | { type: 'changePassword'; mandatory?: boolean }
     | { type: 'solicitudesDashboard' }
@@ -62,10 +60,6 @@ function AppContent() {
   // ── Auth check al montar ─────────────────────────────────────
 
   useEffect(() => {
-    if (window.location.pathname === '/auth/callback') {
-      setCurrentScreen({ type: 'authCallback' });
-      return;
-    }
     const isAuth = authService.isAuthenticated();
     setIsAuthenticated(isAuth);
     if (!isAuth) {
@@ -394,10 +388,6 @@ function AppContent() {
       <div className="min-h-screen bg-[#F5F7FA]">
         {currentScreen.type === 'login' && (
             <Login onLoginSuccess={handleLoginSuccess} />
-        )}
-
-        {currentScreen.type === 'authCallback' && (
-            <AuthCallback onSuccess={handleLoginSuccess} />
         )}
 
         {isAuthenticated && currentScreen.type === 'solicitudesDashboard' && (

@@ -85,7 +85,9 @@ router.post('/login/local', limitarLogin, (req, res, next) => {
 //   (req, res) => {
 //     const token = generateToken(req.user);
 //
-//     // Redireccionar al frontend con el token
+//     // ⚠️ SEGURIDAD (H-09): NO reactivar este redirect tal cual. Un token en la URL queda en el historial, en los logs y en el
+//     // Referer, y la pantalla que lo recibía permitía iniciar la sesión de la víctima en la cuenta de un atacante (se eliminó).
+//     // Al retomar Azure AD: intercambiar un código de un solo uso por POST, o entregar el token en el fragmento (#), y validar `state`.
 //     res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
 //   }
 // );

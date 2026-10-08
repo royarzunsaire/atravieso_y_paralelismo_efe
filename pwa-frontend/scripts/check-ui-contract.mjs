@@ -610,6 +610,12 @@ const REGLAS = [
   { id: 'CU-40c', archivo: '../seguridad.inc.template', tipo: 'debe', texto: "script-src 'self'",
     msg: 'La CSP del frontend no admite scripts en línea ni de otros orígenes.' },
 
+  // ── Sin token en la URL (CU-41) ──
+  { id: 'CU-41a', archivo: 'app/App.tsx', tipo: 'noDebe', texto: 'AuthCallback',
+    msg: 'No debe existir una pantalla que acepte un token recibido por la URL (fijación de sesión, H-09).' },
+  { id: 'CU-41b', archivo: 'app/App.tsx', tipo: 'noDebe', texto: '/auth/callback',
+    msg: 'No debe existir la ruta /auth/callback.' },
+
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',
     msg: 'Ctrl. Obra muestra el comentario de devolución.' },

@@ -29,7 +29,7 @@
 | B5 | Dependencias externas en tiempo de ejecución controladas | CWE-829 | ⚠️ | Google Fonts y mosaicos OSM (H-21) |
 | B6 | Enlaces `target="_blank"` con `rel="noopener noreferrer"` | CWE-1022 | ✅ | `PhotosModal.tsx`, `UbicacionModal.tsx` |
 | B7 | Token de sesión no expuesto a scripts | ASVS 3.2 | ⚠️ | JWT en `localStorage` (H-08) |
-| B8 | No se acepta un token recibido por URL | ASVS 3.2.1, CWE-384 | ❌ | `AuthCallback` (H-09) |
+| B8 | No se acepta un token recibido por URL | ASVS 3.2.1, CWE-384 | ✅ | `AuthCallback` y `/auth/callback` eliminados (H-09 corregido 08-10-2026) |
 | B9 | Al cerrar sesión se limpia todo el almacenamiento de la sesión | ASVS 3.3 | ⚠️ | `localStorage` y cachés sí; `sessionStorage` no (H-14) |
 | B10 | Sin *source maps* en producción | ASVS 14.3.2 | ✅ | `dist/assets/*.map`: 0 |
 | B11 | Sin datos sensibles en consola del navegador | ASVS 7.1 | ✅ | Sin `console.log` de token, usuario o payload |
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 38 |
+| ✅ Cumple | 39 |
 | ⚠️ Parcial / atención | 26 |
-| ❌ No cumple | 10 |
+| ❌ No cumple | 9 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 10 |
 | **Total de controles** | **87** |
