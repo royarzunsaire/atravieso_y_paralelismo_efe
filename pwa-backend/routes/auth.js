@@ -45,7 +45,7 @@ router.post('/login/local', limitarLogin, (req, res, next) => {
       return res.status(500).json({ success: false, error: err.message });
     }
     if (!user) {
-      return res.status(401).json({ success: false, error: info.message || 'Credenciales inválidas' });
+      return res.status(401).json({ success: false, error: info?.message || 'Correo o contraseña incorrectos. Si el problema continúa, contacta al administrador.' });
     }
 
     const token = generateToken(user);

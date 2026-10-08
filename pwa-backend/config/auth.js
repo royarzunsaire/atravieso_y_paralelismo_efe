@@ -2,6 +2,13 @@ const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const bcrypt = require('bcryptjs');
 const usersDb = require('../database');
+const { randomUUID } = require('crypto');
+
+// Seguridad (hallazgo H-06): el login NO debe revelar si un correo existe. Para eso (1) se responde SIEMPRE el mismo mensaje,
+// sea porque el correo no existe, está dado de baja o la contraseña es incorrecta, y (2) cuando el correo no existe se compara
+// igual contra un hash falso del mismo costo que los reales, para que el tiempo de respuesta no delate la diferencia.
+const MENSAJE_CREDENCIALES = 'Correo o contraseña incorrectos. Si el problema continúa, contacta al administrador.';
+const HASH_FALSO = bcrypt.hashSync(randomUUID(), 10);
 
 const isAzureConfigured = Boolean(
   process.env.AZURE_AD_CLIENT_ID &&
@@ -72,14 +79,15 @@ async (email, password, done) => {
     
     if (!user) {
       console.warn('⚠️  Login rechazado');
-      return done(null, false, { message: 'Usuario no encontrado' });
+      await bcrypt.compare(password, HASH_FALSO); // iguala el tiempo con el camino «contraseña incorrecta»
+      return done(null, false, { message: MENSAJE_CREDENCIALES });
     }
     
-    const isValid = await bcrypt.compare(password, user.password);
+    const isValid = typeof user.password === 'string' && await bcrypt.compare(password, user.password);
     
     if (!isValid) {
       console.warn('⚠️  Login rechazado');
-      return done(null, false, { message: 'Contraseña incorrecta' });
+      return done(null, false, { message: MENSAJE_CREDENCIALES });
     }
     
     const updatedUser = await usersDb.updateUserLastLogin(user.id);

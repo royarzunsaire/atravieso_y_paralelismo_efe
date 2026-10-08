@@ -2,7 +2,7 @@
 
 **Fecha:** 07-10-2026 · **Alcance y método:** ver `01-planner.md` · **Checklist:** `02-checklist.md`
 **Resultado de las pruebas dinámicas (`localhost`, `pruebas-dinamicas.mjs`):** 18 OK · 6 fallas · 3 de atención · 1 bajo (D1 cabeceras, D5 enumeración, D6 fuerza bruta, D7 registro público, D8 tamaño de cuerpo, D10 JSON malformado).
-**Tras las correcciones del 08-10-2026 (H-04, H-01, H-02 y H-03):** 20 OK · 4 fallas · 3 de atención · 1 bajo (D7 del registro público y D6 de fuerza bruta ya dan OK).
+**Tras las correcciones del 08-10-2026 (H-01, H-02, H-03, H-04 y H-06):** 21 OK · 3 fallas · 3 de atención · 1 bajo · 1 informativo (D5 de enumeración, D6 de fuerza bruta y D7 del registro público ya dan OK).
 
 ## 1. Resumen ejecutivo
 La aplicación tiene **buenos cimientos en autorización**: el servidor revalida cada acción contra la API del cliente y rechazó todos los intentos de acceder o escribir sobre obras ajenas, de usar tokens falsos (`alg:none`, firma incorrecta, expirado) y de usar endpoints de administrador con un usuario normal. No hay secretos en el historial de git, en el bundle ni en las imágenes, los `.env` están ignorados, los secretos locales tienen longitud y entropía adecuadas, el frontend no tiene `npm audit` pendientes y no usa sinks de XSS.
@@ -13,7 +13,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
-| **Media** | 9 | H-06 a H-14 |
+| **Media** | 9 (1 corregida: H-06) | ~~H-06~~, H-07 a H-14 |
 | **Baja** | 8 | H-15 a H-22 |
 | **Informativa** | 2 | H-23, H-24 |
 
@@ -71,9 +71,12 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 
 ### Medias
 
-**H-06 — Enumeración de usuarios (mensaje y tiempo de respuesta)** · CWE-204 · ASVS 2.2
+**H-06 — ✅ CORREGIDO (08-10-2026) — Enumeración de usuarios (mensaje y tiempo de respuesta)** · CWE-204 · ASVS 2.2
 - **Evidencia:** D5: «Usuario no encontrado» (64 ms) frente a «Contraseña incorrecta» (205 ms, por el cálculo de bcrypt). Un usuario dado de baja también responde «Usuario no encontrado».
 - **Mitigación:** un mismo mensaje genérico («Credenciales inválidas») y comparar siempre contra un hash dummy para igualar tiempos.
+- **Corrección aplicada** (`config/auth.js`): el login responde SIEMPRE «Correo o contraseña incorrectos. Si el problema continúa, contacta al administrador.», sea porque el correo no existe, está dado de baja o la contraseña es incorrecta; y cuando el correo no existe compara igualmente contra un hash falso del mismo costo (10) que los reales. El texto invita a contactar al administrador (útil para quien fue dado de baja) sin confirmar nada.
+- **Verificación:** mensaje único con correo inexistente y con correo real + clave mala (API y pantalla de login); tiempos parejos, ≈95–100 ms en ambos casos (antes 64 ms contra 205 ms). El tiempo incluye la latencia de red hacia Oracle y varía por sí sola, por eso la prueba D5 lo informa pero no lo usa como criterio de falla.
+- **Fuera de alcance de este hallazgo:** otras respuestas «Usuario no encontrado» del backend (`/auth/me`, cambio de contraseña, reset de administrador) exigen sesión y no permiten sondear correos.
 
 **H-07 — Sin cabeceras de seguridad ni CSP (backend y nginx)** · CWE-693, CWE-1021 · ASVS 14.4 / A05:2021
 - **Evidencia:** D1: faltan `Content-Security-Policy`, `Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`; `X-Powered-By: Express` expuesto. `nginx.conf.template` no define ninguna, no oculta `server_tokens` y no limita peticiones.

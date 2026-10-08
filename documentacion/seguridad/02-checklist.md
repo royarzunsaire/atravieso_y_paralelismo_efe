@@ -52,7 +52,7 @@
 | C8 | Límite de tamaño de cuerpo por ruta | API4:2023 | ❌ | 15 MB global antes de autenticar (H-10) |
 | C9 | Límite de tasa (rate limiting) | API4:2023 | ⚠️ | Login limitado a 5 fallos / 10 min por correo + IP (H-03 corregido 08-10-2026); el resto de la API y nginx sin límite (E13) |
 | C10 | Registro de cuentas restringido | ASVS 2.1 | ✅ | `POST /auth/register` eliminado (H-01 corregido 08-10-2026); las cuentas se crean solo por ORDS |
-| C11 | Sin enumeración de usuarios | ASVS 2.2 | ❌ | D5 (H-06) |
+| C11 | Sin enumeración de usuarios | ASVS 2.2 | ✅ | Mensaje único y tiempos parejos con hash falso (H-06 corregido 08-10-2026) |
 | C12 | Errores sin detalles internos y con el código HTTP correcto | ASVS 7.4 | ⚠️ | D10: JSON malformado → 500; `error.message` al cliente (H-10, H-18) |
 | C13 | Cabeceras de seguridad (`helmet`) y sin `X-Powered-By` | ASVS 14.4 | ❌ | D1 (H-07) |
 | C14 | CORS restrictivo | API8:2023 | ⚠️ | Rechaza orígenes ajenos (D9); permite `localhost` en producción (H-16) |
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 32 |
+| ✅ Cumple | 33 |
 | ⚠️ Parcial / atención | 25 |
-| ❌ No cumple | 17 |
+| ❌ No cumple | 16 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 10 |
 | **Total de controles** | **87** |

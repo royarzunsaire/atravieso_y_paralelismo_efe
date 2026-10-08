@@ -597,6 +597,11 @@ const REGLAS = [
   { id: 'CU-39a', archivo: 'services/auth.js', tipo: 'debe', texto: "data.message || data.error || 'Error al iniciar sesión'",
     msg: 'El login muestra el mensaje del bloqueo por demasiados intentos (429), que viene en `message`.' },
 
+  { id: 'CU-39b', archivo: '../../pwa-backend/config/auth.js', tipo: 'debe', texto: 'MENSAJE_CREDENCIALES',
+    msg: 'El login responde siempre el mismo mensaje de credenciales incorrectas (no revela si el correo existe).' },
+  { id: 'CU-39c', archivo: '../../pwa-backend/config/auth.js', tipo: 'noDebe', texto: "message: 'Usuario no encontrado'",
+    msg: 'El login no puede decir «Usuario no encontrado»: permitiría averiguar qué correos existen.' },
+
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',
     msg: 'Ctrl. Obra muestra el comentario de devolución.' },

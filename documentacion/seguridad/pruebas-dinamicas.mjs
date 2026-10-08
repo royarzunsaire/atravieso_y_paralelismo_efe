@@ -69,14 +69,26 @@ for (const [m, p] of [['GET', '/api/v2/inicio'], ['GET', '/api/v2/solicitudes/1'
   }
 }
 
-// D5 enumeración de usuarios (mensaje y tiempo)
+// D5 enumeración de usuarios (mensaje y tiempo). Cada intento fallido cuenta para el límite de 5 / 10 min (H-03):
+// se usan pocas muestras por correo, así que NO repetir esta batería más de 2 veces dentro de 10 minutos con el mismo usuario.
 {
   const intento = (email, password) => req('/auth/login/local', { method: 'POST', headers: J, body: JSON.stringify({ email, password }) });
-  const inexistente = await intento(`noexiste-${crypto.randomUUID().slice(0, 8)}@example.com`, 'Incorrecta123');
+  const media = (xs) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+  const inexistentes = [];
+  for (let i = 0; i < 4; i++) inexistentes.push(await intento(`noexiste-${crypto.randomUUID().slice(0, 8)}@example.com`, 'Incorrecta123'));
   if (EMAIL) {
-    const existente = await intento(EMAIL, 'Incorrecta123');
-    const distintos = inexistente.json?.error !== existente.json?.error;
-    log('D5 enumeración por mensaje', distintos ? 'FALLA' : 'OK', `inexistente: "${inexistente.json?.error}" (${inexistente.ms} ms) | existente+clave mala: "${existente.json?.error}" (${existente.ms} ms)`);
+    const existentes = [await intento(EMAIL, 'Incorrecta123'), await intento(EMAIL, 'Incorrecta456')];
+    if (existentes.some((r) => r.status === 429)) {
+      log('D5 enumeración', 'OMITIDO', 'el usuario de prueba está bloqueado por el límite de intentos; espera 10 minutos');
+    } else {
+      const msgInex = new Set(inexistentes.map((r) => r.json?.error));
+      const msgExis = new Set(existentes.map((r) => r.json?.error));
+      const mismoMensaje = msgInex.size === 1 && msgExis.size === 1 && [...msgInex][0] === [...msgExis][0];
+      const tInex = media(inexistentes.map((r) => r.ms)); const tExis = media(existentes.map((r) => r.ms));
+      log('D5 enumeración por mensaje', mismoMensaje ? 'OK' : 'FALLA', `inexistente: "${[...msgInex][0]}" | existente + clave mala: "${[...msgExis][0]}"`);
+      // El tiempo incluye la latencia de la red hacia Oracle (varía por sí sola); se informa, no se usa como criterio de falla.
+      log('D5 enumeración por tiempo', 'INFO', `promedio inexistente ${tInex} ms (4 muestras) vs existente con clave mala ${tExis} ms (2 muestras)`);
+    }
   } else {
     log('D5 enumeración por mensaje', 'OMITIDO', 'requiere SEC_EMAIL');
   }
