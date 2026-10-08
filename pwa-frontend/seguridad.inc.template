@@ -1,0 +1,19 @@
+# Cabeceras de seguridad del frontend (hallazgo H-07). Se incluye en cada `location` que entrega la SPA, porque en nginx un
+# `add_header` dentro de un location anula TODOS los del nivel superior: por eso va en un archivo aparte y se incluye explícitamente.
+# La imagen oficial procesa esta plantilla con envsubst al arrancar (solo variables CSP_* y BACKEND_*).
+#
+# Content-Security-Policy — qué necesita la app, y nada más:
+#   · script-src 'self'                      → solo el JS propio (el HTML no tiene scripts en línea)
+#   · style-src 'self' + Google Fonts        → CSS propio y la hoja de la fuente Inter; style-src-attr permite style="" (React, Leaflet)
+#   · font-src fonts.gstatic.com             → archivos de la fuente
+#   · img-src data: blob: + mosaicos OSM     → fotos tomadas (data:), fotos descargadas (blob:) y el mapa de las inspecciones
+#   · connect-src 'self' ${CSP_CONNECT_EXTRA}→ la API propia + el ORIGEN de la API del cliente, de donde el navegador baja las
+#                                              fotos con fetch() (UrlDescarga). Definir CSP_CONNECT_EXTRA en el despliegue.
+#   · frame-ancestors 'none'                 → nadie puede incrustar la app en un iframe (clickjacking)
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' ${CSP_CONNECT_EXTRA}; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "DENY" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy "geolocation=(self), camera=(self), microphone=(), payment=(), usb=()" always;
+# HSTS solo cuando la petición llegó por HTTPS (el balanceador de OCI termina el TLS y manda X-Forwarded-Proto); si no, queda vacío y nginx no emite la cabecera.
+add_header Strict-Transport-Security $hsts_valor always;

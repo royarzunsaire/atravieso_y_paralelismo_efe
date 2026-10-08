@@ -602,6 +602,14 @@ const REGLAS = [
   { id: 'CU-39c', archivo: '../../pwa-backend/config/auth.js', tipo: 'noDebe', texto: "message: 'Usuario no encontrado'",
     msg: 'El login no puede decir «Usuario no encontrado»: permitiría averiguar qué correos existen.' },
 
+  // ── Rutas relativas y CSP (CU-40) ──
+  { id: 'CU-40a', archivo: 'services/inicioService.js', tipo: 'debe', texto: 'inicio`, window.location.origin);',
+    msg: 'La URL de inicio se arma con el origen como base: la imagen Docker usa rutas relativas (VITE_API_URL vacío).' },
+  { id: 'CU-40b', archivo: 'services/inicioService.js', tipo: 'noDebe', texto: 'new URL(`${API_URL}/api/v2/inicio`);',
+    msg: 'new URL sin base falla con rutas relativas (dashboard vacío en la imagen Docker).' },
+  { id: 'CU-40c', archivo: '../seguridad.inc.template', tipo: 'debe', texto: "script-src 'self'",
+    msg: 'La CSP del frontend no admite scripts en línea ni de otros orígenes.' },
+
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',
     msg: 'Ctrl. Obra muestra el comentario de devolución.' },

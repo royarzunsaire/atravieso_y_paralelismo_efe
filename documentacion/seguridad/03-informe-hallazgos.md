@@ -2,7 +2,7 @@
 
 **Fecha:** 07-10-2026 · **Alcance y método:** ver `01-planner.md` · **Checklist:** `02-checklist.md`
 **Resultado de las pruebas dinámicas (`localhost`, `pruebas-dinamicas.mjs`):** 18 OK · 6 fallas · 3 de atención · 1 bajo (D1 cabeceras, D5 enumeración, D6 fuerza bruta, D7 registro público, D8 tamaño de cuerpo, D10 JSON malformado).
-**Tras las correcciones del 08-10-2026 (H-01, H-02, H-03, H-04 y H-06):** 21 OK · 3 fallas · 3 de atención · 1 bajo · 1 informativo (D5 de enumeración, D6 de fuerza bruta y D7 del registro público ya dan OK).
+**Tras las correcciones del 08-10-2026 (H-01, H-02, H-03, H-04, H-06 y H-07):** 22 OK · 2 fallas · 3 de atención · 1 bajo · 1 informativo (D1 de cabeceras, D5 de enumeración, D6 de fuerza bruta y D7 del registro público ya dan OK; quedan D8 y D10, de H-10).
 
 ## 1. Resumen ejecutivo
 La aplicación tiene **buenos cimientos en autorización**: el servidor revalida cada acción contra la API del cliente y rechazó todos los intentos de acceder o escribir sobre obras ajenas, de usar tokens falsos (`alg:none`, firma incorrecta, expirado) y de usar endpoints de administrador con un usuario normal. No hay secretos en el historial de git, en el bundle ni en las imágenes, los `.env` están ignorados, los secretos locales tienen longitud y entropía adecuadas, el frontend no tiene `npm audit` pendientes y no usa sinks de XSS.
@@ -13,7 +13,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
-| **Media** | 9 (1 corregida: H-06) | ~~H-06~~, H-07 a H-14 |
+| **Media** | 9 (2 corregidas: H-06, H-07) | ~~H-06~~, ~~H-07~~, H-08 a H-14 |
 | **Baja** | 8 | H-15 a H-22 |
 | **Informativa** | 2 | H-23, H-24 |
 
@@ -78,9 +78,16 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 - **Verificación:** mensaje único con correo inexistente y con correo real + clave mala (API y pantalla de login); tiempos parejos, ≈95–100 ms en ambos casos (antes 64 ms contra 205 ms). El tiempo incluye la latencia de red hacia Oracle y varía por sí sola, por eso la prueba D5 lo informa pero no lo usa como criterio de falla.
 - **Fuera de alcance de este hallazgo:** otras respuestas «Usuario no encontrado» del backend (`/auth/me`, cambio de contraseña, reset de administrador) exigen sesión y no permiten sondear correos.
 
-**H-07 — Sin cabeceras de seguridad ni CSP (backend y nginx)** · CWE-693, CWE-1021 · ASVS 14.4 / A05:2021
+**H-07 — ✅ CORREGIDO en el código (08-10-2026; falta verificar en la imagen) — Sin cabeceras de seguridad ni CSP (backend y nginx)** · CWE-693, CWE-1021 · ASVS 14.4 / A05:2021
 - **Evidencia:** D1: faltan `Content-Security-Policy`, `Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`; `X-Powered-By: Express` expuesto. `nginx.conf.template` no define ninguna, no oculta `server_tokens` y no limita peticiones.
 - **Para la CSP hay que permitir:** `fonts.googleapis.com` y `fonts.gstatic.com` (fuente Inter, ver H-21), `tile.openstreetmap.org` (mapa) y el origen propio. HSTS puede ponerse en el balanceador.
+- **Corrección aplicada:**
+  - **Backend** (`helmet`): CSP `default-src 'none'; frame-ancestors 'none'` (es una API JSON), `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy: no-referrer`, `Strict-Transport-Security`, `Cross-Origin-*`, `Permissions-Policy`, y se oculta `X-Powered-By`. Verificado en vivo: la prueba D1 pasa a OK.
+  - **nginx** (`nginx.conf.template` + `seguridad.inc.template`, incluido en cada `location` porque un `add_header` dentro de un location anula los del nivel superior): CSP de la SPA (`script-src 'self'`, sin scripts en línea; fuente de Google; mosaicos de OpenStreetMap; `connect-src 'self'` + el origen de la API del cliente de donde se bajan las fotos), `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` (cámara y geolocalización solo del propio sitio), HSTS solo cuando la petición llegó por HTTPS (`X-Forwarded-Proto`) y `server_tokens off`.
+  - **Variable nueva `CSP_CONNECT_EXTRA`** (frontend): el **origen** de la API del cliente (esquema + host + puerto). Sin ella las fotos descargadas no cargan. `docker-compose.yml` la deja en la IP actual; en OCI debe ser su URL (idealmente HTTPS, ver H-05).
+- **Verificación realizada:** como no hay nginx ni Docker locales, se sirvió el frontend compilado con un servidor de prueba que **lee las cabeceras directamente de `seguridad.inc.template`** y se usó la app real en el navegador bajo esa política: login, dashboard, detalle, fotos descargadas (2 de 2), mapa (marcador y 6 de 6 mosaicos) y fuente Inter, **sin ninguna violación**. En negativo, la política bloqueó una conexión a un servidor ajeno, un script en línea inyectado, un script de otro origen y una imagen de un tercero. Durante la prueba bloqueó además una conexión a `mi-pwa-backend.onrender.com` que venía de mi compilación local con el `.env.production` antiguo (la imagen Docker usa rutas relativas).
+- **Pendiente de verificar en la imagen real:** la sintaxis de nginx y las cabeceras reales no se pudieron ejecutar localmente. Hay que reconstruir la imagen del frontend y, en `concerto`: `docker run --rm -e BACKEND_HOST=localhost -e BACKEND_PORT=3001 -e CSP_CONNECT_EXTRA=http://146.181.52.2:3000 ayp-frontend:local nginx -t` y luego `curl -I` al sitio para ver las cabeceras.
+- **Queda para más adelante:** `style-src-attr 'unsafe-inline'` (necesario para `style=""` de React y Leaflet; los estilos de hoja siguen restringidos); el límite de peticiones en nginx (E13).
 
 **H-08 — Sesión de 7 días en `localStorage`, sin revocación; dar de baja a un usuario no corta su sesión** · CWE-613, CWE-922 · ASVS 3.3 / 3.5
 - **Evidencia:** `routes/auth.js:21` (`expiresIn: '7d'`); `verifyToken` solo valida la firma, no consulta `activo`; token y usuario en `localStorage` (`services/auth.js`). `/auth/logout` no invalida nada en el servidor. El token incluye el `rol`.
@@ -148,3 +155,9 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 **Datos personales tratados:** nombre y correo del usuario, ubicación GPS de cada inspección, fotos e informes de obras, comentarios.
 
 **Salidas de red del servidor:** Oracle ORDS (HTTPS, OAuth2), API del cliente en SharePoint (**HTTP**, JWT HS256).
+
+## 6. Hallazgo adicional descubierto al verificar las correcciones (no es de seguridad)
+**H-25 — Con la imagen Docker (rutas relativas), el dashboard quedaba vacío tras iniciar sesión · ✅ CORREGIDO (08-10-2026)**
+- **Qué pasaba:** `services/inicioService.js` armaba la dirección con `new URL('/api/v2/inicio')`, que exige una base cuando la ruta es relativa. Con `VITE_API_URL` vacío (así se compila la imagen para que no lleve ninguna URL fija) fallaba con «Failed to construct 'URL': Invalid URL» y el usuario veía «No hay solicitudes registradas». En `concerto` (15-09) solo se verificó el login, por eso no se detectó.
+- **Corrección:** `new URL(ruta, window.location.origin)`. Verificado en el navegador con el frontend compilado como lo hace Docker (rutas relativas) y un proxy hacia el backend: dashboard, detalle, fotos y mapa funcionan.
+- **Importante:** las imágenes ya construidas (06-10-2026) tienen este error; hay que reconstruirlas antes de entregarlas. También afecta lo ya probado en `concerto`.

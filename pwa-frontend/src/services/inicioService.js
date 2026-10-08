@@ -60,7 +60,8 @@ export const inicioService = {
     // La copia guardada queda solo como respaldo si el servidor no manda catálogo.
     const version = SIEMPRE_CATALOGO_FRESCO || forzarCatalogo ? '' : leerVersionCacheada();
 
-    const url = new URL(`${API_URL}/api/v2/inicio`);
+    // Con la imagen Docker API_URL es '' (rutas relativas, nginx hace de proxy): `new URL` necesita una base para eso.
+    const url = new URL(`${API_URL}/api/v2/inicio`, window.location.origin);
     if (version) url.searchParams.set('catalogosVersion', version);
 
     const response = await fetch(url.toString(), {

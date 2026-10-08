@@ -31,6 +31,7 @@ services:
     environment:
       # nginx alcanza al backend por el nombre de servicio de compose.
       # En OCI Container Instance esto cambia a "localhost".
+      CSP_CONNECT_EXTRA: "http://146.181.52.2:3000"   # origen de la API del cliente (CSP): en producción, su URL HTTPS
       BACKEND_HOST: backend
       BACKEND_PORT: "3001"
     ports:

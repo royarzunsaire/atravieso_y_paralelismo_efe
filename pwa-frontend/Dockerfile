@@ -28,9 +28,13 @@ FROM nginx:alpine
 # La imagen oficial procesa /etc/nginx/templates/*.template con envsubst al
 # arrancar. Solo sustituimos las variables BACKEND_* (resueltas en runtime),
 # para no tocar las variables propias de nginx ($uri, $host, etc.).
-ENV NGINX_ENVSUBST_FILTER="^BACKEND_"
+ENV NGINX_ENVSUBST_FILTER="^(BACKEND_|CSP_)"
+# Origen de la API del cliente de donde el navegador baja las fotos (CSP connect-src). Se define al desplegar
+# (ej. https://api.cliente.cl). Vacío = las fotos descargadas no cargarían.
+ENV CSP_CONNECT_EXTRA=""
 
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY seguridad.inc.template /etc/nginx/templates/seguridad.inc.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 8080

@@ -1,6 +1,14 @@
+# HSTS solo si la petición original llegó por HTTPS (ver seguridad.inc.template).
+map $http_x_forwarded_proto $hsts_valor {
+    default "";
+    https   "max-age=31536000; includeSubDomains";
+}
+
 server {
     listen 8080;
     server_name _;
+    # No revelar la versión de nginx (hallazgo H-07).
+    server_tokens off;
 
     # Raíz de la SPA compilada
     root /usr/share/nginx/html;
@@ -43,6 +51,7 @@ server {
     # El service worker no debe cachearse (para que la PWA se actualice)
     location = /sw.js {
         add_header Cache-Control "no-cache";
+        include /etc/nginx/conf.d/seguridad.inc;
         try_files $uri =404;
     }
 
@@ -50,11 +59,13 @@ server {
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+        include /etc/nginx/conf.d/seguridad.inc;
         try_files $uri =404;
     }
 
     # SPA: cualquier ruta desconocida cae en index.html (routing del lado cliente)
     location / {
+        include /etc/nginx/conf.d/seguridad.inc;
         try_files $uri $uri/ /index.html;
     }
 }

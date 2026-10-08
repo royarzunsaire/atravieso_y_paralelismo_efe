@@ -25,7 +25,7 @@
 | B1 | Sin sinks XSS (`dangerouslySetInnerHTML`, `innerHTML`, `eval`, `new Function`, `document.write`) | ASVS 5.3, CWE-79 | ✅ | Búsqueda sin resultados (H-24) |
 | B2 | Los datos de la API se muestran escapados (React) | ASVS 5.3.3 | ✅ | Sin HTML insertado |
 | B3 | Sanitización con DOMPurify | ASVS 5.2.1 | ➖ | No hay HTML que sanitizar; se justifica solo si se muestra HTML de la API (H-24) |
-| B4 | Content-Security-Policy | ASVS 14.4.3 | ❌ | Sin CSP en nginx ni en `index.html` (H-07) |
+| B4 | Content-Security-Policy | ASVS 14.4.3 | ⚠️ | Definida en `seguridad.inc.template` y verificada con la app real bajo esa política (0 violaciones; bloquea conexiones, scripts e imágenes ajenos); falta verificarla en la imagen reconstruida (H-07) |
 | B5 | Dependencias externas en tiempo de ejecución controladas | CWE-829 | ⚠️ | Google Fonts y mosaicos OSM (H-21) |
 | B6 | Enlaces `target="_blank"` con `rel="noopener noreferrer"` | CWE-1022 | ✅ | `PhotosModal.tsx`, `UbicacionModal.tsx` |
 | B7 | Token de sesión no expuesto a scripts | ASVS 3.2 | ⚠️ | JWT en `localStorage` (H-08) |
@@ -54,7 +54,7 @@
 | C10 | Registro de cuentas restringido | ASVS 2.1 | ✅ | `POST /auth/register` eliminado (H-01 corregido 08-10-2026); las cuentas se crean solo por ORDS |
 | C11 | Sin enumeración de usuarios | ASVS 2.2 | ✅ | Mensaje único y tiempos parejos con hash falso (H-06 corregido 08-10-2026) |
 | C12 | Errores sin detalles internos y con el código HTTP correcto | ASVS 7.4 | ⚠️ | D10: JSON malformado → 500; `error.message` al cliente (H-10, H-18) |
-| C13 | Cabeceras de seguridad (`helmet`) y sin `X-Powered-By` | ASVS 14.4 | ❌ | D1 (H-07) |
+| C13 | Cabeceras de seguridad (`helmet`) y sin `X-Powered-By` | ASVS 14.4 | ✅ | `helmet` en el backend; D1 en OK (H-07 corregido 08-10-2026) |
 | C14 | CORS restrictivo | API8:2023 | ⚠️ | Rechaza orígenes ajenos (D9); permite `localhost` en producción (H-16) |
 | C15 | Validación de archivos subidos (tipo, firma, tamaño, cantidad) | ASVS 12.1 | ❌ | Solo en el cliente (H-11) |
 | C16 | Sin inyección (SQL/ORDS/NoSQL/ruta) | A03:2021 | ✅ | D17; las consultas usan JSON codificado |
@@ -97,8 +97,8 @@
 | E8 | Sin secretos dentro de las capas de la imagen | CIS 4.10 | ✅ | Variables en tiempo de ejecución |
 | E9 | Escaneo de vulnerabilidades de las imágenes | CIS 5 | ⏳ | Sin Docker local; ejecutar `trivy image` en `concerto` |
 | E10 | Sistema de archivos de solo lectura y capacidades mínimas | CIS 5.x | ⏳ | Se define en la Container Instance |
-| E11 | Cabeceras de seguridad en nginx | ASVS 14.4 | ❌ | H-07 |
-| E12 | `server_tokens off` | ASVS 14.3 | ❌ | H-07 |
+| E11 | Cabeceras de seguridad en nginx | ASVS 14.4 | ⚠️ | Configuradas en `nginx.conf.template` / `seguridad.inc.template`; sintaxis y cabeceras reales pendientes de verificar en la imagen (H-07) |
+| E12 | `server_tokens off` | ASVS 14.3 | ⚠️ | Configurado en `nginx.conf.template`; pendiente de verificar en la imagen (H-07) |
 | E13 | Límite de peticiones y conexiones en nginx | API4:2023 | ❌ | H-03 / H-07 |
 | E14 | TLS y HSTS en el balanceador | ASVS 9.1 | ⏳ | Infraestructura OCI |
 | E15 | El backend no es accesible directamente desde Internet | A05 | ⚠️ | Escucha en `0.0.0.0:3001`; el diseño solo expone nginx (8080). Confirmar reglas de red de OCI |
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 33 |
-| ⚠️ Parcial / atención | 25 |
-| ❌ No cumple | 16 |
+| ✅ Cumple | 34 |
+| ⚠️ Parcial / atención | 28 |
+| ❌ No cumple | 12 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 10 |
 | **Total de controles** | **87** |

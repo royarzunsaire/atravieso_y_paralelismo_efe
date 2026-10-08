@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const session = require('express-session');
 const passport = require('./config/auth');
 require('dotenv').config();
@@ -24,6 +25,23 @@ const PORT = process.env.PORT || 3001;
 // = 2 (confirmar con quien arma la infraestructura). Un valor mal puesto hace que todos parezcan tener la misma IP.
 const confianzaProxy = Number.parseInt(process.env.TRUST_PROXY ?? '0', 10);
 app.set('trust proxy', Number.isInteger(confianzaProxy) && confianzaProxy >= 0 ? confianzaProxy : 0);
+
+// ========================================
+// CABECERAS DE SEGURIDAD (hallazgo H-07)
+// Es una API JSON: no renderiza nada, así que la política es la más cerrada posible. Quita X-Powered-By y agrega
+// CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, HSTS (solo lo respeta el navegador sobre HTTPS)…
+// ========================================
+app.use(helmet({
+  contentSecurityPolicy: { useDefaults: false, directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+  frameguard: { action: 'deny' },
+  referrerPolicy: { policy: 'no-referrer' },
+  crossOriginResourcePolicy: { policy: 'same-site' },
+  hsts: { maxAge: 31536000, includeSubDomains: true },
+}));
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=(), payment=()');
+  next();
+});
 
 // ========================================
 // CORS
