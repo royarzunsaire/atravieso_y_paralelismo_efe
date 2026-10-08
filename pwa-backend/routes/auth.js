@@ -89,73 +89,11 @@ router.post('/login/local', (req, res, next) => {
 // );
 
 // ========================================
-// REGISTRO LOCAL
+// REGISTRO — eliminado a propósito (hallazgo de seguridad H-01)
+// Las cuentas NO se crean desde esta API: la API del cliente autoriza por el correo del token que firmamos
+// nosotros, así que un registro público permitiría suplantar a alguien que aún no tiene cuenta.
+// Solo se crean usuarios por ORDS (POST /usuarios-actions/register, client AYP_INTEGRACION_EXTERNA), a cargo del jefe de proyecto.
 // ========================================
-router.post('/register', async (req, res) => {
-  try {
-    const { email, password, nombre } = req.body;
-
-    // Validaciones
-    if (!email || !password || !nombre) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email, contraseña y nombre son requeridos' 
-      });
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email inválido' 
-      });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'La contraseña debe tener al menos 8 caracteres' 
-      });
-    }
-
-    // Verificar si existe
-    const existing = await usersDb.getUserByEmail(email);
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        error: 'El email ya está registrado'
-      });
-    }
-
-    // Hash password para el perfil local de la aplicación
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Insertar perfil local en Oracle
-    const createdUser = await usersDb.createLocalUser({
-      email,
-      password: hashedPassword,
-      nombre,
-    });
-
-    const user = {
-      id: createdUser.id,
-      email: createdUser.email,
-      nombre: createdUser.nombre,
-      rol: createdUser.rol,
-      auth_type: createdUser.auth_type
-    };
-
-    const token = generateToken(user);
-
-    res.status(201).json({
-      success: true,
-      token,
-      user
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 // ========================================
 // MIDDLEWARE - Verificar Token

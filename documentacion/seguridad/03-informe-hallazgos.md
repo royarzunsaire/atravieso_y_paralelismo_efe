@@ -2,6 +2,7 @@
 
 **Fecha:** 07-10-2026 · **Alcance y método:** ver `01-planner.md` · **Checklist:** `02-checklist.md`
 **Resultado de las pruebas dinámicas (`localhost`, `pruebas-dinamicas.mjs`):** 18 OK · 6 fallas · 3 de atención · 1 bajo (D1 cabeceras, D5 enumeración, D6 fuerza bruta, D7 registro público, D8 tamaño de cuerpo, D10 JSON malformado).
+**Tras las correcciones del 08-10-2026 (H-04 y H-01):** 19 OK · 5 fallas · 3 de atención · 1 bajo (la prueba D7 del registro público ya da OK: responde 404).
 
 ## 1. Resumen ejecutivo
 La aplicación tiene **buenos cimientos en autorización**: el servidor revalida cada acción contra la API del cliente y rechazó todos los intentos de acceder o escribir sobre obras ajenas, de usar tokens falsos (`alg:none`, firma incorrecta, expirado) y de usar endpoints de administrador con un usuario normal. No hay secretos en el historial de git, en el bundle ni en las imágenes, los `.env` están ignorados, los secretos locales tienen longitud y entropía adecuadas, el frontend no tiene `npm audit` pendientes y no usa sinks de XSS.
@@ -10,7 +11,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 
 | Severidad | Cantidad | Hallazgos |
 |---|---|---|
-| **Crítica** | 1 | H-01 |
+| **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (1 corregida: H-04) | H-02, H-03, ~~H-04~~, H-05 |
 | **Media** | 9 | H-06 a H-14 |
 | **Baja** | 8 | H-15 a H-22 |
@@ -31,10 +32,12 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 
 ### Crítica
 
-**H-01 — Registro público: cualquiera puede crear una cuenta y obtener un token con el correo que quiera** · CWE-306, CWE-287 · ASVS 2.1 / API2:2023
+**H-01 — ✅ CORREGIDO (08-10-2026) — Registro público: cualquiera podía crear una cuenta y obtener un token con el correo que quisiera** · CWE-306, CWE-287 · ASVS 2.1 / API2:2023
 - **Evidencia:** `routes/auth.js:94` (`POST /auth/register` sin `verifyToken`); prueba D7: la ruta responde 400 de validación sin autenticar. La respuesta incluye un JWT firmado con el correo informado (`generateToken`).
 - **Riesgo concreto:** la API del cliente autoriza **por el correo que viene en el JWT que firmamos nosotros**. Si una persona con obras asignadas en SharePoint todavía no tiene cuenta en nuestra base, un atacante puede registrar *ese* correo con su propia contraseña y obtener acceso a las obras de esa persona (suplantación por pre-registro). No hay verificación de que el correo le pertenezca. Además el mensaje `409 El email ya está registrado` permite averiguar qué correos existen.
 - **Mitigación recomendada:** eliminar la ruta (la interfaz no la usa) o exigir rol admin; los usuarios se crean por el canal controlado (ORDS / app de escritorio).
+- **Corrección aplicada (opción A):** se eliminó `POST /auth/register` del backend y la función muerta `register()` del frontend. Quien crea usuarios es el jefe de proyecto, solo por ORDS (`POST /usuarios-actions/register`, client `AYP_INTEGRACION_EXTERNA`), confirmado por Rodrigo. Verificado: la ruta responde 404 y el login, `/auth/me` y el cambio de contraseña siguen igual.
+- **Observación aparte:** `scripts/create-admin.js` está roto (usa `usersDb.createLocalAuthUser`, que no existe): hoy no sirve para crear administradores.
 
 ### Altas
 

@@ -51,7 +51,7 @@
 | C7 | Validación de esquema del cuerpo (tipos, claves permitidas) | API3:2023 | ⚠️ | El `Payload` se reenvía sin esquema (H-11); no cae por tipos inesperados (D15) |
 | C8 | Límite de tamaño de cuerpo por ruta | API4:2023 | ❌ | 15 MB global antes de autenticar (H-10) |
 | C9 | Límite de tasa (rate limiting) | API4:2023 | ❌ | D6 (H-03) |
-| C10 | Registro de cuentas restringido | ASVS 2.1 | ❌ | `/auth/register` público (H-01) |
+| C10 | Registro de cuentas restringido | ASVS 2.1 | ✅ | `POST /auth/register` eliminado (H-01 corregido 08-10-2026); las cuentas se crean solo por ORDS |
 | C11 | Sin enumeración de usuarios | ASVS 2.2 | ❌ | D5 (H-06) |
 | C12 | Errores sin detalles internos y con el código HTTP correcto | ASVS 7.4 | ⚠️ | D10: JSON malformado → 500; `error.message` al cliente (H-10, H-18) |
 | C13 | Cabeceras de seguridad (`helmet`) y sin `X-Powered-By` | ASVS 14.4 | ❌ | D1 (H-07) |
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 29 |
+| ✅ Cumple | 30 |
 | ⚠️ Parcial / atención | 23 |
-| ❌ No cumple | 22 |
+| ❌ No cumple | 21 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 10 |
 | **Total de controles** | **87** |

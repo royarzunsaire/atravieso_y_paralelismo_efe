@@ -32,34 +32,6 @@ export const authService = {
     return data;
   },
 
-  // Registro
-  async register(email, password, nombre) {
-    const response = await fetch(`${API_URL}/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password, nombre })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Error al registrar');
-    }
-
-    localStorage.setItem('token', data.token);
-    if (data.connection_token) {
-      localStorage.setItem('connection_token', data.connection_token);
-    }
-    if (data.supabase_session) {
-      localStorage.setItem('supabase_session', JSON.stringify(data.supabase_session));
-    }
-    localStorage.setItem('user', JSON.stringify(data.user));
-
-    return data;
-  },
-
   // Cambiar contraseña propia
   async changePassword(currentPassword, newPassword) {
     const token = this.getToken();

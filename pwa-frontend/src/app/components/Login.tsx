@@ -12,7 +12,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
   // Registro deshabilitado en el frontend: las cuentas se crean desde
   // la plataforma externa del cliente (client OAuth2 AYP_INTEGRACION_EXTERNA
   // contra /usuarios-actions/register), no desde esta app. El endpoint
-  // /auth/register sigue existiendo en el backend (sin uso desde aquí).
+  // /auth/register del backend se eliminó (seguridad, H-01).
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
