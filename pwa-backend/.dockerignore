@@ -6,3 +6,10 @@ npm-debug.log
 .git
 .gitignore
 sql/
+# Herramientas de apoyo, bases locales y archivos que no deben llegar a la imagen (H-12)
+scripts/
+*.db
+*.sqlite
+*.sqlite3
+sqllite.py
+README.md

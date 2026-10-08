@@ -212,28 +212,6 @@ export function Login({ onLoginSuccess }: LoginProps) {
               plataforma externa del cliente, no desde esta app. */}
         </div>
 
-        {/* Usuario de prueba (solo en desarrollo) */}
-        {/* {import.meta.env.DEV && (
-          <div className="bg-white/90 backdrop-blur-sm border-2 border-yellow-400 rounded-xl p-4 shadow-lg">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">👤</span>
-              <div>
-                <p className="text-sm font-semibold text-yellow-800 mb-2">
-                  Usuario de Prueba
-                </p>
-                <div className="space-y-1">
-                  <p className="text-xs text-yellow-700">
-                    <span className="font-medium">Email:</span> admin@efe.cl
-                  </p>
-                  <p className="text-xs text-yellow-700">
-                    <span className="font-medium">Password:</span> Admin123456
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )} */}
-
         {/* Footer con logo EFE */}
         <div className="mt-8 text-center">
           <p className="text-white/90 text-sm font-medium">

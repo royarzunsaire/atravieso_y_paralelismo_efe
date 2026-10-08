@@ -12,10 +12,10 @@
 | A3 | Secretos de entorno con longitud y entropía suficientes | ASVS 2.9 | ✅ | `JWT_SECRET` 59 caracteres (local); no está en listas de secretos comunes |
 | A4 | Sin secretos ni claves en el bundle del frontend | ASVS 14.3 | ✅ | `dist/` sin `SECRET`, `Bearer`, `client_secret` |
 | A5 | Sin URLs/IP de infraestructura fijas en el código de producción | CWE-798 | ⚠️ | Solo en `scripts/` (H-20) y como respaldo de desarrollo `localhost:3001` en 5 servicios (la imagen usa rutas relativas) |
-| A6 | Sin contraseñas literales en el repositorio | CWE-798 | ❌ | `scripts/create-test-user.js:6` (H-20) |
-| A7 | Sin archivos de datos o binarios sensibles versionados | A05 | ❌ | `pwa-backend/datos.db`, `database.db`, `datos.db`, `.claude.7z` (H-13) |
+| A6 | Sin contraseñas literales en el repositorio | CWE-798 | ✅ | Scripts parametrizados por entorno y bloque comentado de `Login.tsx` borrado (H-20 corregido 08-10-2026) |
+| A7 | Sin archivos de datos o binarios sensibles versionados | A05 | ⚠️ | Los `.db` y `sqllite.py` ya no están en el árbol (H-13, 08-10-2026) pero siguen en el historial de git; `.claude.7z` sigue versionado |
 | A8 | La documentación versionada no expone datos de infraestructura | A05 | ⚠️ | URL base de ORDS, `client_id` parciales, correos (H-13) |
-| A9 | La imagen Docker no incluye `.env`, bases locales ni scripts | CIS 4.10 | ❌ | `.env` excluido; `scripts/`, `*.db`, `sqllite.py` sí entran (H-12) |
+| A9 | La imagen Docker no incluye `.env`, bases locales ni scripts | CIS 4.10 | ⚠️ | `.dockerignore` excluye `.env*`, `scripts/`, `*.db`, `sqllite.py` (H-12, 08-10-2026); falta confirmarlo en la próxima reconstrucción de la imagen |
 | A10 | Secretos distintos por ambiente y rotación definida | ASVS 2.10 | ⏳ | Sin evidencia; definir con ciberseguridad |
 | A11 | Gestión de secretos del despliegue (variables en OCI, no en la imagen) | CIS 4.10 | ⏳ | La imagen no los trae; verificar la configuración de OCI |
 
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 39 |
-| ⚠️ Parcial / atención | 26 |
-| ❌ No cumple | 9 |
+| ✅ Cumple | 40 |
+| ⚠️ Parcial / atención | 28 |
+| ❌ No cumple | 6 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 10 |
 | **Total de controles** | **87** |

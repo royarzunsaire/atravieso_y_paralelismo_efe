@@ -18,19 +18,14 @@ async function createAdmin() {
     const password = await question('Contraseña: ');
     const nombre = await question('Nombre: ');
 
-    const existing = await usersDb.getUserByEmail(email);
+    const existing = await db.getUserByEmail(email);
     if (existing) {
       console.log('⚠️  Usuario ya existe');
       return;
     }
 
-    await usersDb.createLocalAuthUser({
-      email,
-      password,
-      nombre,
-    });
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await usersDb.createLocalUser({
+    const user = await db.createLocalUser({
       email,
       password: hashedPassword,
       nombre,

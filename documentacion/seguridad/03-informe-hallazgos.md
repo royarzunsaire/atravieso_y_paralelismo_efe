@@ -13,8 +13,8 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
-| **Media** | 9 (3 corregidas: H-06, H-07, H-09; 1 parcial: H-08) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, H-10 a H-14 |
-| **Baja** | 8 | H-15 a H-22 |
+| **Media** | 9 (3 corregidas: H-06, H-07, H-09; 3 parciales: H-08, H-12, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, H-10, H-11, H-12 (parcial), H-13 (parcial), H-14 |
+| **Baja** | 8 (1 corregida: H-20) | H-15 a H-19, ~~H-20~~, H-21, H-22 |
 | **Informativa** | 2 | H-23, H-24 |
 
 ## 2. Impacto de corregir los hallazgos críticos y altos
@@ -114,13 +114,19 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 - **Evidencia:** la validación de peso/tipo está solo en el frontend (`validarPesos`). `routes/eventos.js` reenvía `Payload.Fotos/Informes/Documentos` sin decodificar ni revisar firma (magic bytes), extensión ni cantidad. El `Payload` se reenvía completo sin esquema (`mass assignment`).
 - **Mitigación:** lista blanca de extensiones/MIME, verificación de firma, tope por archivo y por evento, y un esquema que descarte claves desconocidas.
 
-**H-12 — Contenedor del backend: corre como `root`, la imagen incluye scripts y bases SQLite, imagen base sin soporte y sin versión fija** · CWE-250 · CIS Docker 4.1 / 4.2 / 4.6
+**H-12 — 🟡 PARCIAL (08-10-2026: scripts y bases fuera de la imagen; falta usuario no root e imagen base) — Contenedor del backend: corre como `root`, la imagen incluye scripts y bases SQLite, imagen base sin soporte y sin versión fija** · CWE-250 · CIS Docker 4.1 / 4.2 / 4.6
 - **Evidencia:** `pwa-backend/Dockerfile` sin `USER`; `.dockerignore` no excluye `scripts/` (contiene `create-test-user.js` con la contraseña literal `Admin123456` y `test-api-sharepoint.js` con la IP de la API), `*.db` ni `sqllite.py`; `FROM node:20-alpine` (**Node 20 terminó su soporte en abril de 2026**) y `nginx:alpine` sin versión ni digest; sin `HEALTHCHECK`. nginx corre su proceso maestro como `root` (el puerto 8080 ya es sin privilegios).
 - **Mitigación:** `USER node`, imagen Node LTS vigente (22 o 24) con versión fija, excluir `scripts/`, `*.db`, `sqllite.py` y `tests`, agregar `HEALTHCHECK`; considerar `nginxinc/nginx-unprivileged`.
+- **Corrección aplicada (08-10-2026):** `pwa-backend/.dockerignore` ahora excluye `scripts/`, `*.db`, `*.sqlite*`, `sqllite.py` y `README.md`; la imagen ya no llevará esos archivos (**por verificar en la próxima reconstrucción**).
+- **Pendiente de H-12:** (a) `USER node`, (b) Node 22 o 24 LTS con versión o digest fijo, (c) `HEALTHCHECK`, (d) `nginx-unprivileged`. Son cambios del `Dockerfile` que hay que probar construyendo la imagen en `concerto` (pueden afectar el arranque o los permisos).
 
-**H-13 — Archivos sensibles o innecesarios versionados en git** · CWE-540 · A05:2021
+**H-13 — 🟡 PARCIAL (08-10-2026: sacados del repositorio; el historial los conserva) — Archivos sensibles o innecesarios versionados en git** · CWE-540 · A05:2021
 - **Evidencia:** `git ls-files`: `pwa-backend/datos.db` (SQLite de 20 KB, contenido no inspeccionado), `pwa-backend/database.db` y `datos.db` (vacíos), `.claude.7z` (documentación interna del proyecto). La documentación versionada contiene la URL base de ORDS (`integracion-externa.md`), `client_id` parciales y correos reales de personas (`.claude/…/oracle-ords.md`).
 - **Mitigación:** sacar los `.db` del repo y agregarlos a `.gitignore`; revisar si `.claude.7z` debe seguir versionado; confirmar que el repositorio es privado y quién tiene acceso; los `client_id` no son secretos, pero conviene no publicarlos.
+- **Qué contenía `pwa-backend/datos.db`** (inspeccionado en solo lectura): la base SQLite antigua, previa a Oracle: una tabla `datos` vacía y una tabla `usuarios` con **2 cuentas y su hash bcrypt** (el administrador «Administrador EFE» y un usuario). Los otros dos `.db` estaban vacíos (0 bytes). Nada del código los usaba, salvo `sqllite.py`, un script que imprimía esa tabla.
+- **Verificación de exposición:** se compararon, sin mostrar ningún hash, los hashes antiguos con los actuales en Oracle: **son distintos en las dos cuentas, es decir, esas contraseñas ya cambiaron** y no hay credenciales vigentes expuestas por ese archivo.
+- **Corrección aplicada:** `git rm` de los tres `.db` y de `sqllite.py`; `.gitignore` ahora ignora `*.db`, `*.sqlite` y `*.sqlite3`; el `datos.db` se guardó como respaldo fuera del repositorio.
+- **Pendiente:** los archivos siguen en el **historial de git** (y por tanto en GitHub). Con las contraseñas ya cambiadas el riesgo es bajo; reescribir el historial (`git filter-repo` + push forzado) es destructivo y obliga a re-clonar a todo el equipo, así que **no se hizo sin decisión explícita**. `.claude.7z` sigue versionado.
 
 **H-14 — Al cerrar sesión no se limpia `sessionStorage` (borradores de inspección con fotos y datos de la obra)** · CWE-922 · ASVS 8.3
 - **Evidencia:** `logout()` borra `localStorage` y las cachés en memoria (`reiniciarCachesDeSesion`), pero `sessionStorage` (`currentSolicitud`, `newInspectionDraft:*` con fotos en base64) solo se limpia en casos puntuales.
@@ -135,7 +141,7 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 | H-17 | `express-session` y `passport.session` activos sin uso (almacén en memoria, requiere `SESSION_SECRET`) · CWE-1104 | `server.js:51-65`; la autenticación es solo por JWT | Quitarlos (menos superficie y una variable menos) |
 | H-18 | Varios endpoints devuelven `error.message` al cliente (500/502) · CWE-209 | `routes/auth.js` (varios `catch`), `routes/eventos.js:331` | Mensajes genéricos al cliente; detalle solo en el log |
 | H-19 | Política de contraseñas mínima: 8 caracteres sin complejidad ni lista de contraseñas filtradas; bcrypt con costo 10 · ASVS 2.1 | `routes/auth.js:114,240` | Mínimo 10–12, rechazar contraseñas comunes, costo 12 |
-| H-20 | Datos hardcodeados en scripts de apoyo: contraseña `Admin123456`, IP de la API del cliente · CWE-798 | `scripts/create-test-user.js:6`, `scripts/test-api-sharepoint.js:6` | Pedirlos por entorno o argumentos; no incluir `scripts/` en la imagen (H-12) |
+| H-20 | ✅ CORREGIDO (08-10-2026) — Datos hardcodeados en scripts de apoyo: contraseña `Admin123456`, IP de la API del cliente · CWE-798 | `scripts/create-test-user.js:6`, `scripts/test-api-sharepoint.js:6` | Corregido: ahora se piden por entorno (`TEST_USER_EMAIL`/`TEST_USER_PASSWORD` de 12+ caracteres, `SHAREPOINT_API_URL`, `CORREO_PRUEBA`); `test-api-sharepoint.js` solo envía su evento de prueba (escribe en SharePoint) con `--escribir`; `create-admin.js` (estaba roto) vuelve a funcionar; `scripts/` ya no entra a la imagen. También se borró de `Login.tsx` un bloque **comentado** que mostraba `admin@efe.cl` / `Admin123456` (no llegaba al bundle). |
 | H-21 | Dependencias de terceros en tiempo de ejecución: Google Fonts (`@import` en `fonts.css`) y mosaicos de OpenStreetMap · privacidad y CSP | `src/styles/fonts.css:2`, `UbicacionModal.tsx` | Autohospedar la fuente Inter; declarar OSM en la CSP |
 | H-22 | `uncaughtException` solo se registra y el proceso sigue vivo en estado indefinido · CWE-248 | `server.js:11-17` | Registrar y terminar el proceso (el orquestador lo reinicia) |
 
