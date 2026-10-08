@@ -59,7 +59,7 @@
 | C15 | Validación de archivos subidos (tipo, firma, tamaño, cantidad) | ASVS 12.1 | ❌ | Solo en el cliente (H-11) |
 | C16 | Sin inyección (SQL/ORDS/NoSQL/ruta) | A03:2021 | ✅ | D17; las consultas usan JSON codificado |
 | C17 | Sin SSRF | API7:2023 | ✅ | URL base fija; el aviso de `axios` se corrige con H-02 |
-| C18 | Logs sin datos sensibles | ASVS 7.1 | ❌ | Hash bcrypt y datos de usuario en el log (H-04) |
+| C18 | Logs sin datos sensibles | ASVS 7.1 | ⚠️ | El hash y el objeto de usuario ya no se registran (H-04 corregido 08-10-2026); los logs de petición aún llevan el correo (pendiente, bajo) |
 | C19 | Endpoints de diagnóstico sin información interna | A05 | ⚠️ | `/` y `/health` (H-15) |
 | C20 | Sin componentes innecesarios (sesiones, estrategias sin uso) | A05 | ⚠️ | `express-session` / `passport.session` (H-17) |
 | C21 | Manejo seguro de excepciones no controladas | CWE-248 | ⚠️ | `uncaughtException` solo registra (H-22) |
@@ -110,7 +110,7 @@
 | ID | Control | Ref. | Estado | Evidencia / hallazgo |
 |---|---|---|---|---|
 | F1 | Inventario de datos personales | Ley 19.628 | ✅ | Nombre, correo, GPS, fotos, comentarios (ver informe §5) |
-| F2 | Minimización de datos personales en logs | ASVS 7.1 | ❌ | Correos y hash en el log (H-04) |
+| F2 | Minimización de datos personales en logs | ASVS 7.1 | ⚠️ | Login sin correo ni hash (H-04); quedan correos en los logs de petición |
 | F3 | Datos personales cifrados en tránsito | ASVS 9.1 | ⚠️ | Tramo hacia la API del cliente en HTTP (H-05) |
 | F4 | Política de retención y borrado | Ley 19.628 | ⏳ | Definir con el área responsable |
 | F5 | Consentimiento para la geolocalización | Privacidad | ✅ | Permiso del navegador |
@@ -119,8 +119,8 @@
 | Estado | Cantidad |
 |---|---|
 | ✅ Cumple | 29 |
-| ⚠️ Parcial / atención | 21 |
-| ❌ No cumple | 24 |
+| ⚠️ Parcial / atención | 23 |
+| ❌ No cumple | 22 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 10 |
 | **Total de controles** | **87** |

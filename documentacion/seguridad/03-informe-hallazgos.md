@@ -11,7 +11,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 | Severidad | Cantidad | Hallazgos |
 |---|---|---|
 | **Crítica** | 1 | H-01 |
-| **Alta** | 4 | H-02, H-03, H-04, H-05 |
+| **Alta** | 4 (1 corregida: H-04) | H-02, H-03, ~~H-04~~, H-05 |
 | **Media** | 9 | H-06 a H-14 |
 | **Baja** | 8 | H-15 a H-22 |
 | **Informativa** | 2 | H-23, H-24 |
@@ -45,9 +45,12 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 **H-03 — Sin límite de intentos de inicio de sesión (fuerza bruta / credential stuffing)** · CWE-307 · ASVS 2.2.1 / API4:2023
 - **Evidencia:** prueba D6: 15 intentos seguidos contra el mismo usuario, todos 401 y ninguno 429. No hay `rate-limit` en `package.json` ni en nginx.
 
-**H-04 — El backend escribe en sus logs el registro completo del usuario, incluido el hash bcrypt de su contraseña** · CWE-532 · ASVS 7.1.1
+**H-04 — ✅ CORREGIDO (08-10-2026) — El backend escribía en sus logs el registro completo del usuario, incluido el hash bcrypt de su contraseña** · CWE-532 · ASVS 7.1.1
 - **Evidencia:** `config/auth.js:72` → `console.log('📦 Resultado raw:', JSON.stringify(user))` en cada login. También registra el correo (`:67`) y si la contraseña fue válida (`:77`).
 - **Riesgo:** cualquiera con acceso a los logs (OCI Logging, soporte) obtiene hashes para ataques offline.
+- **Corrección aplicada** (`config/auth.js`): se eliminó el volcado del usuario, el correo y el «contraseña válida». Ahora el log dice solo «Login correcto (usuario <id interno>)» o «Login rechazado», sin distinguir el motivo. Verificado: un login correcto y dos rechazados (clave mala y usuario inexistente) no dejan hash, objeto de usuario ni correo en el log. La respuesta que ve el usuario no cambió (eso es H-06).
+- **Pendiente relacionado (bajo):** los logs de petición todavía escriben el correo del usuario (`GET /api/v2/inicio - Usuario: …` y similares en `routes/eventos.js`). No exponen contraseñas; se resuelve junto con H-18 si ciberseguridad lo exige.
+- **Los hashes ya escritos** en logs locales o de `concerto` antes de esta corrección deben considerarse expuestos: borrar esos logs.
 
 **H-05 — Comunicación con la API del cliente por HTTP sin cifrar** · CWE-319 · ASVS 9.1 / A02:2021
 - **Evidencia:** `SHAREPOINT_API_URL=http://146.181.52.2:3000`. Por ahí viajan el JWT firmado (válido 8 h, reutilizable por quien lo capture), correos de usuarios, comentarios y archivos de las obras.
