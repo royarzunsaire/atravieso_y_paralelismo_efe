@@ -593,6 +593,10 @@ const REGLAS = [
   { id: 'CU-38c', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'setTimeout(() => setEnfriando(false), 5000)',
     msg: 'Tras actualizar el botón queda bloqueado unos segundos (límite de peticiones de la API).' },
 
+  // ── Login bloqueado por intentos (CU-39) ──
+  { id: 'CU-39a', archivo: 'services/auth.js', tipo: 'debe', texto: "data.message || data.error || 'Error al iniciar sesión'",
+    msg: 'El login muestra el mensaje del bloqueo por demasiados intentos (429), que viene en `message`.' },
+
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',
     msg: 'Ctrl. Obra muestra el comentario de devolución.' },

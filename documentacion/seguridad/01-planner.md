@@ -57,3 +57,5 @@ Entregar al área de ciberseguridad un diagnóstico verificable del backend (Nod
 SEC_EMAIL=usuario.prueba@dominio SEC_PASSWORD='...' SEC_OBRA_PROPIA=155 SEC_OBRA_AJENA=156 node documentacion/seguridad/pruebas-dinamicas.mjs
 ```
 Sin credenciales corre solo las pruebas que no requieren sesión. El script se niega a apuntar a un host que no sea `localhost`.
+
+Para el límite de intentos de login (H-03) existe además una prueba aislada, sin Oracle ni API del cliente: `node documentacion/seguridad/prueba-limite-login.cjs`.

@@ -50,7 +50,7 @@
 | C6 | La acción se revalida en el servidor contra la fuente de verdad | ASVS 4.1 | ✅ | `routes/eventos.js:163-200` |
 | C7 | Validación de esquema del cuerpo (tipos, claves permitidas) | API3:2023 | ⚠️ | El `Payload` se reenvía sin esquema (H-11); no cae por tipos inesperados (D15) |
 | C8 | Límite de tamaño de cuerpo por ruta | API4:2023 | ❌ | 15 MB global antes de autenticar (H-10) |
-| C9 | Límite de tasa (rate limiting) | API4:2023 | ❌ | D6 (H-03) |
+| C9 | Límite de tasa (rate limiting) | API4:2023 | ⚠️ | Login limitado a 5 fallos / 10 min por correo + IP (H-03 corregido 08-10-2026); el resto de la API y nginx sin límite (E13) |
 | C10 | Registro de cuentas restringido | ASVS 2.1 | ✅ | `POST /auth/register` eliminado (H-01 corregido 08-10-2026); las cuentas se crean solo por ORDS |
 | C11 | Sin enumeración de usuarios | ASVS 2.2 | ❌ | D5 (H-06) |
 | C12 | Errores sin detalles internos y con el código HTTP correcto | ASVS 7.4 | ⚠️ | D10: JSON malformado → 500; `error.message` al cliente (H-10, H-18) |
@@ -77,7 +77,7 @@
 | D1 | Contraseñas con hash adaptativo (bcrypt) | ASVS 2.4 | ✅ | `bcryptjs`, costo 10 (subir a 12: H-19) |
 | D2 | Política de contraseñas | ASVS 2.1 | ⚠️ | Solo mínimo de 8 caracteres (H-19) |
 | D3 | Cambio forzado de contraseña en el primer inicio de sesión | ASVS 2.1 | ✅ | `debe_cambiar_password` (spec 08) |
-| D4 | Bloqueo o retardo tras intentos fallidos | ASVS 2.2.1 | ❌ | H-03 |
+| D4 | Bloqueo o retardo tras intentos fallidos | ASVS 2.2.1 | ✅ | 5 fallos cada 10 min por correo + IP, luego 429 (H-03 corregido 08-10-2026) |
 | D5 | Autenticación multifactor | ASVS 2.8 | ⏳ | No existe (Azure AD deshabilitado); decisión de ciberseguridad |
 | D6 | Recuperación de contraseña segura | ASVS 2.5 | ➖ | No existe; la restablece un administrador |
 | D7 | Cerrar sesión invalida el token en el servidor | ASVS 3.3.1 | ❌ | `/auth/logout` solo responde OK (H-08) |
@@ -104,7 +104,7 @@
 | E15 | El backend no es accesible directamente desde Internet | A05 | ⚠️ | Escucha en `0.0.0.0:3001`; el diseño solo expone nginx (8080). Confirmar reglas de red de OCI |
 | E16 | Registro, monitoreo y alertas | ASVS 7.2 | ⏳ | Infraestructura OCI |
 | E17 | Respaldos de la base y plan de recuperación | A04 | ⏳ | Infraestructura OCI / Oracle |
-| E18 | Aviso de confianza en el proxy (`trust proxy`) configurado | ASVS 14.4 | ❌ | No configurado; necesario antes de limitar por IP (H-03) |
+| E18 | `trust proxy` configurado para ver la IP real | ASVS 14.4 | ⚠️ | Variable `TRUST_PROXY` (0 por defecto; compose = 1); el valor en OCI lo confirma quien arma la infraestructura (H-03) |
 
 ## F. Datos y privacidad
 | ID | Control | Ref. | Estado | Evidencia / hallazgo |
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 31 |
-| ⚠️ Parcial / atención | 23 |
-| ❌ No cumple | 20 |
+| ✅ Cumple | 32 |
+| ⚠️ Parcial / atención | 25 |
+| ❌ No cumple | 17 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 10 |
 | **Total de controles** | **87** |

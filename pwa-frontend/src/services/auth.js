@@ -16,7 +16,8 @@ export const authService = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || 'Error al iniciar sesión');
+      // 429 (demasiados intentos) trae su explicación en `message`; el resto de errores, en `error`.
+      throw new Error(data.message || data.error || 'Error al iniciar sesión');
     }
 
     // Guardar token y usuario en localStorage

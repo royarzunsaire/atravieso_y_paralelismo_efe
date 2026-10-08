@@ -2,7 +2,7 @@
 
 **Fecha:** 07-10-2026 · **Alcance y método:** ver `01-planner.md` · **Checklist:** `02-checklist.md`
 **Resultado de las pruebas dinámicas (`localhost`, `pruebas-dinamicas.mjs`):** 18 OK · 6 fallas · 3 de atención · 1 bajo (D1 cabeceras, D5 enumeración, D6 fuerza bruta, D7 registro público, D8 tamaño de cuerpo, D10 JSON malformado).
-**Tras las correcciones del 08-10-2026 (H-04 y H-01):** 19 OK · 5 fallas · 3 de atención · 1 bajo (la prueba D7 del registro público ya da OK: responde 404).
+**Tras las correcciones del 08-10-2026 (H-04, H-01, H-02 y H-03):** 20 OK · 4 fallas · 3 de atención · 1 bajo (D7 del registro público y D6 de fuerza bruta ya dan OK).
 
 ## 1. Resumen ejecutivo
 La aplicación tiene **buenos cimientos en autorización**: el servidor revalida cada acción contra la API del cliente y rechazó todos los intentos de acceder o escribir sobre obras ajenas, de usar tokens falsos (`alg:none`, firma incorrecta, expirado) y de usar endpoints de administrador con un usuario normal. No hay secretos en el historial de git, en el bundle ni en las imágenes, los `.env` están ignorados, los secretos locales tienen longitud y entropía adecuadas, el frontend no tiene `npm audit` pendientes y no usa sinks de XSS.
@@ -12,7 +12,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 | Severidad | Cantidad | Hallazgos |
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
-| **Alta** | 4 (2 corregidas: H-02, H-04) | ~~H-02~~, H-03, ~~H-04~~, H-05 |
+| **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
 | **Media** | 9 | H-06 a H-14 |
 | **Baja** | 8 | H-15 a H-22 |
 | **Informativa** | 2 | H-23, H-24 |
@@ -48,8 +48,15 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 - **Residual (solo desarrollo):** `npm audit` completo marca 3 avisos altos en `nodemon` y sus dependencias (`braces`, `chokidar`). Es una herramienta de desarrollo que no entra a la imagen (`npm ci --omit=dev`); el «arreglo» que ofrece npm es bajar a `nodemon` 1.14.10, que no se aplica.
 - **Reactivar Azure AD en el futuro** exigirá instalar `passport-azure-ad` en su versión vigente (spec 02).
 
-**H-03 — Sin límite de intentos de inicio de sesión (fuerza bruta / credential stuffing)** · CWE-307 · ASVS 2.2.1 / API4:2023
+**H-03 — ✅ CORREGIDO (08-10-2026) — Sin límite de intentos de inicio de sesión (fuerza bruta / credential stuffing)** · CWE-307 · ASVS 2.2.1 / API4:2023
 - **Evidencia:** prueba D6: 15 intentos seguidos contra el mismo usuario, todos 401 y ninguno 429. No hay `rate-limit` en `package.json` ni en nginx.
+- **Corrección aplicada** (regla acordada con Rodrigo: **5 intentos fallidos cada 10 minutos**, luego se pide reintentar el inicio de sesión): `middleware/limitarLogin.js` (`express-rate-limit` 8) sobre `POST /auth/login/local`.
+  - Clave = correo (sin distinguir mayúsculas) + IP; solo cuentan los intentos fallidos (401); un login correcto no suma.
+  - El sexto fallo y los siguientes responden **429** `DEMASIADOS_INTENTOS`, con `Retry-After` y el mensaje «Demasiados intentos fallidos. Por seguridad, vuelve a intentar iniciar sesión en N minutos.», que la pantalla de login muestra tal cual. Mientras dura el bloqueo también se rechaza la contraseña correcta.
+  - Configurable por entorno: `LOGIN_MAX_INTENTOS` (5) y `LOGIN_VENTANA_MIN` (10).
+  - **`TRUST_PROXY`** (nuevo, por defecto 0): cuántos proxies hay delante del backend para ver la IP real. `docker-compose.yml` lo deja en 1 (nginx); en OCI sería 2 si además hay balanceador. **Debe confirmarlo quien arma la infraestructura:** un valor mal puesto haría que todos los usuarios parezcan compartir una IP.
+- **Verificación:** prueba aislada con ventana corta (`prueba-limite-login.cjs`, 7 de 7 en OK: bloqueo al 6.º fallo, otros correos y otras IP no se afectan, 8 logins correctos seguidos no se bloquean, recuperación al terminar la ventana); en el backend real el 6.º intento da 429 con `Retry-After: 600`, D6 pasa a OK, los usuarios reales siguen entrando y la pantalla de login muestra el mensaje.
+- **Límites que quedan:** el límite es por correo + IP, así que un atacante que pruebe MUCHOS correos distintos desde una misma IP (password spraying) no se frena; se cubre en nginx con `limit_req` (control E13, pendiente) o con un tope adicional por IP. El contador vive en la memoria del proceso: se reinicia al reiniciar el contenedor y no se comparte entre varias réplicas (hoy hay una).
 
 **H-04 — ✅ CORREGIDO (08-10-2026) — El backend escribía en sus logs el registro completo del usuario, incluido el hash bcrypt de su contraseña** · CWE-532 · ASVS 7.1.1
 - **Evidencia:** `config/auth.js:72` → `console.log('📦 Resultado raw:', JSON.stringify(user))` en cada login. También registra el correo (`:67`) y si la contraseña fue válida (`:77`).

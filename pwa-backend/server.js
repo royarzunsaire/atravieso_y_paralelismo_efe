@@ -19,6 +19,12 @@ process.on('unhandledRejection', (reason) => {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Cuántos proxies de confianza hay delante (nginx del contenedor, balanceador de OCI…). Necesario para ver la IP REAL del
+// usuario (límite de intentos de login, H-03). 0 = sin proxy (desarrollo). Docker compose: 1 (nginx). OCI: nginx + balanceador
+// = 2 (confirmar con quien arma la infraestructura). Un valor mal puesto hace que todos parezcan tener la misma IP.
+const confianzaProxy = Number.parseInt(process.env.TRUST_PROXY ?? '0', 10);
+app.set('trust proxy', Number.isInteger(confianzaProxy) && confianzaProxy >= 0 ? confianzaProxy : 0);
+
 // ========================================
 // CORS
 // ========================================

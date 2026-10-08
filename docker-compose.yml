@@ -17,6 +17,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
+      TRUST_PROXY: "1"      # nginx del frontend es el único proxy delante (límite de intentos de login)
     expose:
       - "3001"            # visible solo dentro de la red de compose (no al host)
     restart: unless-stopped

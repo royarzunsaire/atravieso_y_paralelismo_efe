@@ -4,6 +4,7 @@ const passport = require('../config/auth');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const usersDb = require('../database');
+const { limitarLogin } = require('../middleware/limitarLogin');
 
 // ========================================
 // GENERAR TOKEN JWT (simplificado)
@@ -38,7 +39,7 @@ const generateToken = (user) => {
 // ========================================
 // LOGIN LOCAL (usuario/contraseña)
 // ========================================
-router.post('/login/local', (req, res, next) => {
+router.post('/login/local', limitarLogin, (req, res, next) => {
   passport.authenticate('local', (err, user, info) => {
     if (err) {
       return res.status(500).json({ success: false, error: err.message });
