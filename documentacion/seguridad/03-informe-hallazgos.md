@@ -12,7 +12,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 | Severidad | Cantidad | Hallazgos |
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
-| **Alta** | 4 (1 corregida: H-04) | H-02, H-03, ~~H-04~~, H-05 |
+| **Alta** | 4 (2 corregidas: H-02, H-04) | ~~H-02~~, H-03, ~~H-04~~, H-05 |
 | **Media** | 9 | H-06 a H-14 |
 | **Baja** | 8 | H-15 a H-22 |
 | **Informativa** | 2 | H-23, H-24 |
@@ -41,9 +41,12 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 
 ### Altas
 
-**H-02 — 16 vulnerabilidades en dependencias del backend (1 crítica, 7 altas, 8 moderadas)** · CWE-1395 · A06:2021
+**H-02 — ✅ CORREGIDO (08-10-2026) — 16 vulnerabilidades en dependencias del backend (1 crítica, 7 altas, 8 moderadas)** · CWE-1395 · A06:2021
 - **Evidencia:** `npm audit --omit=dev` en `pwa-backend`. Directas: `axios` (alta, SSRF por `NO_PROXY`), `express` (moderada), `passport-azure-ad` (moderada). Transitivas destacadas: `proxy-addr` (**crítica**, suplantación de IP), `path-to-regexp`, `lodash`, `form-data`, `node-forge`, `minimatch`, `brace-expansion` (altas). 13 se corrigen con `npm audit fix`; 3 (`node-jose`, `uuid`, `passport-azure-ad`) dependen del paquete de Azure, hoy deshabilitado. El frontend tiene 0.
-- **Mitigación:** ver tabla de impacto.
+- **Corrección aplicada:** `npm audit fix` (18 paquetes actualizados dentro de sus rangos: `express` 4.22.1 → 4.22.3, `axios` 1.13.2 → 1.20.0, `proxy-addr` 2.0.7 → 2.0.8, `qs`, `body-parser`, `path-to-regexp`, `lodash`, `form-data`, `follow-redirects`, `node-forge`, `moment`, `minimatch`, `brace-expansion` y otros) y se desinstaló `passport-azure-ad` (solo aparecía en código comentado), con lo que salieron también `node-jose` y `uuid`. **`npm audit --omit=dev`: 0 vulnerabilidades** (antes 16).
+- **Verificación:** batería dinámica igual que antes del cambio (19 OK / 5 fallas), los 13 casos de rechazo del endpoint de documentos opcionales en OK, y lecturas reales a la API del cliente (`inicio`, detalle, inspección) correctas con el `axios` nuevo. No se probó un envío real de evento (escribe en SharePoint); usa la misma configuración de `axios`.
+- **Residual (solo desarrollo):** `npm audit` completo marca 3 avisos altos en `nodemon` y sus dependencias (`braces`, `chokidar`). Es una herramienta de desarrollo que no entra a la imagen (`npm ci --omit=dev`); el «arreglo» que ofrece npm es bajar a `nodemon` 1.14.10, que no se aplica.
+- **Reactivar Azure AD en el futuro** exigirá instalar `passport-azure-ad` en su versión vigente (spec 02).
 
 **H-03 — Sin límite de intentos de inicio de sesión (fuerza bruta / credential stuffing)** · CWE-307 · ASVS 2.2.1 / API4:2023
 - **Evidencia:** prueba D6: 15 intentos seguidos contra el mismo usuario, todos 401 y ninguno 429. No hay `rate-limit` en `package.json` ni en nginx.

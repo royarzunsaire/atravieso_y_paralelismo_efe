@@ -68,7 +68,7 @@
 | C24 | Tiempo máximo en llamadas externas | CWE-400 | ✅ | `timeout` 90 s hacia la API del cliente |
 | C25 | Cifrado hacia la API del cliente | ASVS 9.1 | ❌ | HTTP (H-05) |
 | C26 | Cifrado hacia Oracle ORDS | ASVS 9.1 | ✅ | HTTPS, OAuth2 `client_credentials` |
-| C27 | Dependencias del backend sin vulnerabilidades conocidas | A06:2021 | ❌ | 16 (H-02) |
+| C27 | Dependencias del backend sin vulnerabilidades conocidas | A06:2021 | ✅ | `npm audit --omit=dev`: 0 (H-02 corregido 08-10-2026); quedan 3 avisos solo de desarrollo en `nodemon`, fuera de la imagen |
 | C28 | Dependencias del frontend sin vulnerabilidades conocidas | A06:2021 | ✅ | `npm audit`: 0 |
 
 ## D. Autenticación y contraseñas
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 30 |
+| ✅ Cumple | 31 |
 | ⚠️ Parcial / atención | 23 |
-| ❌ No cumple | 21 |
+| ❌ No cumple | 20 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 10 |
 | **Total de controles** | **87** |
