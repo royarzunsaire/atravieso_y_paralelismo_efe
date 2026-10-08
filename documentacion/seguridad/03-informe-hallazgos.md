@@ -13,7 +13,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
-| **Media** | 9 (2 corregidas: H-06, H-07) | ~~H-06~~, ~~H-07~~, H-08 a H-14 |
+| **Media** | 9 (2 corregidas: H-06, H-07; 1 parcial: H-08) | ~~H-06~~, ~~H-07~~, H-08 (parcial), H-09 a H-14 |
 | **Baja** | 8 | H-15 a H-22 |
 | **Informativa** | 2 | H-23, H-24 |
 
@@ -89,9 +89,17 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 - **Verificado en la imagen real (`concerto`, 08-10-2026, construida desde el commit `09899aa`):** `nginx -t` → sintaxis correcta y las dos plantillas se generaron (`default.conf` y `seguridad.inc`). Con el contenedor levantado solo en el localhost del servidor, `curl -I`: la respuesta normal trae `Content-Security-Policy` (con el origen de la API del cliente ya sustituido), `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy` y `Permissions-Policy`, **sin** HSTS y con `Server: nginx` sin versión; la respuesta con `X-Forwarded-Proto: https` agrega `Strict-Transport-Security`. Las cabeceras también salen en las respuestas de error (404).
 - **Queda para más adelante:** `style-src-attr 'unsafe-inline'` (necesario para `style=""` de React y Leaflet; los estilos de hoja siguen restringidos); el límite de peticiones en nginx (E13).
 
-**H-08 — Sesión de 7 días en `localStorage`, sin revocación; dar de baja a un usuario no corta su sesión** · CWE-613, CWE-922 · ASVS 3.3 / 3.5
+**H-08 — 🟡 PARCIAL (08-10-2026: baja y cierre de sesión corregidos; falta acortar la duración) — Sesión de 7 días en `localStorage`, sin revocación; dar de baja a un usuario no corta su sesión** · CWE-613, CWE-922 · ASVS 3.3 / 3.5
 - **Evidencia:** `routes/auth.js:21` (`expiresIn: '7d'`); `verifyToken` solo valida la firma, no consulta `activo`; token y usuario en `localStorage` (`services/auth.js`). `/auth/logout` no invalida nada en el servidor. El token incluye el `rol`.
 - **Mitigación:** vida más corta (p. ej. 1–8 h) con renovación, y consultar `activo` en cada petición o en una lista de revocados. Cookie `HttpOnly` es la alternativa a largo plazo (requiere CSRF).
+- **Corrección aplicada (piezas 1 y 2, acordadas con Rodrigo; la duración se deja en 7 días por ahora):**
+  - **Cuenta activa:** `verifyToken` ahora consulta en Oracle si la cuenta sigue activa (`usuarios.activo`), con una caché de 60 s (`SESION_CACHE_SEG`) para no llamar a Oracle en cada petición. Una baja, o un usuario eliminado, corta la sesión en **menos de un minuto**. Si Oracle no responde se usa el último dato conocido; sin dato previo se deja pasar (no se bloquea a todos por una caída de Oracle) y se avisa en el log.
+  - **Cerrar sesión:** `POST /auth/logout` invalida el token en el servidor (lista de revocados por huella SHA-256, hasta que el token venza); sirve también para los tokens emitidos antes del cambio.
+  - **Algoritmo fijado:** el token se emite y se verifica solo con HS256.
+  - Código: `middleware/gestorSesion.js` (lógica, probable de forma aislada), `middleware/sesion.js` (instancia), `routes/auth.js`.
+- **Verificación:** prueba aislada con reloj simulado (`prueba-sesion.cjs`, 13 de 13: caché de 60 s, la baja corta la sesión pasado ese tiempo, reactivación, usuario eliminado, Oracle caído con y sin dato previo, 10 peticiones simultáneas = 1 consulta, revocación y limpieza) y, en el backend real, la prueba D18: `/auth/me` 200 → logout 200 → mismo token 401 → login nuevo 200; el resto de la batería y el flujo real (login, inicio, detalle) sin cambios. **No se probó con una baja real** porque el script SQL de baja (`14_activar_desactivar_usuario.sql`) aún no se ejecutó en Oracle.
+- **Pendiente de H-08:** acortar la vida del token (hoy 7 días), que depende de cómo se defina el modo offline (inspectores sin señal), y la cookie `HttpOnly` a largo plazo.
+- **Límites conocidos:** la caché y la lista de revocados viven en la memoria del proceso: se pierden al reiniciar el contenedor (un token cerrado volvería a valer hasta su vencimiento) y no se comparten entre réplicas (hoy hay una).
 
 **H-09 — `AuthCallback` guarda cualquier token recibido por `?token=` en la URL** · CWE-384, CWE-598 · ASVS 3.2
 - **Evidencia:** `src/app/App.tsx:65` activa `AuthCallback` en `/auth/callback`, que guarda `token` en `localStorage`. Es código del login con Azure, hoy deshabilitado. Un enlace malicioso `…/auth/callback?token=<token del atacante>` inicia sesión a la víctima en la cuenta del atacante.

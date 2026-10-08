@@ -168,4 +168,20 @@ if (EMAIL && PASSWORD) {
   log('Con sesión', 'OMITIDO', 'defina SEC_EMAIL y SEC_PASSWORD para las pruebas D11–D17');
 }
 
+// D18 «Cerrar sesión» invalida el token en el servidor (H-08). Usa su propia sesión para no afectar a las anteriores.
+if (EMAIL && PASSWORD) {
+  const l2 = await req('/auth/login/local', { method: 'POST', headers: J, body: JSON.stringify({ email: EMAIL, password: PASSWORD }) });
+  const t2 = l2.json?.token;
+  if (t2) {
+    const A2 = { Authorization: `Bearer ${t2}`, ...J };
+    const antes = await req('/auth/me', { headers: A2 });
+    const salir = await req('/auth/logout', { method: 'POST', headers: A2, body: '{}' });
+    const despues = await req('/auth/me', { headers: A2 });
+    const nuevo = await req('/auth/login/local', { method: 'POST', headers: J, body: JSON.stringify({ email: EMAIL, password: PASSWORD }) });
+    log('D18 cerrar sesión invalida el token en el servidor',
+      antes.status === 200 && salir.status === 200 && despues.status === 401 && nuevo.status === 200 ? 'OK' : 'FALLA',
+      `antes ${antes.status} · logout ${salir.status} · mismo token después ${despues.status} (esperado 401) · login nuevo ${nuevo.status}`);
+  }
+}
+
 console.log('\nRESUMEN:', JSON.stringify(out.reduce((a, o) => { const k = o.resultado.split(' ')[0]; a[k] = (a[k] || 0) + 1; return a; }, {})));

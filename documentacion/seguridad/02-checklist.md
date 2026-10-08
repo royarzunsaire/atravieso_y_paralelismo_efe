@@ -43,8 +43,8 @@
 | ID | Control | Ref. | Estado | Evidencia / hallazgo |
 |---|---|---|---|---|
 | C1 | Todo endpoint protegido exige autenticación | API2:2023 | ✅ | D3 (7 de 7 → 401) |
-| C2 | JWT: firma verificada, rechaza `alg:none` y firmas ajenas | ASVS 3.5 | ✅ | D4 (4 de 4 → 401); fijar `algorithms: ['HS256']` explícito sería mejor |
-| C3 | Vida del token corta y revocación posible | ASVS 3.3 | ❌ | 7 días, sin revocación (H-08) |
+| C2 | JWT: firma verificada, rechaza `alg:none` y firmas ajenas | ASVS 3.5 | ✅ | D4 (4 de 4 → 401); algoritmo fijado a HS256 al emitir y al verificar (H-08) |
+| C3 | Vida del token corta y revocación posible | ASVS 3.3 | ⚠️ | Revocación posible (cerrar sesión y baja de usuario en menos de 60 s, H-08 corregido 08-10-2026); la vida sigue siendo de 7 días (pendiente, depende del modo offline) |
 | C4 | Autorización por objeto (BOLA) | API1:2023 | ✅ | D12–D14: obras ajenas y acciones no permitidas → 403 |
 | C5 | Autorización por función (admin) | API5:2023 | ✅ | D16 → 403 |
 | C6 | La acción se revalida en el servidor contra la fuente de verdad | ASVS 4.1 | ✅ | `routes/eventos.js:163-200` |
@@ -80,8 +80,8 @@
 | D4 | Bloqueo o retardo tras intentos fallidos | ASVS 2.2.1 | ✅ | 5 fallos cada 10 min por correo + IP, luego 429 (H-03 corregido 08-10-2026) |
 | D5 | Autenticación multifactor | ASVS 2.8 | ⏳ | No existe (Azure AD deshabilitado); decisión de ciberseguridad |
 | D6 | Recuperación de contraseña segura | ASVS 2.5 | ➖ | No existe; la restablece un administrador |
-| D7 | Cerrar sesión invalida el token en el servidor | ASVS 3.3.1 | ❌ | `/auth/logout` solo responde OK (H-08) |
-| D8 | La baja de un usuario corta su acceso | ASVS 3.3 | ⚠️ | Bloquea nuevos inicios de sesión; la sesión abierta sigue hasta que expire (H-08). Script ORDS de baja listo, pendiente de ejecutar |
+| D7 | Cerrar sesión invalida el token en el servidor | ASVS 3.3.1 | ✅ | Prueba D18: el mismo token después del logout da 401 (H-08 corregido 08-10-2026) |
+| D8 | La baja de un usuario corta su acceso | ASVS 3.3 | ⚠️ | Implementado: `verifyToken` consulta `activo` con caché de 60 s (probado de forma aislada); falta probarlo con una baja real cuando se ejecute el script SQL 14 |
 | D9 | Sin cuentas ni contraseñas de prueba en producción | ASVS 2.10 | ⏳ | Usuarios de prueba con contraseñas predecibles en desarrollo; verificar que no existan en producción |
 
 ## E. Contenedores y despliegue
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 37 |
-| ⚠️ Parcial / atención | 25 |
-| ❌ No cumple | 12 |
+| ✅ Cumple | 38 |
+| ⚠️ Parcial / atención | 26 |
+| ❌ No cumple | 10 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 10 |
 | **Total de controles** | **87** |

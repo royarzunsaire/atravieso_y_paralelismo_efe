@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const usersDb = require('../database');
 const { limitarLogin } = require('../middleware/limitarLogin');
+const { sesion } = require('../middleware/sesion');
 
 // ========================================
 // GENERAR TOKEN JWT (simplificado)
@@ -19,7 +20,7 @@ const generateToken = (user) => {
       auth_type: user.auth_type
     },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' } // 7 días
+    { algorithm: 'HS256', expiresIn: '7d' } // 7 días
   );
 };
 
@@ -99,7 +100,7 @@ router.post('/login/local', limitarLogin, (req, res, next) => {
 // ========================================
 // MIDDLEWARE - Verificar Token
 // ========================================
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -108,19 +109,31 @@ const verifyToken = (req, res, next) => {
 
   const token = authHeader.split(' ')[1];
 
+  let decoded;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
+    // Algoritmo fijado: nunca se acepta otro que el de emisión (H-08).
+    decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Token expirado. Por favor, inicia sesión nuevamente.' 
+      return res.status(401).json({
+        success: false,
+        error: 'Token expirado. Por favor, inicia sesión nuevamente.'
       });
     }
-    res.status(401).json({ success: false, error: 'Token inválido' });
+    return res.status(401).json({ success: false, error: 'Token inválido' });
   }
+
+  // H-08: la firma no basta. (1) «Cerrar sesión» invalida el token en el servidor.
+  if (sesion.estaRevocado(token)) {
+    return res.status(401).json({ success: false, error: 'Sesión cerrada. Por favor, inicia sesión nuevamente.' });
+  }
+  // (2) Un usuario dado de baja (usuarios.activo = 0) o eliminado pierde la sesión en menos de un minuto (caché de 60 s).
+  if (decoded.id && decoded.auth_type !== 'microsoft' && !(await sesion.cuentaActiva(decoded.id))) {
+    return res.status(401).json({ success: false, error: 'Tu cuenta ya no está activa. Contacta al administrador.' });
+  }
+
+  req.user = decoded;
+  next();
 };
 
 // ========================================
@@ -242,9 +255,11 @@ router.post('/admin/reset-password/:id', verifyToken, async (req, res) => {
 });
 
 // ========================================
-// LOGOUT (simplificado - solo para info)
+// LOGOUT (invalida el token en el servidor)
 // ========================================
 router.post('/logout', verifyToken, async (req, res) => {
+  // H-08: además de borrar el token del navegador, se invalida en el servidor hasta que venza.
+  sesion.revocar(req.headers.authorization.split(' ')[1], req.user.exp);
   res.json({ success: true, message: 'Sesión cerrada correctamente' });
 });
 
