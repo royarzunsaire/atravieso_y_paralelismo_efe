@@ -25,7 +25,7 @@
 | B1 | Sin sinks XSS (`dangerouslySetInnerHTML`, `innerHTML`, `eval`, `new Function`, `document.write`) | ASVS 5.3, CWE-79 | ✅ | Búsqueda sin resultados (H-24) |
 | B2 | Los datos de la API se muestran escapados (React) | ASVS 5.3.3 | ✅ | Sin HTML insertado |
 | B3 | Sanitización con DOMPurify | ASVS 5.2.1 | ➖ | No hay HTML que sanitizar; se justifica solo si se muestra HTML de la API (H-24) |
-| B4 | Content-Security-Policy | ASVS 14.4.3 | ⚠️ | Definida en `seguridad.inc.template` y verificada con la app real bajo esa política (0 violaciones; bloquea conexiones, scripts e imágenes ajenos); falta verificarla en la imagen reconstruida (H-07) |
+| B4 | Content-Security-Policy | ASVS 14.4.3 | ✅ | Verificada en la imagen real (`curl -I` en `concerto`, 08-10-2026) y con la app real bajo la política (0 violaciones; bloquea conexiones, scripts e imágenes ajenos) (H-07) |
 | B5 | Dependencias externas en tiempo de ejecución controladas | CWE-829 | ⚠️ | Google Fonts y mosaicos OSM (H-21) |
 | B6 | Enlaces `target="_blank"` con `rel="noopener noreferrer"` | CWE-1022 | ✅ | `PhotosModal.tsx`, `UbicacionModal.tsx` |
 | B7 | Token de sesión no expuesto a scripts | ASVS 3.2 | ⚠️ | JWT en `localStorage` (H-08) |
@@ -97,8 +97,8 @@
 | E8 | Sin secretos dentro de las capas de la imagen | CIS 4.10 | ✅ | Variables en tiempo de ejecución |
 | E9 | Escaneo de vulnerabilidades de las imágenes | CIS 5 | ⏳ | Sin Docker local; ejecutar `trivy image` en `concerto` |
 | E10 | Sistema de archivos de solo lectura y capacidades mínimas | CIS 5.x | ⏳ | Se define en la Container Instance |
-| E11 | Cabeceras de seguridad en nginx | ASVS 14.4 | ⚠️ | Configuradas en `nginx.conf.template` / `seguridad.inc.template`; sintaxis y cabeceras reales pendientes de verificar en la imagen (H-07) |
-| E12 | `server_tokens off` | ASVS 14.3 | ⚠️ | Configurado en `nginx.conf.template`; pendiente de verificar en la imagen (H-07) |
+| E11 | Cabeceras de seguridad en nginx | ASVS 14.4 | ✅ | Verificadas en la imagen real: CSP, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy; HSTS solo con X-Forwarded-Proto https (H-07, 08-10-2026) |
+| E12 | `server_tokens off` | ASVS 14.3 | ✅ | Verificado en la imagen real: `Server: nginx` sin versión (H-07, 08-10-2026) |
 | E13 | Límite de peticiones y conexiones en nginx | API4:2023 | ❌ | H-03 / H-07 |
 | E14 | TLS y HSTS en el balanceador | ASVS 9.1 | ⏳ | Infraestructura OCI |
 | E15 | El backend no es accesible directamente desde Internet | A05 | ⚠️ | Escucha en `0.0.0.0:3001`; el diseño solo expone nginx (8080). Confirmar reglas de red de OCI |
@@ -118,8 +118,8 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 34 |
-| ⚠️ Parcial / atención | 28 |
+| ✅ Cumple | 37 |
+| ⚠️ Parcial / atención | 25 |
 | ❌ No cumple | 12 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 10 |
