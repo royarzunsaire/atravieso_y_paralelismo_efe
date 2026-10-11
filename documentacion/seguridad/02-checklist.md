@@ -87,16 +87,16 @@
 ## E. Contenedores y despliegue
 | ID | Control | Ref. | Estado | Evidencia / hallazgo |
 |---|---|---|---|---|
-| E1 | El contenedor del backend no corre como `root` | CIS 4.1 | ❌ | H-12 |
-| E2 | El contenedor de nginx no corre como `root` | CIS 4.1 | ⚠️ | Puerto 8080 sí; proceso maestro como `root` (H-12) |
-| E3 | Imagen base con soporte vigente | CIS 4.2 | ❌ | `node:20-alpine` fuera de soporte desde abril de 2026 (H-12) |
-| E4 | Imágenes con versión o digest fijo | CIS 4.2 | ⚠️ | `node:20-alpine`, `nginx:alpine` flotantes (H-12) |
+| E1 | El contenedor del backend no corre como `root` | CIS 4.1 | ✅ | `USER node`; verificado en `concerto`: `uid=1000(node)` (H-12, 11-10-2026) |
+| E2 | El contenedor de nginx no corre como `root` | CIS 4.1 | ✅ | `nginx-unprivileged`; verificado en `concerto`: `uid=101(nginx)` (H-12, 11-10-2026) |
+| E3 | Imagen base con soporte vigente | CIS 4.2 | ✅ | Node 24 LTS (v24.21.0 verificado) y nginx estable (H-12, 11-10-2026) |
+| E4 | Imágenes con versión o digest fijo | CIS 4.2 | ✅ | Ambas imágenes base fijadas por digest en los Dockerfile; revisarlas periódicamente (H-12) |
 | E5 | Build multi-etapa y sin dependencias de desarrollo | CIS 4.x | ✅ | Frontend en 2 etapas; backend `npm ci --omit=dev` |
 | E6 | `.dockerignore` completo | CIS 4.10 | ⚠️ | Falta `scripts/`, `*.db`, `sqllite.py` (H-12) |
-| E7 | `HEALTHCHECK` definido | CIS 4.6 | ⚠️ | No hay (H-12) |
+| E7 | `HEALTHCHECK` definido | CIS 4.6 | ✅ | En ambas imágenes; el backend queda `healthy` y el de nginx consulta `/` (H-12, 11-10-2026) |
 | E8 | Sin secretos dentro de las capas de la imagen | CIS 4.10 | ✅ | Variables en tiempo de ejecución |
 | E9 | Escaneo de vulnerabilidades de las imágenes | CIS 5 | ⏳ | Sin Docker local; ejecutar `trivy image` en `concerto` |
-| E10 | Sistema de archivos de solo lectura y capacidades mínimas | CIS 5.x | ⏳ | Se define en la Container Instance |
+| E10 | Sistema de archivos de solo lectura y capacidades mínimas | CIS 5.x | ⚠️ | Definido en `docker-compose.yml` y probado en `concerto` (backend solo lectura, `cap_drop ALL`, `no-new-privileges`); en OCI lo debe replicar quien arma la Container Instance |
 | E11 | Cabeceras de seguridad en nginx | ASVS 14.4 | ✅ | Verificadas en la imagen real: CSP, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy; HSTS solo con X-Forwarded-Proto https (H-07, 08-10-2026) |
 | E12 | `server_tokens off` | ASVS 14.3 | ✅ | Verificado en la imagen real: `Server: nginx` sin versión (H-07, 08-10-2026) |
 | E13 | Límite de peticiones y conexiones en nginx | API4:2023 | ❌ | H-03 / H-07 |
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 40 |
-| ⚠️ Parcial / atención | 28 |
-| ❌ No cumple | 6 |
+| ✅ Cumple | 45 |
+| ⚠️ Parcial / atención | 26 |
+| ❌ No cumple | 4 |
 | ➖ No aplica | 3 |
-| ⏳ Fuera de alcance | 10 |
+| ⏳ Fuera de alcance | 9 |
 | **Total de controles** | **87** |

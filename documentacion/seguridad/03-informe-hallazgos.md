@@ -13,7 +13,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
-| **Media** | 9 (3 corregidas: H-06, H-07, H-09; 3 parciales: H-08, H-12, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, H-10, H-11, H-12 (parcial), H-13 (parcial), H-14 |
+| **Media** | 9 (4 corregidas: H-06, H-07, H-09, H-12; 2 parciales: H-08, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, H-10, H-11, ~~H-12~~, H-13 (parcial), H-14 |
 | **Baja** | 8 (1 corregida: H-20) | H-15 a H-19, ~~H-20~~, H-21, H-22 |
 | **Informativa** | 2 | H-23, H-24 |
 
@@ -114,11 +114,15 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 - **Evidencia:** la validación de peso/tipo está solo en el frontend (`validarPesos`). `routes/eventos.js` reenvía `Payload.Fotos/Informes/Documentos` sin decodificar ni revisar firma (magic bytes), extensión ni cantidad. El `Payload` se reenvía completo sin esquema (`mass assignment`).
 - **Mitigación:** lista blanca de extensiones/MIME, verificación de firma, tope por archivo y por evento, y un esquema que descarte claves desconocidas.
 
-**H-12 — 🟡 PARCIAL (08-10-2026: scripts y bases fuera de la imagen; falta usuario no root e imagen base) — Contenedor del backend: corre como `root`, la imagen incluye scripts y bases SQLite, imagen base sin soporte y sin versión fija** · CWE-250 · CIS Docker 4.1 / 4.2 / 4.6
+**H-12 — ✅ CORREGIDO y VERIFICADO en `concerto` (11-10-2026) — Contenedor del backend: corre como `root`, la imagen incluye scripts y bases SQLite, imagen base sin soporte y sin versión fija** · CWE-250 · CIS Docker 4.1 / 4.2 / 4.6
 - **Evidencia:** `pwa-backend/Dockerfile` sin `USER`; `.dockerignore` no excluye `scripts/` (contiene `create-test-user.js` con la contraseña literal `Admin123456` y `test-api-sharepoint.js` con la IP de la API), `*.db` ni `sqllite.py`; `FROM node:20-alpine` (**Node 20 terminó su soporte en abril de 2026**) y `nginx:alpine` sin versión ni digest; sin `HEALTHCHECK`. nginx corre su proceso maestro como `root` (el puerto 8080 ya es sin privilegios).
 - **Mitigación:** `USER node`, imagen Node LTS vigente (22 o 24) con versión fija, excluir `scripts/`, `*.db`, `sqllite.py` y `tests`, agregar `HEALTHCHECK`; considerar `nginxinc/nginx-unprivileged`.
 - **Corrección aplicada (08-10-2026):** `pwa-backend/.dockerignore` ahora excluye `scripts/`, `*.db`, `*.sqlite*`, `sqllite.py` y `README.md`; la imagen ya no llevará esos archivos (**por verificar en la próxima reconstrucción**).
-- **Pendiente de H-12:** (a) `USER node`, (b) Node 22 o 24 LTS con versión o digest fijo, (c) `HEALTHCHECK`, (d) `nginx-unprivileged`. Son cambios del `Dockerfile` que hay que probar construyendo la imagen en `concerto` (pueden afectar el arranque o los permisos).
+- **Corrección aplicada y verificada (11-10-2026, construida en `concerto` desde el commit `0a1f6a0`):**
+  - **Backend:** `node:24-alpine` fijada por digest (Node v24.21.0), `USER node`, `NODE_ENV=production`, `HEALTHCHECK` sobre `/health`. Probado con sistema de archivos de solo lectura, sin capacidades de Linux y con `no-new-privileges`: arranca, corre como `uid=1000(node)`, `/health` responde y el contenedor queda `healthy`.
+  - **Frontend:** compila con Node 24 y sirve con `nginxinc/nginx-unprivileged:stable-alpine` fijada por digest; corre como `uid=101(nginx)`, responde 200 con las cabeceras de seguridad y `Server: nginx` sin versión, sin errores de permisos al generar su configuración; su `HEALTHCHECK` consulta `/`.
+  - **`docker-compose.yml`:** `cap_drop: ALL` y `no-new-privileges` en ambos servicios; `read_only` + `/tmp` temporal en el backend.
+  - **Imágenes fijas = hay que actualizarlas a propósito:** no reciben parches solas; revisar los digests periódicamente (ver `oci-deploy.md`).
 
 **H-13 — 🟡 PARCIAL (08-10-2026: sacados del repositorio; el historial los conserva) — Archivos sensibles o innecesarios versionados en git** · CWE-540 · A05:2021
 - **Evidencia:** `git ls-files`: `pwa-backend/datos.db` (SQLite de 20 KB, contenido no inspeccionado), `pwa-backend/database.db` y `datos.db` (vacíos), `.claude.7z` (documentación interna del proyecto). La documentación versionada contiene la URL base de ORDS (`integracion-externa.md`), `client_id` parciales y correos reales de personas (`.claude/…/oracle-ords.md`).

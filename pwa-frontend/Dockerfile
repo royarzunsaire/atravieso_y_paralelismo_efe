@@ -2,10 +2,11 @@
 # Etapa 1 — Build de la SPA con Node
 # ─────────────────────────────────────────────
 # Imágenes base (hallazgo H-12). Node 24 LTS para compilar (Node 20 está sin soporte desde abril de 2026) y nginx SIN privilegios
-# (corre como usuario no root). Para FIJAR la versión exacta (recomendado en producción), pasar --build-arg con el digest:
+# (corre como usuario no root). Para usar otras versiones, pasar --build-arg con el digest nuevo:
 #   --build-arg NODE_IMAGE=node:24-alpine@sha256:<digest>   --build-arg NGINX_IMAGE=nginxinc/nginx-unprivileged:stable-alpine@sha256:<digest>
-ARG NODE_IMAGE=node:24-alpine
-ARG NGINX_IMAGE=nginxinc/nginx-unprivileged:stable-alpine
+# Ambas están FIJADAS por digest: son exactamente las imágenes con que se probó (11-10-2026). Actualizar = obtener digest nuevo y reprobar.
+ARG NODE_IMAGE=node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+ARG NGINX_IMAGE=nginxinc/nginx-unprivileged:stable-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
 
 FROM ${NODE_IMAGE} AS build
 
