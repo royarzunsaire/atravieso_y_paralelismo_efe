@@ -616,6 +616,10 @@ const REGLAS = [
   { id: 'CU-41b', archivo: 'app/App.tsx', tipo: 'noDebe', texto: '/auth/callback',
     msg: 'No debe existir la ruta /auth/callback.' },
 
+  // ── Cerrar sesión limpia sessionStorage (CU-42) ──
+  { id: 'CU-42a', archivo: 'services/auth.js', tipo: 'debe', texto: 'sessionStorage.clear()',
+    msg: 'Al cerrar sesión se vacía sessionStorage (borradores con fotos y obra abierta, H-14).' },
+
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',
     msg: 'Ctrl. Obra muestra el comentario de devolución.' },

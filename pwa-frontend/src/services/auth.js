@@ -105,6 +105,8 @@ async logout() {
     localStorage.removeItem('connection_token');
     localStorage.removeItem('supabase_session');
     localStorage.removeItem('user');
+    // H-14: borradores de inspección (con fotos), obra abierta y demás datos de la pestaña no deben sobrevivir al cierre de sesión.
+    try { sessionStorage.clear(); } catch { /* sin acceso al almacenamiento: nada que limpiar */ }
     // CU-20: lo guardado en memoria de esta sesión (obras, detalles, fotos, catálogo) se descarta.
     reiniciarCachesDeSesion();
   }

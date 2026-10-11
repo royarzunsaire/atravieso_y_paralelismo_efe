@@ -30,7 +30,7 @@
 | B6 | Enlaces `target="_blank"` con `rel="noopener noreferrer"` | CWE-1022 | ✅ | `PhotosModal.tsx`, `UbicacionModal.tsx` |
 | B7 | Token de sesión no expuesto a scripts | ASVS 3.2 | ⚠️ | JWT en `localStorage` (H-08) |
 | B8 | No se acepta un token recibido por URL | ASVS 3.2.1, CWE-384 | ✅ | `AuthCallback` y `/auth/callback` eliminados (H-09 corregido 08-10-2026) |
-| B9 | Al cerrar sesión se limpia todo el almacenamiento de la sesión | ASVS 3.3 | ⚠️ | `localStorage` y cachés sí; `sessionStorage` no (H-14) |
+| B9 | Al cerrar sesión se limpia todo el almacenamiento de la sesión | ASVS 3.3 | ✅ | `localStorage`, `sessionStorage` y cachés (H-14 corregido 11-10-2026) |
 | B10 | Sin *source maps* en producción | ASVS 14.3.2 | ✅ | `dist/assets/*.map`: 0 |
 | B11 | Sin datos sensibles en consola del navegador | ASVS 7.1 | ✅ | Sin `console.log` de token, usuario o payload |
 | B12 | El service worker no cachea respuestas autenticadas | ASVS 8.2 | ✅ | Solo precachea estáticos; `runtimeCaching` apunta a un dominio inexistente (H-23) |
@@ -118,8 +118,8 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 47 |
-| ⚠️ Parcial / atención | 25 |
+| ✅ Cumple | 48 |
+| ⚠️ Parcial / atención | 24 |
 | ❌ No cumple | 3 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 9 |

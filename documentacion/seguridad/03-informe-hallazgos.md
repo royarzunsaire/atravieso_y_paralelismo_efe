@@ -13,7 +13,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
-| **Media** | 9 (5 corregidas: H-06, H-07, H-09, H-10, H-12; 2 parciales: H-08, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, ~~H-10~~, H-11, ~~H-12~~, H-13 (parcial), H-14 |
+| **Media** | 9 (6 corregidas: H-06, H-07, H-09, H-10, H-12, H-14; 2 parciales: H-08, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, ~~H-10~~, H-11, ~~H-12~~, H-13 (parcial), ~~H-14~~ |
 | **Baja** | 8 (2 corregidas: H-17, H-20) | H-15, H-16, ~~H-17~~, H-18, H-19, ~~H-20~~, H-21, H-22 |
 | **Informativa** | 2 | H-23, H-24 |
 
@@ -137,9 +137,10 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 - **Corrección aplicada:** `git rm` de los tres `.db` y de `sqllite.py`; `.gitignore` ahora ignora `*.db`, `*.sqlite` y `*.sqlite3`; el `datos.db` se guardó como respaldo fuera del repositorio.
 - **Pendiente:** los archivos siguen en el **historial de git** (y por tanto en GitHub). Con las contraseñas ya cambiadas el riesgo es bajo; reescribir el historial (`git filter-repo` + push forzado) es destructivo y obliga a re-clonar a todo el equipo, así que **no se hizo sin decisión explícita**. `.claude.7z` sigue versionado.
 
-**H-14 — Al cerrar sesión no se limpia `sessionStorage` (borradores de inspección con fotos y datos de la obra)** · CWE-922 · ASVS 8.3
+**H-14 — ✅ CORREGIDO (11-10-2026) — Al cerrar sesión no se limpiaba `sessionStorage` (borradores de inspección con fotos y datos de la obra)** · CWE-922 · ASVS 8.3
 - **Evidencia:** `logout()` borra `localStorage` y las cachés en memoria (`reiniciarCachesDeSesion`), pero `sessionStorage` (`currentSolicitud`, `newInspectionDraft:*` con fotos en base64) solo se limpia en casos puntuales.
 - **Riesgo:** en un dispositivo compartido, la siguiente persona en la misma pestaña podría ver datos de la sesión anterior.
+- **Corrección aplicada:** `authService.logout()` ejecuta `sessionStorage.clear()` (dentro de `try/catch`) junto con el borrado de `localStorage` y de los cachés. Contrato de UI v65 (CU-42) y regla `CU-42a` en la guardia.
 
 ### Bajas
 
