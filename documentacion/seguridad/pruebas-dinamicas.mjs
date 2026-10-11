@@ -185,6 +185,12 @@ if (EMAIL && PASSWORD) {
         log(`D19 ${nombre}`, r.status === (esperado === 'CUERPO_DEMASIADO_GRANDE' ? 413 : 400) && r.json?.error === esperado ? 'OK' : 'FALLA', `HTTP ${r.status} ${r.json?.error || r.texto.slice(0, 80)} (esperado ${esperado})`);
       }
     }
+    // D20 contraseñas nuevas débiles (H-19): todas se rechazan con 400 ANTES de tocar la cuenta, así que no cambian nada.
+    for (const [nombre, nueva] of [['corta', 'Ab1'], ['sin números', 'SoloLetrasLargas'], ['sin letras', '12345678901'], ['común', 'Password12345'], ['igual a la actual', PASSWORD]]) {
+      const r = await req('/auth/change-password', { method: 'POST', headers: A, body: JSON.stringify({ currentPassword: PASSWORD, newPassword: nueva }) });
+      // «igual a la actual» solo se rechaza si además cumple la política; con una contraseña de prueba débil lo corta antes la política.
+      log(`D20 contraseña nueva ${nombre}`, r.status === 400 && r.json?.error === 'PASSWORD_NO_VALIDA' ? 'OK' : 'FALLA', `HTTP ${r.status} ${r.json?.error || ''}`);
+    }
     const adm = await req('/auth/admin/reset-password/ABC', { method: 'POST', headers: A, body: JSON.stringify({ newPassword: 'NoSeUsa12345' }) });
     log('D16 endpoint admin con usuario normal', adm.status === 403 ? 'OK' : 'FALLA', `HTTP ${adm.status}`);
     const inj = await req('/api/v2/solicitudes/1%27%20OR%201=1--', { headers: A });

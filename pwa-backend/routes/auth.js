@@ -3,6 +3,10 @@ const router = express.Router();
 const passport = require('../config/auth');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { validarPasswordNueva } = require('../utils/politicaPassword');
+
+// Costo de bcrypt para contraseñas NUEVAS (H-19). Los hashes existentes (costo 10) siguen validando: el costo va dentro del hash.
+const BCRYPT_COSTO = 12;
 const usersDb = require('../database');
 const { limitarLogin } = require('../middleware/limitarLogin');
 const { sesion } = require('../middleware/sesion');
@@ -198,11 +202,9 @@ router.post('/change-password', verifyToken, async (req, res) => {
       });
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({
-        success: false,
-        error: 'La nueva contraseña debe tener al menos 8 caracteres',
-      });
+    const problemaPassword = validarPasswordNueva(newPassword);
+    if (problemaPassword) {
+      return res.status(400).json({ success: false, error: 'PASSWORD_NO_VALIDA', message: problemaPassword });
     }
 
     const user = await usersDb.getUserById(req.user.id);
@@ -215,7 +217,11 @@ router.post('/change-password', verifyToken, async (req, res) => {
       return res.status(401).json({ success: false, error: 'Contraseña actual incorrecta' });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    if (newPassword === currentPassword) {
+      return res.status(400).json({ success: false, error: 'PASSWORD_NO_VALIDA', message: 'La nueva contraseña debe ser distinta de la actual.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_COSTO);
     await usersDb.updateUserPassword(user.id, hashedPassword);
 
     res.json({ success: true, message: 'Contraseña actualizada correctamente' });
@@ -240,11 +246,9 @@ router.post('/admin/reset-password/:id', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'newPassword es requerido' });
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({
-        success: false,
-        error: 'La nueva contraseña debe tener al menos 8 caracteres',
-      });
+    const problemaPassword = validarPasswordNueva(newPassword);
+    if (problemaPassword) {
+      return res.status(400).json({ success: false, error: 'PASSWORD_NO_VALIDA', message: problemaPassword });
     }
 
     const targetUser = await usersDb.getUserById(req.params.id);
@@ -252,7 +256,7 @@ router.post('/admin/reset-password/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_COSTO);
     // resetUserPassword (no updateUserPassword): además de la contraseña,
     // vuelve a activar debe_cambiar_password — el usuario deberá cambiarla
     // en su próximo login, ya que esta se la asignó el admin, no él mismo.

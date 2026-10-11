@@ -620,6 +620,12 @@ const REGLAS = [
   { id: 'CU-42a', archivo: 'services/auth.js', tipo: 'debe', texto: 'sessionStorage.clear()',
     msg: 'Al cerrar sesión se vacía sessionStorage (borradores con fotos y obra abierta, H-14).' },
 
+  // ── Contraseña nueva (CU-43) ──
+  { id: 'CU-43a', archivo: 'app/components/ChangePassword.tsx', tipo: 'debe', texto: 'Mínimo 10 caracteres, con letras y números',
+    msg: 'El cambio de contraseña indica el mínimo de 10 caracteres con letras y números (H-19).' },
+  { id: 'CU-43b', archivo: 'app/components/ChangePassword.tsx', tipo: 'noDebe', texto: 'Mínimo 8 caracteres',
+    msg: 'No debe volver el mínimo antiguo de 8 caracteres.' },
+
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',
     msg: 'Ctrl. Obra muestra el comentario de devolución.' },

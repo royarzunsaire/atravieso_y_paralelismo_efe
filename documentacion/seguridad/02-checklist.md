@@ -74,8 +74,8 @@
 ## D. Autenticación y contraseñas
 | ID | Control | Ref. | Estado | Evidencia / hallazgo |
 |---|---|---|---|---|
-| D1 | Contraseñas con hash adaptativo (bcrypt) | ASVS 2.4 | ✅ | `bcryptjs`, costo 10 (subir a 12: H-19) |
-| D2 | Política de contraseñas | ASVS 2.1 | ⚠️ | Solo mínimo de 8 caracteres (H-19) |
+| D1 | Contraseñas con hash adaptativo (bcrypt) | ASVS 2.4 | ✅ | `bcryptjs`, costo 12 para contraseñas nuevas; los hashes antiguos (costo 10) siguen validando (H-19 corregido 11-10-2026) |
+| D2 | Política de contraseñas | ASVS 2.1 | ✅ | 10 caracteres con letras y números, sin contraseñas comunes ni igual a la actual (H-19 corregido 11-10-2026); D20 |
 | D3 | Cambio forzado de contraseña en el primer inicio de sesión | ASVS 2.1 | ✅ | `debe_cambiar_password` (spec 08) |
 | D4 | Bloqueo o retardo tras intentos fallidos | ASVS 2.2.1 | ✅ | 5 fallos cada 10 min por correo + IP, luego 429 (H-03 corregido 08-10-2026) |
 | D5 | Autenticación multifactor | ASVS 2.8 | ⏳ | No existe (Azure AD deshabilitado); decisión de ciberseguridad |
@@ -118,8 +118,8 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 53 |
-| ⚠️ Parcial / atención | 20 |
+| ✅ Cumple | 54 |
+| ⚠️ Parcial / atención | 19 |
 | ❌ No cumple | 2 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 9 |
