@@ -13,7 +13,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
-| **Media** | 9 (6 corregidas: H-06, H-07, H-09, H-10, H-12, H-14; 2 parciales: H-08, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, ~~H-10~~, H-11, ~~H-12~~, H-13 (parcial), ~~H-14~~ |
+| **Media** | 9 (7 corregidas: H-06, H-07, H-09, H-10, H-11, H-12, H-14; 2 parciales: H-08, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, ~~H-10~~, ~~H-11~~, ~~H-12~~, H-13 (parcial), ~~H-14~~ |
 | **Baja** | 8 (2 corregidas: H-17, H-20) | H-15, H-16, ~~H-17~~, H-18, H-19, ~~H-20~~, H-21, H-22 |
 | **Informativa** | 2 | H-23, H-24 |
 
@@ -115,9 +115,16 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
   - **Validación de tipos:** el login rechaza con 400 un correo o contraseña que no sean texto (objeto, arreglo, número) o demasiado largos (254 / 200 caracteres) antes de llegar a Oracle o a bcrypt; lo mismo en el cambio de contraseña y el reset de administrador; y `POST /api/v2/eventos` exige `tipoEvento` y `eventoIdExterno` como texto (≤ 100 caracteres) y `payload` como objeto.
 - **Verificación (backend real):** prueba D8 pasa a OK (14 MB y 16 MB → 413 en ~120 ms), D10 pasa a OK (JSON malformado → 400), D15 con respuesta 400 y 9 casos de entrada inválida en OK (email como objeto, contraseña como arreglo, sin cuerpo, contraseña de 5000 caracteres, JSON malformado, 100 KB en `/auth`, `tipoEvento` como objeto, `payload` como texto, `eventoIdExterno` gigante). **Batería completa: 25 OK, 0 fallas.**
 
-**H-11 — Los archivos subidos no se validan en el servidor (tipo, firma, tamaño por archivo, cantidad)** · CWE-434, CWE-400 · ASVS 12.1 / 12.2
+**H-11 — ✅ CORREGIDO (11-10-2026) — Los archivos subidos no se validaban en el servidor (tipo, firma, tamaño por archivo, cantidad)** · CWE-434, CWE-400 · ASVS 12.1 / 12.2
 - **Evidencia:** la validación de peso/tipo está solo en el frontend (`validarPesos`). `routes/eventos.js` reenvía `Payload.Fotos/Informes/Documentos` sin decodificar ni revisar firma (magic bytes), extensión ni cantidad. El `Payload` se reenvía completo sin esquema (`mass assignment`).
 - **Mitigación:** lista blanca de extensiones/MIME, verificación de firma, tope por archivo y por evento, y un esquema que descarte claves desconocidas.
+- **Corrección aplicada** (`pwa-backend/utils/validarArchivos.js`, llamado desde `POST /api/v2/eventos` ANTES de consultar la API del cliente o guardar nada; 400 con código y archivo afectado):
+  - **Estructura**: `Fotos`, `Informes` y `Documentos` deben ser listas de `{Nombre, Contenido}`; el canal antiguo `Documento` se normaliza a `Documentos`.
+  - **Cantidad**: máx. 20 fotos, 10 informes, 10 documentos. **Peso**: foto ≤ 1 MB, informe/documento ≤ 10 MB (los mismos topes del frontend); el total queda además acotado por el límite de cuerpo de 15 MB de H-10.
+  - **Nombre** sin `/`, `\` ni caracteres de control (≤ 200). **Extensión**: fotos `jpg/jpeg/png/webp`; informes y documentos además `pdf/doc/docx`. **HEIC/HEIF no se admite** (la app convierte a JPEG antes de enviar).
+  - **Firma real (magic bytes)** que debe coincidir con la extensión: `%PDF-`, `FF D8 FF`, PNG, `RIFF…WEBP`, OLE2 (`.doc`) y `PK` (`.docx`). Un `.exe` renombrado a `.pdf` se rechaza.
+  - **Esquema del `Payload`** (anti *mass assignment*): solo viajan las claves del contrato (`Comentario`, `EstadoInspeccion`, `AvancePct`, `Latitud`, `Longitud`, `TipoInspeccionId`, `Fotos`, `Informes`, `Documentos`); las demás se descartan; tipos y rangos validados. Los `TipoDocumentoId` deben ser de los que la acción define hoy para la obra.
+- **Verificación:** prueba aislada de 22 casos (válidos e inválidos) y archivos reales del equipo (pdf, docx, jpg, jpeg, png, webp) pasan; **D19** en la batería dinámica (11 casos, todos rechazados con el código esperado sin escribir nada): batería **34 OK**. *Nota:* en D12 `alan.sepulveda` tiene acceso a ambas obras de prueba (155 y 156), por lo que esa fila no sirve con esos parámetros (no es regresión).
 
 **H-12 — ✅ CORREGIDO y VERIFICADO en `concerto` (11-10-2026) — Contenedor del backend: corre como `root`, la imagen incluye scripts y bases SQLite, imagen base sin soporte y sin versión fija** · CWE-250 · CIS Docker 4.1 / 4.2 / 4.6
 - **Evidencia:** `pwa-backend/Dockerfile` sin `USER`; `.dockerignore` no excluye `scripts/` (contiene `create-test-user.js` con la contraseña literal `Admin123456` y `test-api-sharepoint.js` con la IP de la API), `*.db` ni `sqllite.py`; `FROM node:20-alpine` (**Node 20 terminó su soporte en abril de 2026**) y `nginx:alpine` sin versión ni digest; sin `HEALTHCHECK`. nginx corre su proceso maestro como `root` (el puerto 8080 ya es sin privilegios).

@@ -48,7 +48,7 @@
 | C4 | Autorización por objeto (BOLA) | API1:2023 | ✅ | D12–D14: obras ajenas y acciones no permitidas → 403 |
 | C5 | Autorización por función (admin) | API5:2023 | ✅ | D16 → 403 |
 | C6 | La acción se revalida en el servidor contra la fuente de verdad | ASVS 4.1 | ✅ | `routes/eventos.js:163-200` |
-| C7 | Validación de esquema del cuerpo (tipos, claves permitidas) | API3:2023 | ⚠️ | El `Payload` se reenvía sin esquema (H-11); no cae por tipos inesperados (D15) |
+| C7 | Validación de esquema del cuerpo (tipos, claves permitidas) | API3:2023 | ✅ | El `Payload` se limpia a las claves del contrato con tipos y rangos (H-11 corregido 11-10-2026); D15 y D19 |
 | C8 | Límite de tamaño de cuerpo por ruta | API4:2023 | ✅ | `/auth` 20 KB y `/api` 15 MB (H-10 corregido 11-10-2026); tope de 64 KB para `/auth/` también en nginx (por verificar en la imagen) |
 | C9 | Límite de tasa (rate limiting) | API4:2023 | ⚠️ | Login limitado a 5 fallos / 10 min por correo + IP (H-03 corregido 08-10-2026); el resto de la API y nginx sin límite (E13) |
 | C10 | Registro de cuentas restringido | ASVS 2.1 | ✅ | `POST /auth/register` eliminado (H-01 corregido 08-10-2026); las cuentas se crean solo por ORDS |
@@ -56,7 +56,7 @@
 | C12 | Errores sin detalles internos y con el código HTTP correcto | ASVS 7.4 | ⚠️ | D10: JSON malformado → 500; `error.message` al cliente (H-10, H-18) |
 | C13 | Cabeceras de seguridad (`helmet`) y sin `X-Powered-By` | ASVS 14.4 | ✅ | `helmet` en el backend; D1 en OK (H-07 corregido 08-10-2026) |
 | C14 | CORS restrictivo | API8:2023 | ⚠️ | Rechaza orígenes ajenos (D9); permite `localhost` en producción (H-16) |
-| C15 | Validación de archivos subidos (tipo, firma, tamaño, cantidad) | ASVS 12.1 | ❌ | Solo en el cliente (H-11) |
+| C15 | Validación de archivos subidos (tipo, firma, tamaño, cantidad) | ASVS 12.1 | ✅ | Extensión, firma real, peso, cantidad y base64 en el servidor (H-11 corregido 11-10-2026); D19 |
 | C16 | Sin inyección (SQL/ORDS/NoSQL/ruta) | A03:2021 | ✅ | D17; las consultas usan JSON codificado |
 | C17 | Sin SSRF | API7:2023 | ✅ | URL base fija; el aviso de `axios` se corrige con H-02 |
 | C18 | Logs sin datos sensibles | ASVS 7.1 | ⚠️ | El hash y el objeto de usuario ya no se registran (H-04 corregido 08-10-2026); los logs de petición aún llevan el correo (pendiente, bajo) |
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 48 |
-| ⚠️ Parcial / atención | 24 |
-| ❌ No cumple | 3 |
+| ✅ Cumple | 50 |
+| ⚠️ Parcial / atención | 23 |
+| ❌ No cumple | 2 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 9 |
 | **Total de controles** | **87** |

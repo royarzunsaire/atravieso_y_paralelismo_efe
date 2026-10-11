@@ -3,6 +3,7 @@ const router = express.Router();
 const { verifyToken } = require('./auth');
 const { createInspeccionOutbox, getInspeccionOutboxById } = require('../database');
 const { procesarInspeccion } = require('../syncJob');
+const { validarPayloadEvento, validarTiposDocumento, PayloadInvalidoError } = require('../utils/validarArchivos');
 const { obtenerInicio, obtenerDetalleSolicitud, obtenerInspeccion, obtenerObraInicio, subirDocumentosOpcionales } = require('../apiEventos');
 const { parseFechaEventoOpcional, FechaInvalidaError } = require('../utils/fechas');
 
@@ -121,7 +122,8 @@ router.get('/inspecciones/:id', verifyToken, async (req, res) => {
  */
 router.post('/eventos', verifyToken, async (req, res) => {
   try {
-    const { solicitudId, eventoIdExterno, tipoEvento, payload = {}, fechaEvento } = req.body;
+    const { solicitudId, eventoIdExterno, tipoEvento, fechaEvento } = req.body;
+    let payload = req.body.payload === undefined ? {} : req.body.payload;
     const userEmail = req.user?.email;
     const userNombre = req.user?.nombre;
 
@@ -135,6 +137,17 @@ router.post('/eventos', verifyToken, async (req, res) => {
         error: 'DATOS_INVALIDOS',
         message: 'tipoEvento y eventoIdExterno deben ser texto y payload debe ser un objeto.',
       });
+    }
+
+    // Archivos y campos del Payload (H-11): estructura, extensión, peso, firma real del archivo y claves del contrato.
+    // Se rechaza ANTES de consultar la API del cliente o guardar nada; el Payload que sigue es el ya limpio.
+    try {
+      payload = validarPayloadEvento(payload);
+    } catch (err) {
+      if (err instanceof PayloadInvalidoError) {
+        return res.status(400).json({ success: false, error: err.codigo, message: err.message });
+      }
+      throw err;
     }
 
     // Los 5 obligatorios del contrato de la API (menos Origen, que ponemos acá).
@@ -224,6 +237,16 @@ router.post('/eventos', verifyToken, async (req, res) => {
           ? `Esta acción exige documentos adjuntos: ${nombres.join(' y ')}.`
           : 'Esta acción exige al menos un adjunto: agrega una foto o un archivo.',
       });
+    }
+
+    // Los TipoDocumentoId enviados deben ser de los que la acción define hoy para esta obra (H-11).
+    try {
+      validarTiposDocumento(payload, defAccion?.TiposDocumento);
+    } catch (err) {
+      if (err instanceof PayloadInvalidoError) {
+        return res.status(400).json({ success: false, error: err.codigo, message: err.message });
+      }
+      throw err;
     }
 
     // Varios tipos de documento en la acción (ej. documentación del ITO): hay que subir uno por cada tipo.

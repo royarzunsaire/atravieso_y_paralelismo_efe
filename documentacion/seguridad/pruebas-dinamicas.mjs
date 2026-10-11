@@ -159,13 +159,38 @@ if (EMAIL && PASSWORD) {
       const ev3 = await req('/api/v2/eventos', { method: 'POST', headers: A, body: JSON.stringify({ solicitudId: OBRA_PROPIA, eventoIdExterno: crypto.randomUUID(), tipoEvento: { $ne: 1 }, payload: 'texto' }) });
       log('D15 tipos inesperados en el cuerpo', ev3.status >= 500 ? 'FALLA' : 'OK', `HTTP ${ev3.status}: ${ev3.texto.slice(0, 120)}`);
     }
+    // D19 archivos y Payload inválidos en POST /eventos (H-11). Todos se rechazan con 400 ANTES de consultar la obra o guardar algo,
+    // así que no escriben nada. Se usa la obra propia (o la ajena) solo porque el cuerpo lo exige.
+    {
+      const obra = OBRA_PROPIA || OBRA_AJENA || 1;
+      const b64 = (bytes, relleno = 2000) => Buffer.concat([Buffer.from(bytes), Buffer.alloc(relleno, 0x41)]).toString('base64');
+      const jpg = b64([0xFF, 0xD8, 0xFF, 0xE0]);
+      const casos = [
+        ['ejecutable renombrado a .pdf', { Informes: [{ Nombre: 'a.pdf', Contenido: b64('MZ ') }] }, 'ARCHIVO_INVALIDO'],
+        ['extensión no permitida (.exe)', { Informes: [{ Nombre: 'a.exe', Contenido: b64('MZ ') }] }, 'ARCHIVO_INVALIDO'],
+        ['HEIC (no se admite)', { Fotos: [{ Nombre: 'a.heic', Contenido: b64([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]) }] }, 'ARCHIVO_INVALIDO'],
+        ['contenido que no es base64', { Fotos: [{ Nombre: 'a.jpg', Contenido: '***!!!' }] }, 'ARCHIVO_INVALIDO'],
+        ['foto de más de 1 MB', { Fotos: [{ Nombre: 'a.jpg', Contenido: b64([0xFF, 0xD8, 0xFF], 1.5 * 1024 * 1024) }] }, 'ARCHIVO_INVALIDO'],
+        ['21 fotos', { Fotos: Array.from({ length: 21 }, () => ({ Nombre: 'a.jpg', Contenido: jpg })) }, 'DEMASIADOS_ARCHIVOS'],
+        ['Fotos como texto', { Fotos: 'hola' }, 'PAYLOAD_INVALIDO'],
+        ['nombre con ../', { Fotos: [{ Nombre: '../../a.jpg', Contenido: jpg }] }, 'ARCHIVO_INVALIDO'],
+        ['AvancePct fuera de rango', { AvancePct: 150 }, 'PAYLOAD_INVALIDO'],
+        ['Comentario como objeto', { Comentario: { a: 1 } }, 'PAYLOAD_INVALIDO'],
+        // (en base64 el cuerpo de 15 MB del límite global se alcanza antes que el tope de 15 MB de archivos decodificados)
+        ['envío total de más de 15 MB', { Informes: Array.from({ length: 3 }, () => ({ Nombre: 'a.pdf', Contenido: b64('%PDF-', 6 * 1024 * 1024) })) }, 'CUERPO_DEMASIADO_GRANDE'],
+      ];
+      for (const [nombre, payload, esperado] of casos) {
+        const r = await req('/api/v2/eventos', { method: 'POST', headers: A, body: JSON.stringify({ solicitudId: obra, eventoIdExterno: crypto.randomUUID(), tipoEvento: 'INSPECCION_CONFORME', payload }) });
+        log(`D19 ${nombre}`, r.status === (esperado === 'CUERPO_DEMASIADO_GRANDE' ? 413 : 400) && r.json?.error === esperado ? 'OK' : 'FALLA', `HTTP ${r.status} ${r.json?.error || r.texto.slice(0, 80)} (esperado ${esperado})`);
+      }
+    }
     const adm = await req('/auth/admin/reset-password/ABC', { method: 'POST', headers: A, body: JSON.stringify({ newPassword: 'NoSeUsa12345' }) });
     log('D16 endpoint admin con usuario normal', adm.status === 403 ? 'OK' : 'FALLA', `HTTP ${adm.status}`);
     const inj = await req('/api/v2/solicitudes/1%27%20OR%201=1--', { headers: A });
     log('D17 id con intento de inyección', inj.status >= 500 ? 'REVISAR' : 'OK', `HTTP ${inj.status}: ${inj.texto.slice(0, 100)}`);
   }
 } else {
-  log('Con sesión', 'OMITIDO', 'defina SEC_EMAIL y SEC_PASSWORD para las pruebas D11–D17');
+  log('Con sesión', 'OMITIDO', 'defina SEC_EMAIL y SEC_PASSWORD para las pruebas D11–D19');
 }
 
 // D18 «Cerrar sesión» invalida el token en el servidor (H-08). Usa su propia sesión para no afectar a las anteriores.
