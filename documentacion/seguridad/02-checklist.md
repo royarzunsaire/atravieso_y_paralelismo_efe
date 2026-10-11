@@ -50,7 +50,7 @@
 | C6 | La acción se revalida en el servidor contra la fuente de verdad | ASVS 4.1 | ✅ | `routes/eventos.js:163-200` |
 | C7 | Validación de esquema del cuerpo (tipos, claves permitidas) | API3:2023 | ✅ | El `Payload` se limpia a las claves del contrato con tipos y rangos (H-11 corregido 11-10-2026); D15 y D19 |
 | C8 | Límite de tamaño de cuerpo por ruta | API4:2023 | ✅ | `/auth` 20 KB y `/api` 15 MB (H-10 corregido 11-10-2026); tope de 64 KB para `/auth/` también en nginx (por verificar en la imagen) |
-| C9 | Límite de tasa (rate limiting) | API4:2023 | ⚠️ | Login limitado a 5 fallos / 10 min por correo + IP (H-03 corregido 08-10-2026); el resto de la API y nginx sin límite (E13) |
+| C9 | Límite de tasa (rate limiting) | API4:2023 | ✅ | Login 5 fallos / 10 min por correo + IP (backend, H-03) y `limit_req` en nginx para `/auth/` y `/api/` (E13, 11-10-2026) |
 | C10 | Registro de cuentas restringido | ASVS 2.1 | ✅ | `POST /auth/register` eliminado (H-01 corregido 08-10-2026); las cuentas se crean solo por ORDS |
 | C11 | Sin enumeración de usuarios | ASVS 2.2 | ✅ | Mensaje único y tiempos parejos con hash falso (H-06 corregido 08-10-2026) |
 | C12 | Errores sin detalles internos y con el código HTTP correcto | ASVS 7.4 | ✅ | JSON malformado → 400 (H-10); 500/502 con mensaje genérico (H-18 corregido 11-10-2026) |
@@ -99,7 +99,7 @@
 | E10 | Sistema de archivos de solo lectura y capacidades mínimas | CIS 5.x | ⚠️ | Definido en `docker-compose.yml` y probado en `concerto` (backend solo lectura, `cap_drop ALL`, `no-new-privileges`); en OCI lo debe replicar quien arma la Container Instance |
 | E11 | Cabeceras de seguridad en nginx | ASVS 14.4 | ✅ | Verificadas en la imagen real: CSP, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy; HSTS solo con X-Forwarded-Proto https (H-07, 08-10-2026) |
 | E12 | `server_tokens off` | ASVS 14.3 | ✅ | Verificado en la imagen real: `Server: nginx` sin versión (H-07, 08-10-2026) |
-| E13 | Límite de peticiones y conexiones en nginx | API4:2023 | ❌ | H-03 / H-07 |
+| E13 | Límite de peticiones y conexiones en nginx | API4:2023 | ✅ | `limit_req`: `/auth/` 20/min y `/api/` 50/s por cliente → 429 (11-10-2026). **Por verificar con `nginx -t` y una ráfaga en `concerto`.** No se limitan conexiones simultáneas (tras un balanceador compartirían cuenta) |
 | E14 | TLS y HSTS en el balanceador | ASVS 9.1 | ⏳ | Infraestructura OCI |
 | E15 | El backend no es accesible directamente desde Internet | A05 | ⚠️ | Escucha en `0.0.0.0:3001`; el diseño solo expone nginx (8080). Confirmar reglas de red de OCI |
 | E16 | Registro, monitoreo y alertas | ASVS 7.2 | ⏳ | Infraestructura OCI |
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 55 |
-| ⚠️ Parcial / atención | 18 |
-| ❌ No cumple | 2 |
+| ✅ Cumple | 57 |
+| ⚠️ Parcial / atención | 17 |
+| ❌ No cumple | 1 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 9 |
 | **Total de controles** | **87** |
