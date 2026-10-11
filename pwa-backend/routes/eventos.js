@@ -127,6 +127,16 @@ router.post('/eventos', verifyToken, async (req, res) => {
 
     console.log(`📝 POST /api/v2/eventos - Solicitud ${solicitudId}, Tipo ${tipoEvento}, Evento ${eventoIdExterno} - Usuario: ${userEmail}`);
 
+    // Tipos de la entrada (H-10): un objeto o arreglo donde se espera texto no debe llegar más lejos.
+    if (typeof tipoEvento !== 'string' || typeof eventoIdExterno !== 'string' || eventoIdExterno.length > 100
+        || typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+      return res.status(400).json({
+        success: false,
+        error: 'DATOS_INVALIDOS',
+        message: 'tipoEvento y eventoIdExterno deben ser texto y payload debe ser un objeto.',
+      });
+    }
+
     // Los 5 obligatorios del contrato de la API (menos Origen, que ponemos acá).
     if (!solicitudId || !eventoIdExterno || !tipoEvento) {
       return res.status(400).json({

@@ -2,7 +2,7 @@
 
 **Fecha:** 07-10-2026 · **Alcance y método:** ver `01-planner.md` · **Checklist:** `02-checklist.md`
 **Resultado de las pruebas dinámicas (`localhost`, `pruebas-dinamicas.mjs`):** 18 OK · 6 fallas · 3 de atención · 1 bajo (D1 cabeceras, D5 enumeración, D6 fuerza bruta, D7 registro público, D8 tamaño de cuerpo, D10 JSON malformado).
-**Tras las correcciones del 08-10-2026 (H-01, H-02, H-03, H-04, H-06 y H-07):** 22 OK · 2 fallas · 3 de atención · 1 bajo · 1 informativo (D1 de cabeceras, D5 de enumeración, D6 de fuerza bruta y D7 del registro público ya dan OK; quedan D8 y D10, de H-10).
+**Tras las correcciones (H-01, H-02, H-03, H-04, H-06, H-07, H-10, H-12 y H-17):** 25 OK · **0 fallas** · 3 de atención · 1 bajo · 1 informativo (quedan solo avisos: JWT de 7 días, CORS permite localhost y reflejo de la ruta en el 404).
 
 ## 1. Resumen ejecutivo
 La aplicación tiene **buenos cimientos en autorización**: el servidor revalida cada acción contra la API del cliente y rechazó todos los intentos de acceder o escribir sobre obras ajenas, de usar tokens falsos (`alg:none`, firma incorrecta, expirado) y de usar endpoints de administrador con un usuario normal. No hay secretos en el historial de git, en el bundle ni en las imágenes, los `.env` están ignorados, los secretos locales tienen longitud y entropía adecuadas, el frontend no tiene `npm audit` pendientes y no usa sinks de XSS.
@@ -13,8 +13,8 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 |---|---|---|
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
-| **Media** | 9 (4 corregidas: H-06, H-07, H-09, H-12; 2 parciales: H-08, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, H-10, H-11, ~~H-12~~, H-13 (parcial), H-14 |
-| **Baja** | 8 (1 corregida: H-20) | H-15 a H-19, ~~H-20~~, H-21, H-22 |
+| **Media** | 9 (5 corregidas: H-06, H-07, H-09, H-10, H-12; 2 parciales: H-08, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, ~~H-10~~, H-11, ~~H-12~~, H-13 (parcial), H-14 |
+| **Baja** | 8 (2 corregidas: H-17, H-20) | H-15, H-16, ~~H-17~~, H-18, H-19, ~~H-20~~, H-21, H-22 |
 | **Informativa** | 2 | H-23, H-24 |
 
 ## 2. Impacto de corregir los hallazgos críticos y altos
@@ -106,9 +106,14 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 - **Mitigación:** eliminar el componente y la ruta mientras Azure esté deshabilitado.
 - **Corrección aplicada:** se eliminaron `AuthCallback.tsx`, su import, su tipo de pantalla y la rama de `App.tsx` que lo activaba en `/auth/callback`. Verificado en el navegador: abrir `/auth/callback?token=<cualquier cosa>` ya no guarda nada en `localStorage` ni inicia sesión; la app muestra el login. En el código comentado de Azure del backend y en la spec 02 quedó una advertencia para no volver a pasar el token por la URL al reactivarlo (usar un código de un solo uso por POST o el fragmento `#`, y validar `state`).
 
-**H-10 — Cuerpos de hasta 15 MB se procesan antes de autenticar; errores de entrada devuelven 500** · CWE-770, CWE-209 · ASVS 13.1 / API4:2023
+**H-10 — ✅ CORREGIDO (11-10-2026) — Cuerpos de hasta 15 MB se procesaban antes de autenticar; errores de entrada devolvían 500** · CWE-770, CWE-209 · ASVS 13.1 / API4:2023
 - **Evidencia:** `server.js:48` (`express.json({ limit: '15mb' })` global). D8: un cuerpo de 14 MB en `/auth/login/local` se parsea completo y recién ahí responde 401; con 16 MB responde **500** (debería ser 413). D10: JSON malformado responde **500** con el mensaje del analizador (debería ser 400).
 - **Mitigación:** límite pequeño (p. ej. 20 KB) en las rutas `/auth/*` y 15 MB solo en `/api/v2/eventos`; manejar los errores de `body-parser` como 400/413.
+- **Corrección aplicada:**
+  - **Límites por zona** (`server.js`): `/auth` acepta como máximo **20 KB** (solo recibe credenciales) y `/api` **15 MB** (fotos y documentos en base64); ya no hay un límite único de 15 MB para todo. nginx agrega un tope de 64 KB en `/auth/` como defensa en profundidad (por verificar en la próxima reconstrucción de la imagen).
+  - **Errores correctos:** un cuerpo demasiado grande responde **413** `CUERPO_DEMASIADO_GRANDE` y un JSON mal formado **400** `SOLICITUD_INVALIDA` (antes 500 con el mensaje del analizador).
+  - **Validación de tipos:** el login rechaza con 400 un correo o contraseña que no sean texto (objeto, arreglo, número) o demasiado largos (254 / 200 caracteres) antes de llegar a Oracle o a bcrypt; lo mismo en el cambio de contraseña y el reset de administrador; y `POST /api/v2/eventos` exige `tipoEvento` y `eventoIdExterno` como texto (≤ 100 caracteres) y `payload` como objeto.
+- **Verificación (backend real):** prueba D8 pasa a OK (14 MB y 16 MB → 413 en ~120 ms), D10 pasa a OK (JSON malformado → 400), D15 con respuesta 400 y 9 casos de entrada inválida en OK (email como objeto, contraseña como arreglo, sin cuerpo, contraseña de 5000 caracteres, JSON malformado, 100 KB en `/auth`, `tipoEvento` como objeto, `payload` como texto, `eventoIdExterno` gigante). **Batería completa: 25 OK, 0 fallas.**
 
 **H-11 — Los archivos subidos no se validan en el servidor (tipo, firma, tamaño por archivo, cantidad)** · CWE-434, CWE-400 · ASVS 12.1 / 12.2
 - **Evidencia:** la validación de peso/tipo está solo en el frontend (`validarPesos`). `routes/eventos.js` reenvía `Payload.Fotos/Informes/Documentos` sin decodificar ni revisar firma (magic bytes), extensión ni cantidad. El `Payload` se reenvía completo sin esquema (`mass assignment`).
@@ -142,7 +147,7 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 |---|---|---|---|
 | H-15 | `/` y `/health` públicos exponen el entorno y qué variables están configuradas · CWE-200 | D2; `server.js:80-109`. nginx solo enruta `/api/` y `/auth/`, así que no son accesibles desde fuera salvo desde la red interna. | Limitar a red interna o reducir la respuesta |
 | H-16 | CORS permite `localhost` también en producción · CWE-942 | `server.js:25-30`; D9 | Incluir `localhost` solo si `NODE_ENV !== 'production'` |
-| H-17 | `express-session` y `passport.session` activos sin uso (almacén en memoria, requiere `SESSION_SECRET`) · CWE-1104 | `server.js:51-65`; la autenticación es solo por JWT | Quitarlos (menos superficie y una variable menos) |
+| H-17 | ✅ CORREGIDO (11-10-2026) — `express-session` y `passport.session` activos sin uso (almacén en memoria, requiere `SESSION_SECRET`) · CWE-1104 | `server.js:51-65`; la autenticación es solo por JWT | Corregido: se desinstaló `express-session`, se quitó `passport.session()`, el serializador de sesión, `SESSION_SECRET` y su chequeo de `/health`; desaparece también el aviso «MemoryStore is not designed for a production environment». Verificado: login, sesión por token y `/health` siguen igual. |
 | H-18 | Varios endpoints devuelven `error.message` al cliente (500/502) · CWE-209 | `routes/auth.js` (varios `catch`), `routes/eventos.js:331` | Mensajes genéricos al cliente; detalle solo en el log |
 | H-19 | Política de contraseñas mínima: 8 caracteres sin complejidad ni lista de contraseñas filtradas; bcrypt con costo 10 · ASVS 2.1 | `routes/auth.js:114,240` | Mínimo 10–12, rechazar contraseñas comunes, costo 12 |
 | H-20 | ✅ CORREGIDO (08-10-2026) — Datos hardcodeados en scripts de apoyo: contraseña `Admin123456`, IP de la API del cliente · CWE-798 | `scripts/create-test-user.js:6`, `scripts/test-api-sharepoint.js:6` | Corregido: ahora se piden por entorno (`TEST_USER_EMAIL`/`TEST_USER_PASSWORD` de 12+ caracteres, `SHAREPOINT_API_URL`, `CORREO_PRUEBA`); `test-api-sharepoint.js` solo envía su evento de prueba (escribe en SharePoint) con `--escribir`; `create-admin.js` (estaba roto) vuelve a funcionar; `scripts/` ya no entra a la imagen. También se borró de `Login.tsx` un bloque **comentado** que mostraba `admin@efe.cl` / `Admin123456` (no llegaba al bundle). |

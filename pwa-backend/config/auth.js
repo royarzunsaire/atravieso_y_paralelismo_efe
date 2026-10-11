@@ -100,19 +100,7 @@ async (email, password, done) => {
   }
 }));
 
-// Serialización
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-
-passport.deserializeUser(async (id, done) => {
-  try {
-    const user = await usersDb.getUserById(id);
-    done(null, user);
-  } catch (error) {
-    done(error);
-  }
-});
+// Sin sesiones: la autenticación es solo por token (JWT); no se serializa el usuario (H-17).
 
 passport.isAzureConfigured = isAzureConfigured;
 

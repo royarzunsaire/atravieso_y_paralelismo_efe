@@ -41,6 +41,11 @@ const generateToken = (user) => {
 // LOGIN LOCAL (usuario/contraseña)
 // ========================================
 router.post('/login/local', limitarLogin, (req, res, next) => {
+  // Validación de entrada (H-10): deben ser textos razonables; un objeto/arreglo/número no llega a Oracle ni a bcrypt.
+  const { email, password } = req.body ?? {};
+  if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password || email.length > 254 || password.length > 200) {
+    return res.status(400).json({ success: false, error: 'DATOS_INVALIDOS', message: 'Ingresa tu correo y tu contraseña.' });
+  }
   passport.authenticate('local', (err, user, info) => {
     if (err) {
       return res.status(500).json({ success: false, error: err.message });
@@ -184,7 +189,7 @@ router.post('/change-password', verifyToken, async (req, res) => {
 
     const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
       return res.status(400).json({
         success: false,
         error: 'currentPassword y newPassword son requeridos',
@@ -228,7 +233,7 @@ router.post('/admin/reset-password/:id', verifyToken, async (req, res) => {
 
     const { newPassword } = req.body;
 
-    if (!newPassword) {
+    if (typeof newPassword !== 'string' || !newPassword) {
       return res.status(400).json({ success: false, error: 'newPassword es requerido' });
     }
 

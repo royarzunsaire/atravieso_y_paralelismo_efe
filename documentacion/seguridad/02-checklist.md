@@ -49,7 +49,7 @@
 | C5 | Autorización por función (admin) | API5:2023 | ✅ | D16 → 403 |
 | C6 | La acción se revalida en el servidor contra la fuente de verdad | ASVS 4.1 | ✅ | `routes/eventos.js:163-200` |
 | C7 | Validación de esquema del cuerpo (tipos, claves permitidas) | API3:2023 | ⚠️ | El `Payload` se reenvía sin esquema (H-11); no cae por tipos inesperados (D15) |
-| C8 | Límite de tamaño de cuerpo por ruta | API4:2023 | ❌ | 15 MB global antes de autenticar (H-10) |
+| C8 | Límite de tamaño de cuerpo por ruta | API4:2023 | ✅ | `/auth` 20 KB y `/api` 15 MB (H-10 corregido 11-10-2026); tope de 64 KB para `/auth/` también en nginx (por verificar en la imagen) |
 | C9 | Límite de tasa (rate limiting) | API4:2023 | ⚠️ | Login limitado a 5 fallos / 10 min por correo + IP (H-03 corregido 08-10-2026); el resto de la API y nginx sin límite (E13) |
 | C10 | Registro de cuentas restringido | ASVS 2.1 | ✅ | `POST /auth/register` eliminado (H-01 corregido 08-10-2026); las cuentas se crean solo por ORDS |
 | C11 | Sin enumeración de usuarios | ASVS 2.2 | ✅ | Mensaje único y tiempos parejos con hash falso (H-06 corregido 08-10-2026) |
@@ -61,7 +61,7 @@
 | C17 | Sin SSRF | API7:2023 | ✅ | URL base fija; el aviso de `axios` se corrige con H-02 |
 | C18 | Logs sin datos sensibles | ASVS 7.1 | ⚠️ | El hash y el objeto de usuario ya no se registran (H-04 corregido 08-10-2026); los logs de petición aún llevan el correo (pendiente, bajo) |
 | C19 | Endpoints de diagnóstico sin información interna | A05 | ⚠️ | `/` y `/health` (H-15) |
-| C20 | Sin componentes innecesarios (sesiones, estrategias sin uso) | A05 | ⚠️ | `express-session` / `passport.session` (H-17) |
+| C20 | Sin componentes innecesarios (sesiones, estrategias sin uso) | A05 | ✅ | `express-session` y `passport.session` eliminados (H-17 corregido 11-10-2026) |
 | C21 | Manejo seguro de excepciones no controladas | CWE-248 | ⚠️ | `uncaughtException` solo registra (H-22) |
 | C22 | Idempotencia de eventos (evita duplicados / repetición) | API6:2023 | ✅ | `eventoIdExterno` único; formato UUID no se valida (menor) |
 | C23 | Protección CSRF | ASVS 4.2 | ➖ | La sesión va en cabecera `Authorization`, no en cookie |
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 45 |
-| ⚠️ Parcial / atención | 26 |
-| ❌ No cumple | 4 |
+| ✅ Cumple | 47 |
+| ⚠️ Parcial / atención | 25 |
+| ❌ No cumple | 3 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 9 |
 | **Total de controles** | **87** |

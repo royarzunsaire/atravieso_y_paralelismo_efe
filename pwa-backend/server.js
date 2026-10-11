@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const session = require('express-session');
 const passport = require('./config/auth');
 require('dotenv').config();
 
@@ -69,24 +68,14 @@ app.use(cors({
 // ========================================
 // MIDDLEWARES
 // ========================================
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Session
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production', // HTTPS en producción
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 horas
-  }
-}));
+// Límites de cuerpo POR ZONA (H-10). Antes había uno solo de 15 MB para todo, y se leía completo ANTES de autenticar:
+// /auth solo recibe credenciales (20 KB); la API de eventos lleva fotos y documentos en base64 (15 MB).
+app.use('/auth', express.json({ limit: '20kb' }));
+app.use('/auth', express.urlencoded({ extended: false, limit: '20kb' }));
+app.use('/api', express.json({ limit: '15mb' }));
 
 // Passport
 app.use(passport.initialize());
-app.use(passport.session());
 
 // ========================================
 // LOGGER DE REQUESTS (solo desarrollo)
@@ -114,14 +103,13 @@ app.get('/health', (req, res) => {
   const checks = {
     oracle:            !!process.env.ORACLE_ORDS_URL && !!process.env.ORACLE_ORDS_CLIENT_ID && !!process.env.ORACLE_ORDS_CLIENT_SECRET,
     jwt:               !!process.env.JWT_SECRET,
-    session:           !!process.env.SESSION_SECRET,
     frontend_url:      !!process.env.FRONTEND_URL,
     sharepoint_api:    !!(process.env.SHAREPOINT_API_URL && process.env.SHAREPOINT_API_SECRET),
     // azure_ad: deshabilitado temporalmente — ver spec 02-azure-ad-login.md
     // azure_ad:          !!(process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_TENANT_ID),
   };
 
-  const allCriticalOk = checks.oracle && checks.jwt && checks.session;
+  const allCriticalOk = checks.oracle && checks.jwt;
   const status = allCriticalOk ? 'ok' : 'degraded';
 
   res.status(allCriticalOk ? 200 : 207).json({
@@ -152,6 +140,16 @@ app.use((req, res) => {
 // ERROR HANDLER GLOBAL
 // ========================================
 app.use((err, req, res, next) => {
+  // Errores al LEER el cuerpo (body-parser) son del cliente, no del servidor: 413 / 400, nunca 500 (H-10).
+  if (err.type === 'entity.too.large') {
+    console.warn('⚠️  Cuerpo demasiado grande rechazado');
+    return res.status(413).json({ success: false, error: 'CUERPO_DEMASIADO_GRANDE', message: 'El envío es demasiado grande.' });
+  }
+  if (['entity.parse.failed', 'encoding.unsupported', 'charset.unsupported', 'request.size.invalid'].includes(err.type)) {
+    console.warn('⚠️  Cuerpo inválido rechazado');
+    return res.status(400).json({ success: false, error: 'SOLICITUD_INVALIDA', message: 'El cuerpo de la solicitud no es válido.' });
+  }
+
   console.error('❌ Error no controlado:', err.message);
 
   if (err.message?.includes('CORS')) {
@@ -182,7 +180,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  ✓ Oracle Client ID:   ${process.env.ORACLE_ORDS_CLIENT_ID     ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ Oracle Client Secret: ${process.env.ORACLE_ORDS_CLIENT_SECRET ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ JWT Secret:         ${process.env.JWT_SECRET             ? '✅' : '❌ NO CONFIGURADO'}`);
-  console.log(`  ✓ Session Secret:     ${process.env.SESSION_SECRET         ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ Frontend URL:       ${process.env.FRONTEND_URL           ? `✅ ${process.env.FRONTEND_URL}` : '⚠️  Solo localhost'}`);
   // Azure AD deshabilitado temporalmente — ver spec 02-azure-ad-login.md
   // console.log(`  ✓ Azure AD:           ${process.env.AZURE_AD_CLIENT_ID     ? '✅' : '⚠️  No configurado (solo login local)'}`);
