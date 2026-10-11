@@ -55,7 +55,7 @@
 | C11 | Sin enumeración de usuarios | ASVS 2.2 | ✅ | Mensaje único y tiempos parejos con hash falso (H-06 corregido 08-10-2026) |
 | C12 | Errores sin detalles internos y con el código HTTP correcto | ASVS 7.4 | ⚠️ | D10: JSON malformado → 500; `error.message` al cliente (H-10, H-18) |
 | C13 | Cabeceras de seguridad (`helmet`) y sin `X-Powered-By` | ASVS 14.4 | ✅ | `helmet` en el backend; D1 en OK (H-07 corregido 08-10-2026) |
-| C14 | CORS restrictivo | API8:2023 | ⚠️ | Rechaza orígenes ajenos (D9); permite `localhost` en producción (H-16) |
+| C14 | CORS restrictivo | API8:2023 | ✅ | Rechaza orígenes ajenos (D9); en producción solo `FRONTEND_URL` (H-16 corregido 11-10-2026) |
 | C15 | Validación de archivos subidos (tipo, firma, tamaño, cantidad) | ASVS 12.1 | ✅ | Extensión, firma real, peso, cantidad y base64 en el servidor (H-11 corregido 11-10-2026); D19 |
 | C16 | Sin inyección (SQL/ORDS/NoSQL/ruta) | A03:2021 | ✅ | D17; las consultas usan JSON codificado |
 | C17 | Sin SSRF | API7:2023 | ✅ | URL base fija; el aviso de `axios` se corrige con H-02 |
@@ -118,8 +118,8 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 51 |
-| ⚠️ Parcial / atención | 22 |
+| ✅ Cumple | 52 |
+| ⚠️ Parcial / atención | 21 |
 | ❌ No cumple | 2 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 9 |

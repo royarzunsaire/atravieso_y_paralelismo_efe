@@ -14,7 +14,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 | **Crítica** | 1 (corregida: H-01) | ~~H-01~~ |
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
 | **Media** | 9 (7 corregidas: H-06, H-07, H-09, H-10, H-11, H-12, H-14; 2 parciales: H-08, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, ~~H-10~~, ~~H-11~~, ~~H-12~~, H-13 (parcial), ~~H-14~~ |
-| **Baja** | 8 (3 corregidas: H-15, H-17, H-20) | ~~H-15~~, H-16, ~~H-17~~, H-18, H-19, ~~H-20~~, H-21, H-22 |
+| **Baja** | 8 (4 corregidas: H-15, H-16, H-17, H-20) | ~~H-15~~, ~~H-16~~, ~~H-17~~, H-18, H-19, ~~H-20~~, H-21, H-22 |
 | **Informativa** | 2 | H-23, H-24 |
 
 ## 2. Impacto de corregir los hallazgos críticos y altos
@@ -154,7 +154,7 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 | ID | Hallazgo | Evidencia | Mitigación |
 |---|---|---|---|
 | H-15 | ✅ CORREGIDO (11-10-2026) — `/` y `/health` públicos exponían el entorno y qué variables estaban configuradas · CWE-200 | D2; `server.js:80-109`. nginx solo enruta `/api/` y `/auth/`, así que no son accesibles desde fuera salvo desde la red interna. | Corregido: `/` responde `{status:'online'}` y `/health` solo `{status:'ok'|'degraded'}` (mismos códigos 200/207, el HEALTHCHECK de Docker no cambia); el detalle de variables va al log del servidor. D2 pasa a OK. |
-| H-16 | CORS permite `localhost` también en producción · CWE-942 | `server.js:25-30`; D9 | Incluir `localhost` solo si `NODE_ENV !== 'production'` |
+| H-16 | ✅ CORREGIDO (11-10-2026) — CORS permitía `localhost` también en producción · CWE-942 | `server.js:25-30`; D9 | Corregido: `localhost:5173/3000/4173` solo entran a la lista si `NODE_ENV !== 'production'`; en producción el único origen es `FRONTEND_URL`. Verificado con una instancia en modo producción: `localhost:3000` y `:4173` → 403 mientras el servidor de desarrollo los acepta; el `Dockerfile` y el compose ya fijan `NODE_ENV=production`. |
 | H-17 | ✅ CORREGIDO (11-10-2026) — `express-session` y `passport.session` activos sin uso (almacén en memoria, requiere `SESSION_SECRET`) · CWE-1104 | `server.js:51-65`; la autenticación es solo por JWT | Corregido: se desinstaló `express-session`, se quitó `passport.session()`, el serializador de sesión, `SESSION_SECRET` y su chequeo de `/health`; desaparece también el aviso «MemoryStore is not designed for a production environment». Verificado: login, sesión por token y `/health` siguen igual. |
 | H-18 | Varios endpoints devuelven `error.message` al cliente (500/502) · CWE-209 | `routes/auth.js` (varios `catch`), `routes/eventos.js:331` | Mensajes genéricos al cliente; detalle solo en el log |
 | H-19 | Política de contraseñas mínima: 8 caracteres sin complejidad ni lista de contraseñas filtradas; bcrypt con costo 10 · ASVS 2.1 | `routes/auth.js:114,240` | Mínimo 10–12, rechazar contraseñas comunes, costo 12 |

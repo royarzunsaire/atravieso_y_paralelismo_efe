@@ -45,10 +45,15 @@ app.use((req, res, next) => {
 // ========================================
 // CORS
 // ========================================
-const allowedOrigins = [
+// Los orígenes de localhost (Vite en desarrollo) solo se aceptan fuera de producción (H-16).
+// En producción el único origen permitido es FRONTEND_URL.
+const origenesLocales = process.env.NODE_ENV === 'production' ? [] : [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://localhost:4173', // vite preview
+];
+const allowedOrigins = [
+  ...origenesLocales,
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 

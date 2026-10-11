@@ -126,7 +126,7 @@ for (const [m, p] of [['GET', '/api/v2/inicio'], ['GET', '/api/v2/solicitudes/1'
   const preflight = await fetch(B + '/api/v2/eventos', { method: 'OPTIONS', headers: { Origin: 'https://evil.example.com', 'Access-Control-Request-Method': 'POST' } });
   const local = await fetch(B + '/health', { headers: { Origin: 'http://localhost:5173' } });
   log('D9 CORS origen ajeno', evil.status === 403 ? 'OK' : 'REVISAR', `GET con Origin ajeno → ${evil.status}; preflight → ${preflight.status}; allow-origin: ${preflight.headers.get('access-control-allow-origin') || '(ninguno)'}`);
-  log('D9 CORS localhost permitido', 'ATENCIÓN', `Origin http://localhost:5173 → allow-origin: ${local.headers.get('access-control-allow-origin')} (la lista incluye localhost también en producción)`);
+  log('D9 CORS localhost según entorno', 'INFO', `Origin http://localhost:5173 → allow-origin: ${local.headers.get('access-control-allow-origin') || '(ninguno)'} (localhost solo se acepta con NODE_ENV distinto de production; con production solo FRONTEND_URL, H-16)`);
 }
 
 // D10 errores: filtrado de información
