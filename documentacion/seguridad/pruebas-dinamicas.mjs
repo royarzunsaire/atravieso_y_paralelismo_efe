@@ -44,7 +44,8 @@ const J = { 'Content-Type': 'application/json' };
 // D2 información expuesta sin autenticación
 {
   const a = await req('/'); const b = await req('/health');
-  log('D2 info pública', 'ATENCIÓN', `/ → ${a.status} ${JSON.stringify(a.json)?.slice(0, 90)} | /health → ${b.status} checks=${JSON.stringify(b.json?.checks)}`);
+  const filtra = (r) => r.json && ('checks' in r.json || 'environment' in r.json);
+  log('D2 info pública', filtra(a) || filtra(b) ? 'ATENCIÓN' : 'OK', `/ → ${a.status} ${JSON.stringify(a.json)?.slice(0, 90)} | /health → ${b.status} ${JSON.stringify(b.json)?.slice(0, 90)}`);
 }
 
 // D3 endpoints protegidos sin token

@@ -60,7 +60,7 @@
 | C16 | Sin inyección (SQL/ORDS/NoSQL/ruta) | A03:2021 | ✅ | D17; las consultas usan JSON codificado |
 | C17 | Sin SSRF | API7:2023 | ✅ | URL base fija; el aviso de `axios` se corrige con H-02 |
 | C18 | Logs sin datos sensibles | ASVS 7.1 | ⚠️ | El hash y el objeto de usuario ya no se registran (H-04 corregido 08-10-2026); los logs de petición aún llevan el correo (pendiente, bajo) |
-| C19 | Endpoints de diagnóstico sin información interna | A05 | ⚠️ | `/` y `/health` (H-15) |
+| C19 | Endpoints de diagnóstico sin información interna | A05 | ✅ | `/` y `/health` solo devuelven el estado (H-15 corregido 11-10-2026); D2 |
 | C20 | Sin componentes innecesarios (sesiones, estrategias sin uso) | A05 | ✅ | `express-session` y `passport.session` eliminados (H-17 corregido 11-10-2026) |
 | C21 | Manejo seguro de excepciones no controladas | CWE-248 | ⚠️ | `uncaughtException` solo registra (H-22) |
 | C22 | Idempotencia de eventos (evita duplicados / repetición) | API6:2023 | ✅ | `eventoIdExterno` único; formato UUID no se valida (menor) |
@@ -118,8 +118,8 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 50 |
-| ⚠️ Parcial / atención | 23 |
+| ✅ Cumple | 51 |
+| ⚠️ Parcial / atención | 22 |
 | ❌ No cumple | 2 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 9 |

@@ -90,13 +90,10 @@ if (process.env.NODE_ENV !== 'production') {
 // ========================================
 // HEALTH CHECK
 // ========================================
+// Respuestas MÍNIMAS: son públicas y no deben revelar el entorno ni qué variables hay configuradas (H-15).
+// El detalle de la configuración se registra en el log de arranque, que no sale por la red.
 app.get('/', (req, res) => {
-  res.json({
-    message: '✓ API funcionando',
-    status: 'online',
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ status: 'online' });
 });
 
 app.get('/health', (req, res) => {
@@ -112,12 +109,8 @@ app.get('/health', (req, res) => {
   const allCriticalOk = checks.oracle && checks.jwt;
   const status = allCriticalOk ? 'ok' : 'degraded';
 
-  res.status(allCriticalOk ? 200 : 207).json({
-    status,
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString(),
-    checks,
-  });
+  if (!allCriticalOk) console.warn('⚠️  /health degradado:', JSON.stringify(checks));
+  res.status(allCriticalOk ? 200 : 207).json({ status });
 });
 
 // ========================================
