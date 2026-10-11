@@ -62,7 +62,7 @@
 | C18 | Logs sin datos sensibles | ASVS 7.1 | ⚠️ | El hash y el objeto de usuario ya no se registran (H-04 corregido 08-10-2026); los logs de petición aún llevan el correo (pendiente, bajo) |
 | C19 | Endpoints de diagnóstico sin información interna | A05 | ✅ | `/` y `/health` solo devuelven el estado (H-15 corregido 11-10-2026); D2 |
 | C20 | Sin componentes innecesarios (sesiones, estrategias sin uso) | A05 | ✅ | `express-session` y `passport.session` eliminados (H-17 corregido 11-10-2026) |
-| C21 | Manejo seguro de excepciones no controladas | CWE-248 | ⚠️ | `uncaughtException` solo registra (H-22) |
+| C21 | Manejo seguro de excepciones no controladas | CWE-248 | ✅ | Registrar y terminar en producción (H-22 corregido 11-10-2026); el orquestador debe reiniciar |
 | C22 | Idempotencia de eventos (evita duplicados / repetición) | API6:2023 | ✅ | `eventoIdExterno` único; formato UUID no se valida (menor) |
 | C23 | Protección CSRF | ASVS 4.2 | ➖ | La sesión va en cabecera `Authorization`, no en cookie |
 | C24 | Tiempo máximo en llamadas externas | CWE-400 | ✅ | `timeout` 90 s hacia la API del cliente |
@@ -118,8 +118,8 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 54 |
-| ⚠️ Parcial / atención | 19 |
+| ✅ Cumple | 55 |
+| ⚠️ Parcial / atención | 18 |
 | ❌ No cumple | 2 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 9 |

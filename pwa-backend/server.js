@@ -8,13 +8,8 @@ const authRoutes = require('./routes/auth');
 const eventosRouter = require('./routes/eventos');
 const { startSyncJob } = require('./syncJob');
 
-process.on('uncaughtException', (err) => {
-  console.error('💥 uncaughtException:', err.message, err.stack);
-});
-
-process.on('unhandledRejection', (reason) => {
-  console.error('💥 unhandledRejection:', reason);
-});
+// Errores sin capturar: registrar y, en producción, terminar para que el orquestador reinicie limpio (H-22).
+require('./utils/errorFatal');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
