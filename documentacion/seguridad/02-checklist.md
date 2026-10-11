@@ -53,7 +53,7 @@
 | C9 | Límite de tasa (rate limiting) | API4:2023 | ⚠️ | Login limitado a 5 fallos / 10 min por correo + IP (H-03 corregido 08-10-2026); el resto de la API y nginx sin límite (E13) |
 | C10 | Registro de cuentas restringido | ASVS 2.1 | ✅ | `POST /auth/register` eliminado (H-01 corregido 08-10-2026); las cuentas se crean solo por ORDS |
 | C11 | Sin enumeración de usuarios | ASVS 2.2 | ✅ | Mensaje único y tiempos parejos con hash falso (H-06 corregido 08-10-2026) |
-| C12 | Errores sin detalles internos y con el código HTTP correcto | ASVS 7.4 | ⚠️ | D10: JSON malformado → 500; `error.message` al cliente (H-10, H-18) |
+| C12 | Errores sin detalles internos y con el código HTTP correcto | ASVS 7.4 | ✅ | JSON malformado → 400 (H-10); 500/502 con mensaje genérico (H-18 corregido 11-10-2026) |
 | C13 | Cabeceras de seguridad (`helmet`) y sin `X-Powered-By` | ASVS 14.4 | ✅ | `helmet` en el backend; D1 en OK (H-07 corregido 08-10-2026) |
 | C14 | CORS restrictivo | API8:2023 | ✅ | Rechaza orígenes ajenos (D9); en producción solo `FRONTEND_URL` (H-16 corregido 11-10-2026) |
 | C15 | Validación de archivos subidos (tipo, firma, tamaño, cantidad) | ASVS 12.1 | ✅ | Extensión, firma real, peso, cantidad y base64 en el servidor (H-11 corregido 11-10-2026); D19 |
@@ -118,8 +118,8 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 52 |
-| ⚠️ Parcial / atención | 21 |
+| ✅ Cumple | 53 |
+| ⚠️ Parcial / atención | 20 |
 | ❌ No cumple | 2 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 9 |

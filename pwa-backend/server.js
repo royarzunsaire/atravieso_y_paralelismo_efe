@@ -151,7 +151,7 @@ app.use((err, req, res, next) => {
   console.error('❌ Error no controlado:', err.message);
 
   if (err.message?.includes('CORS')) {
-    return res.status(403).json({ success: false, error: err.message });
+    return res.status(403).json({ success: false, error: 'ORIGEN_NO_PERMITIDO' });
   }
 
   res.status(500).json({

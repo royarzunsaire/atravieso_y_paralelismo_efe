@@ -48,7 +48,8 @@ router.post('/login/local', limitarLogin, (req, res, next) => {
   }
   passport.authenticate('local', (err, user, info) => {
     if (err) {
-      return res.status(500).json({ success: false, error: err.message });
+      console.error('❌ Error en el login:', err.message);
+      return res.status(500).json({ success: false, error: 'ERROR_INTERNO', message: 'No se pudo iniciar sesión. Inténtalo de nuevo en unos minutos.' });
     }
     if (!user) {
       return res.status(401).json({ success: false, error: info?.message || 'Correo o contraseña incorrectos. Si el problema continúa, contacta al administrador.' });
@@ -171,7 +172,8 @@ router.get('/me', verifyToken, async (req, res) => {
     const { password, activo, created_at: createdAt, debe_cambiar_password, ...safeUser } = user;
     res.json({ success: true, user: { ...safeUser, debeCambiarPassword: !!debe_cambiar_password } });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ Error en /auth:', error.message);
+    res.status(500).json({ success: false, error: 'ERROR_INTERNO', message: 'No se pudo completar la operación. Inténtalo de nuevo en unos minutos.' });
   }
 });
 
@@ -218,7 +220,8 @@ router.post('/change-password', verifyToken, async (req, res) => {
 
     res.json({ success: true, message: 'Contraseña actualizada correctamente' });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ Error en /auth:', error.message);
+    res.status(500).json({ success: false, error: 'ERROR_INTERNO', message: 'No se pudo completar la operación. Inténtalo de nuevo en unos minutos.' });
   }
 });
 
@@ -257,7 +260,8 @@ router.post('/admin/reset-password/:id', verifyToken, async (req, res) => {
 
     res.json({ success: true, message: `Contraseña de ${targetUser.email} restablecida correctamente` });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ Error en /auth:', error.message);
+    res.status(500).json({ success: false, error: 'ERROR_INTERNO', message: 'No se pudo completar la operación. Inténtalo de nuevo en unos minutos.' });
   }
 });
 

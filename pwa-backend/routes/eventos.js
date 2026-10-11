@@ -3,6 +3,8 @@ const router = express.Router();
 const { verifyToken } = require('./auth');
 const { createInspeccionOutbox, getInspeccionOutboxById } = require('../database');
 const { procesarInspeccion } = require('../syncJob');
+// Texto para errores internos o de la plataforma: el detalle técnico queda en el log del servidor, no en la respuesta (H-18).
+const MENSAJE_ERROR_GENERICO = 'No se pudo completar la operación. Inténtalo de nuevo en unos minutos.';
 const { validarPayloadEvento, validarTiposDocumento, PayloadInvalidoError } = require('../utils/validarArchivos');
 const { obtenerInicio, obtenerDetalleSolicitud, obtenerInspeccion, obtenerObraInicio, subirDocumentosOpcionales } = require('../apiEventos');
 const { parseFechaEventoOpcional, FechaInvalidaError } = require('../utils/fechas');
@@ -24,7 +26,7 @@ router.get('/inicio', verifyToken, async (req, res) => {
     const usuario = req.user?.email;
     const catalogosVersion = req.query.catalogosVersion || '';
 
-    console.log(`📲 GET /api/v2/inicio - Usuario: ${usuario}`);
+    console.log(`📲 GET /api/v2/inicio - Usuario ${req.user?.id}`);
 
     if (!usuario) {
       return res.status(400).json({ success: false, error: 'Usuario no identificado en el token' });
@@ -37,7 +39,7 @@ router.get('/inicio', verifyToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'USUARIO_NO_ENCONTRADO' });
     }
     console.error('❌ Error en /api/v2/inicio:', error.message);
-    res.status(502).json({ success: false, error: 'Failed to fetch inicio', message: error.message });
+    res.status(502).json({ success: false, error: 'Failed to fetch inicio', message: MENSAJE_ERROR_GENERICO });
   }
 });
 
@@ -53,7 +55,7 @@ router.get('/solicitudes/:id', verifyToken, async (req, res) => {
     const nombre = req.user?.nombre;
     const solicitudId = parseInt(req.params.id, 10);
 
-    console.log(`📄 GET /api/v2/solicitudes/${solicitudId} - Usuario: ${usuario}`);
+    console.log(`📄 GET /api/v2/solicitudes/${solicitudId} - Usuario ${req.user?.id}`);
 
     if (!usuario) {
       return res.status(400).json({ success: false, error: 'Usuario no identificado en el token' });
@@ -69,7 +71,7 @@ router.get('/solicitudes/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ success: false, error: error.code || 'SIN_ACCESO', message: error.message });
     }
     console.error(`❌ Error en /api/v2/solicitudes/${req.params.id}:`, error.message);
-    res.status(502).json({ success: false, error: 'Failed to fetch detalle', message: error.message });
+    res.status(502).json({ success: false, error: 'Failed to fetch detalle', message: MENSAJE_ERROR_GENERICO });
   }
 });
 
@@ -103,7 +105,7 @@ router.get('/inspecciones/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ success: false, error: error.code || 'SIN_ACCESO', message: error.message });
     }
     console.error(`❌ Error en /api/v2/inspecciones/${req.params.id}:`, error.message);
-    res.status(502).json({ success: false, error: 'Failed to fetch inspeccion', message: error.message });
+    res.status(502).json({ success: false, error: 'Failed to fetch inspeccion', message: MENSAJE_ERROR_GENERICO });
   }
 });
 
@@ -127,7 +129,7 @@ router.post('/eventos', verifyToken, async (req, res) => {
     const userEmail = req.user?.email;
     const userNombre = req.user?.nombre;
 
-    console.log(`📝 POST /api/v2/eventos - Solicitud ${solicitudId}, Tipo ${tipoEvento}, Evento ${eventoIdExterno} - Usuario: ${userEmail}`);
+    console.log(`📝 POST /api/v2/eventos - Solicitud ${solicitudId}, Tipo ${tipoEvento}, Evento ${eventoIdExterno} - Usuario ${req.user?.id}`);
 
     // Tipos de la entrada (H-10): un objeto o arreglo donde se espera texto no debe llegar más lejos.
     if (typeof tipoEvento !== 'string' || typeof eventoIdExterno !== 'string' || eventoIdExterno.length > 100
@@ -206,7 +208,7 @@ router.post('/eventos', verifyToken, async (req, res) => {
       }
       const permitidas = Array.isArray(obraInicio.AccionesHabilitadas) ? obraInicio.AccionesHabilitadas : [];
       if (!permitidas.includes(tipoEvento)) {
-        console.warn(`🚫 Acción no permitida: ${tipoEvento} en solicitud ${solicitudId} para ${userEmail}. Permitidas: ${permitidas.join(', ')}`);
+        console.warn(`🚫 Acción no permitida: ${tipoEvento} en solicitud ${solicitudId} para el usuario ${req.user?.id}. Permitidas: ${permitidas.join(', ')}`);
         return res.status(403).json({
           success: false,
           error: 'ACCION_NO_PERMITIDA',
@@ -361,7 +363,7 @@ router.post('/eventos', verifyToken, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error creando evento:', error);
-    res.status(500).json({ success: false, error: 'Failed to create event', message: error.message });
+    res.status(500).json({ success: false, error: 'Failed to create event', message: MENSAJE_ERROR_GENERICO });
   }
 });
 
@@ -451,7 +453,7 @@ router.post('/solicitudes/:id/documentos', verifyToken, async (req, res) => {
       });
     }
 
-    console.log(`📎 POST /api/v2/solicitudes/${solicitudId}/documentos - ${limpios.length} documento(s) opcional(es) - Usuario: ${usuario}`);
+    console.log(`📎 POST /api/v2/solicitudes/${solicitudId}/documentos - ${limpios.length} documento(s) opcional(es) - Usuario ${req.user?.id}`);
     const data = await subirDocumentosOpcionales({ usuario, nombre, solicitudId, documentos: limpios });
     res.json({ success: true, data });
   } catch (error) {
