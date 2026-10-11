@@ -4,13 +4,13 @@
 #
 # Content-Security-Policy — qué necesita la app, y nada más:
 #   · script-src 'self'                      → solo el JS propio (el HTML no tiene scripts en línea)
-#   · style-src 'self' + Google Fonts        → CSS propio y la hoja de la fuente Inter; style-src-attr permite style="" (React, Leaflet)
-#   · font-src fonts.gstatic.com             → archivos de la fuente
+#   · style-src 'self'                       → solo CSS propio (la fuente Inter va autohospedada, H-21); style-src-attr permite style="" (React, Leaflet)
+#   · font-src 'self' data:                  → archivos de la fuente propios
 #   · img-src data: blob: + mosaicos OSM     → fotos tomadas (data:), fotos descargadas (blob:) y el mapa de las inspecciones
 #   · connect-src 'self' ${CSP_CONNECT_EXTRA}→ la API propia + el ORIGEN de la API del cliente, de donde el navegador baja las
 #                                              fotos con fetch() (UrlDescarga). Definir CSP_CONNECT_EXTRA en el despliegue.
 #   · frame-ancestors 'none'                 → nadie puede incrustar la app en un iframe (clickjacking)
-add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' ${CSP_CONNECT_EXTRA}; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' ${CSP_CONNECT_EXTRA}; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header X-Frame-Options "DENY" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;

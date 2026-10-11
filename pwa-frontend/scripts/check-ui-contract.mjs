@@ -626,6 +626,14 @@ const REGLAS = [
   { id: 'CU-43b', archivo: 'app/components/ChangePassword.tsx', tipo: 'noDebe', texto: 'Mínimo 8 caracteres',
     msg: 'No debe volver el mínimo antiguo de 8 caracteres.' },
 
+  // ── Fuente autohospedada (CU-44) ──
+  { id: 'CU-44a', archivo: 'styles/fonts.css', tipo: 'debe', texto: '@fontsource/inter',
+    msg: 'La fuente Inter se importa del paquete propio (H-21).' },
+  { id: 'CU-44b', archivo: 'styles/fonts.css', tipo: 'noDebe', texto: 'googleapis',
+    msg: 'No se debe cargar la fuente desde Google Fonts.' },
+  { id: 'CU-44c', archivo: '../seguridad.inc.template', tipo: 'noDebe', texto: 'fonts.gstatic.com',
+    msg: 'La CSP no debe admitir orígenes de Google Fonts.' },
+
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',
     msg: 'Ctrl. Obra muestra el comentario de devolución.' },

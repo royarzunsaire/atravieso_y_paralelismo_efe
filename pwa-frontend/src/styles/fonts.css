@@ -1,5 +1,9 @@
 /* Fuentes para EFE - Sistema de supervisión de obras ferroviarias */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Inter autohospedada (paquete @fontsource/inter, subconjunto latino): sin pedir nada a Google (H-21) y disponible sin conexión. */
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
 
 :root {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;

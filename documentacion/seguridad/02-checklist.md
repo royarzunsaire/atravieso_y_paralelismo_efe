@@ -26,7 +26,7 @@
 | B2 | Los datos de la API se muestran escapados (React) | ASVS 5.3.3 | ✅ | Sin HTML insertado |
 | B3 | Sanitización con DOMPurify | ASVS 5.2.1 | ➖ | No hay HTML que sanitizar; se justifica solo si se muestra HTML de la API (H-24) |
 | B4 | Content-Security-Policy | ASVS 14.4.3 | ✅ | Verificada en la imagen real (`curl -I` en `concerto`, 08-10-2026) y con la app real bajo la política (0 violaciones; bloquea conexiones, scripts e imágenes ajenos) (H-07) |
-| B5 | Dependencias externas en tiempo de ejecución controladas | CWE-829 | ⚠️ | Google Fonts y mosaicos OSM (H-21) |
+| B5 | Dependencias externas en tiempo de ejecución controladas | CWE-829 | ⚠️ | Solo mosaicos de OpenStreetMap, declarados en la CSP; la fuente ya es propia (H-21 corregido 11-10-2026) |
 | B6 | Enlaces `target="_blank"` con `rel="noopener noreferrer"` | CWE-1022 | ✅ | `PhotosModal.tsx`, `UbicacionModal.tsx` |
 | B7 | Token de sesión no expuesto a scripts | ASVS 3.2 | ⚠️ | JWT en `localStorage` (H-08) |
 | B8 | No se acepta un token recibido por URL | ASVS 3.2.1, CWE-384 | ✅ | `AuthCallback` y `/auth/callback` eliminados (H-09 corregido 08-10-2026) |
@@ -69,7 +69,7 @@
 | C25 | Cifrado hacia la API del cliente | ASVS 9.1 | ❌ | HTTP (H-05) |
 | C26 | Cifrado hacia Oracle ORDS | ASVS 9.1 | ✅ | HTTPS, OAuth2 `client_credentials` |
 | C27 | Dependencias del backend sin vulnerabilidades conocidas | A06:2021 | ✅ | `npm audit --omit=dev`: 0 (H-02 corregido 08-10-2026); quedan 3 avisos solo de desarrollo en `nodemon`, fuera de la imagen |
-| C28 | Dependencias del frontend sin vulnerabilidades conocidas | A06:2021 | ✅ | `npm audit`: 0 |
+| C28 | Dependencias del frontend sin vulnerabilidades conocidas | A06:2021 | ✅ | `npm audit --omit=dev`: 0 (producción). Un `npm audit` completo marca avisos nuevos solo en herramientas de desarrollo (vite, eslint, etc.), que no van en la imagen: revisar al actualizar |
 
 ## D. Autenticación y contraseñas
 | ID | Control | Ref. | Estado | Evidencia / hallazgo |
