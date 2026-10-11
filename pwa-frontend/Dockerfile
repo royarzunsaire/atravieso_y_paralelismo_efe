@@ -1,7 +1,13 @@
 # ─────────────────────────────────────────────
 # Etapa 1 — Build de la SPA con Node
 # ─────────────────────────────────────────────
-FROM node:20-alpine AS build
+# Imágenes base (hallazgo H-12). Node 24 LTS para compilar (Node 20 está sin soporte desde abril de 2026) y nginx SIN privilegios
+# (corre como usuario no root). Para FIJAR la versión exacta (recomendado en producción), pasar --build-arg con el digest:
+#   --build-arg NODE_IMAGE=node:24-alpine@sha256:<digest>   --build-arg NGINX_IMAGE=nginxinc/nginx-unprivileged:stable-alpine@sha256:<digest>
+ARG NODE_IMAGE=node:24-alpine
+ARG NGINX_IMAGE=nginxinc/nginx-unprivileged:stable-alpine
+
+FROM ${NODE_IMAGE} AS build
 
 WORKDIR /app
 
@@ -23,7 +29,7 @@ RUN npm run build
 # ─────────────────────────────────────────────
 # Etapa 2 — Servir con nginx
 # ─────────────────────────────────────────────
-FROM nginx:alpine
+FROM ${NGINX_IMAGE}
 
 # La imagen oficial procesa /etc/nginx/templates/*.template con envsubst al
 # arrancar. Solo sustituimos las variables BACKEND_* (resueltas en runtime),
@@ -38,4 +44,7 @@ COPY seguridad.inc.template /etc/nginx/templates/seguridad.inc.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -q --spider http://127.0.0.1:8080/ || exit 1
 # CMD heredado de la imagen base de nginx (arranca el entrypoint + nginx)
