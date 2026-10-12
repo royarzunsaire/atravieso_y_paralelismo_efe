@@ -59,6 +59,9 @@ router.post('/login/local', limitarLogin, (req, res, next) => {
       return res.status(401).json({ success: false, error: info?.message || 'Correo o contraseña incorrectos. Si el problema continúa, contacta al administrador.' });
     }
 
+    // Acaba de comprobarse en Oracle que la cuenta está activa: se descarta lo que la caché recordaba (p. ej. una baja anterior).
+    sesion.olvidar(user.id);
+
     const token = generateToken(user);
 
     res.json({

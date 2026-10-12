@@ -6,6 +6,8 @@ const crypto = require('crypto');
  *  1. CUENTA ACTIVA: el JWT dura 7 días y antes solo se validaba su firma, así que un usuario dado de baja (usuarios.activo = 0)
  *     seguía entrando hasta que el token vencía. Ahora se consulta `activo` en Oracle, con una caché corta
  *     (60 s por defecto) para no llamar a Oracle en cada petición: una baja corta la sesión en menos de un minuto.
+ *     Un resultado NEGATIVO se recuerda solo 5 s y un inicio de sesión correcto lo borra (reactivar a alguien no debe dejarlo
+ *     rechazado hasta 60 s).
  *       - Si el usuario ya no existe (404) o está inactivo → la cuenta no es válida.
  *       - Si Oracle no responde: se usa el último dato conocido; sin dato previo se deja pasar (no se bloquea a todos los
  *         usuarios por una caída de Oracle) y se avisa en el log.
@@ -17,7 +19,7 @@ const crypto = require('crypto');
  *
  * `buscarUsuario(id)` debe devolver { activo: boolean } o lanzar un error con `status` (404 = no existe).
  */
-function crearGestorSesion({ buscarUsuario, ttlMs = 60_000, ahora = () => Date.now() }) {
+function crearGestorSesion({ buscarUsuario, ttlMs = 60_000, ttlNegativoMs = Math.min(ttlMs, 5_000), ahora = () => Date.now() }) {
   const revocados = new Map(); // huella del token → vence (ms)
   const cuentas = new Map(); // id de usuario → { activo, hasta }
   const enVuelo = new Map(); // id de usuario → promesa (junta consultas simultáneas)
@@ -46,11 +48,12 @@ function crearGestorSesion({ buscarUsuario, ttlMs = 60_000, ahora = () => Date.n
       try {
         const usuario = await buscarUsuario(idUsuario);
         const activo = !!usuario && usuario.activo === true;
-        cuentas.set(idUsuario, { activo, hasta: ahora() + ttlMs });
+        // Lo negativo se recuerda MENOS (5 s): si reactivan a alguien, no debe seguir rechazado todo un minuto.
+        cuentas.set(idUsuario, { activo, hasta: ahora() + (activo ? ttlMs : ttlNegativoMs) });
         return activo;
       } catch (error) {
         if (error && error.status === 404) {
-          cuentas.set(idUsuario, { activo: false, hasta: ahora() + ttlMs });
+          cuentas.set(idUsuario, { activo: false, hasta: ahora() + ttlNegativoMs });
           return false;
         }
         console.warn('⚠️  No se pudo verificar si la cuenta sigue activa; se usa el último dato conocido');
@@ -63,6 +66,11 @@ function crearGestorSesion({ buscarUsuario, ttlMs = 60_000, ahora = () => Date.n
     return consulta;
   }
 
+  /** Olvida lo recordado de una cuenta (se usa tras un inicio de sesión correcto: acaba de comprobarse en Oracle que está activa). */
+  function olvidar(idUsuario) {
+    cuentas.delete(idUsuario);
+  }
+
   /** Limpia lo vencido (revocaciones y cuentas) para que la memoria no crezca sin límite. */
   function limpiar() {
     const t = ahora();
@@ -70,7 +78,7 @@ function crearGestorSesion({ buscarUsuario, ttlMs = 60_000, ahora = () => Date.n
     for (const [id, c] of cuentas) if (c.hasta + ttlMs <= t) cuentas.delete(id);
   }
 
-  return { revocar, estaRevocado, cuentaActiva, limpiar };
+  return { revocar, estaRevocado, cuentaActiva, olvidar, limpiar };
 }
 
 module.exports = { crearGestorSesion };

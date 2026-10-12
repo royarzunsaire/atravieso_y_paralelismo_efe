@@ -33,6 +33,15 @@ const chk = (nombre, cond, extra = '') => { cond ? ok++ : mal++; console.log(`${
   bd.u1.activo = true; t += 61_000;
   chk('si lo reactivan, vuelve a entrar al renovarse la caché', (await g.cuentaActiva('u1')) === true);
 
+  // reactivación inmediata: lo negativo se recuerda solo 5 s y un login correcto lo borra
+  bd.u1.activo = false; t += 61_000; await g.cuentaActiva('u1');
+  bd.u1.activo = true; t += 2_000;
+  chk('baja y reactivación en pocos segundos: a los 2 s aún rechaza (caché negativa corta)', (await g.cuentaActiva('u1')) === false);
+  g.olvidar('u1');
+  chk('tras un login correcto (olvidar) la cuenta vuelve a valer de inmediato', (await g.cuentaActiva('u1')) === true);
+  bd.u1.activo = false; t += 61_000; await g.cuentaActiva('u1'); bd.u1.activo = true; t += 6_000;
+  chk('sin login, a los 6 s la caché negativa ya venció y vuelve a consultar', (await g.cuentaActiva('u1')) === true);
+
   chk('usuario eliminado (404) → cuenta no válida', (await g.cuentaActiva('fantasma')) === false);
 
   // Oracle caído
