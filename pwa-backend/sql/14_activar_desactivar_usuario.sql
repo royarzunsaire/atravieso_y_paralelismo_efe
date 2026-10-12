@@ -167,9 +167,9 @@ END;
 
 -- ============================================================
 -- Verificación (en SQL Developer Web, después de ejecutar este script):
---   SELECT pattern, method FROM user_ords_handlers h
+--   SELECT t.uri_template, h.method FROM user_ords_handlers h
 --     JOIN user_ords_templates t ON t.id = h.template_id
---    WHERE t.pattern LIKE '%activo%';
+--    WHERE t.uri_template LIKE '%activo%';
 -- Debe listar 2 filas POST (':id/activo' y 'por-email/:email/activo').
 --
 -- Para deshacer:
