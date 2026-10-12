@@ -8,7 +8,11 @@ WORKDIR /app
 COPY package*.json ./
 # Tras instalar, se quita npm de la imagen final: el contenedor arranca con `node` y no lo usa, y el npm que trae la imagen base
 # acumulaba 21 hallazgos de trivy (brace-expansion, ip-address, undici...) y es una herramienta menos para un atacante dentro del contenedor.
-RUN npm ci --omit=dev && npm cache clean --force     && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+# zlib: parche de seguridad ya publicado por Alpine (CVE-2026-85091, 1.3.2-r0 → r1) que la imagen base fijada aún no trae.
+# Quitar `apk upgrade` cuando se actualice el digest de la imagen base (ver oci-deploy.md).
+RUN apk upgrade --no-cache zlib \
+    && npm ci --omit=dev && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 COPY --chown=node:node . .
 

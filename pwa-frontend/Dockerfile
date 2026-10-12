@@ -40,6 +40,13 @@ ENV NGINX_ENVSUBST_FILTER="^(BACKEND_|CSP_)"
 # (ej. https://api.cliente.cl). Vacío = las fotos descargadas no cargarían.
 ENV CSP_CONNECT_EXTRA=""
 
+# Parches de seguridad ya publicados por Alpine que la imagen base fijada aún no trae: zlib (CVE-2026-85091, 1.3.2-r0 → r1) y
+# tiff (CVE-2026-4775, 4.7.1-r0 → 4.7.2-r0). Quitar cuando se actualice el digest de la imagen base (ver oci-deploy.md).
+# La imagen vuelve a correr sin privilegios (usuario 101) justo después.
+USER root
+RUN apk upgrade --no-cache zlib tiff
+USER 101
+
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY seguridad.inc.template /etc/nginx/templates/seguridad.inc.template
 COPY --from=build /app/dist /usr/share/nginx/html
