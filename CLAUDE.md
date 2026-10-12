@@ -167,7 +167,7 @@ antes de asumir un comportamiento de error.
    10. **Despliegue en OCI** (colega): `FRONTEND_URL`, `TRUST_PROXY` (probablemente 2), `CSP_CONNECT_EXTRA`, política de reinicio, shape x86, `X-Forwarded-Proto`, TLS/WAF/MFA, respaldos de Oracle, monitoreo, rotación de secretos; y que NO existan cuentas de prueba en el Oracle de producción.
 
    **C. Depende de NOSOTROS — se puede hacer AHORA:**
-   11. **Abrir el PR** (`chore/retirar-v1` → `feat/integracion-sharepoint-v2`; descripción lista en `documentacion/pr-chore-retirar-v1.md`).
+   11. ✅ **PR ABIERTO por Rodrigo el 12-10-2026:** https://github.com/royarzunsaire/atravieso_y_paralelismo_efe/pull/1 (`chore/retirar-v1` → `feat/integracion-sharepoint-v2`; título y descripción en `documentacion/pr-chore-retirar-v1.md`). Queda pendiente que lo revisen y lo integren (quién tiene permiso de «Merge»: preguntar al jefe). No se pudo vincular a la sesión de Claude porque no hay `gh` en el PC de la empresa (sin permisos de administrador; Rodrigo usa Vivaldi).
    12. **Entregar las imágenes** (Rodrigo): correo ya redactado en `documentacion/entrega-imagenes-oci.md` (12-10-2026); adjuntos: `ayp-backend.tar`, `ayp-frontend.tar`, `documentacion/seguridad/`, `oci-deploy.md`. Después borrar los `.tar` viejos de la raíz (`*-v1-2026-09-15`, `*-obsoleto-06-10`, `*-08-10`, `*-11-10-primera`, `*-11-10-tercera`).
    13. **Enviar el reporte al cliente** (`documentacion/reporte-cliente-pendientes.md`, ampliado el 12-10-2026 con los hallazgos 15–21): lo envía Rodrigo.
    14. **Probar una subida REAL de documento opcional** a SharePoint (tipo 69 del acta de inicio de la #999; crea un archivo real: hacerlo juntos).
