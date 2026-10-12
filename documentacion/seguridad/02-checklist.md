@@ -95,7 +95,7 @@
 | E6 | `.dockerignore` completo | CIS 4.10 | ⚠️ | Falta `scripts/`, `*.db`, `sqllite.py` (H-12) |
 | E7 | `HEALTHCHECK` definido | CIS 4.6 | ✅ | En ambas imágenes; el backend queda `healthy` y el de nginx consulta `/` (H-12, 11-10-2026) |
 | E8 | Sin secretos dentro de las capas de la imagen | CIS 4.10 | ✅ | Variables en tiempo de ejecución |
-| E9 | Escaneo de vulnerabilidades de las imágenes | CIS 5 | ⏳ | Sin Docker local; ejecutar `trivy image` en `concerto` |
+| E9 | Escaneo de vulnerabilidades de las imágenes | CIS 5 | ✅ | `trivy` 0.75 en `concerto` (11-10-2026): **0 vulnerabilidades y 0 secretos** en ambas imágenes; informes en `trivy-backend.txt` y `trivy-frontend.txt`. Se corrigió el `npm` de la imagen base (se quitó) y `zlib`/`tiff` (`apk upgrade`). Repetir al cambiar de base o de código |
 | E10 | Sistema de archivos de solo lectura y capacidades mínimas | CIS 5.x | ⚠️ | Definido en `docker-compose.yml` y probado en `concerto` (backend solo lectura, `cap_drop ALL`, `no-new-privileges`); en OCI lo debe replicar quien arma la Container Instance |
 | E11 | Cabeceras de seguridad en nginx | ASVS 14.4 | ✅ | Verificadas en la imagen real: CSP, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy; HSTS solo con X-Forwarded-Proto https (H-07, 08-10-2026) |
 | E12 | `server_tokens off` | ASVS 14.3 | ✅ | Verificado en la imagen real: `Server: nginx` sin versión (H-07, 08-10-2026) |
@@ -118,9 +118,9 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 57 |
+| ✅ Cumple | 58 |
 | ⚠️ Parcial / atención | 17 |
 | ❌ No cumple | 1 |
 | ➖ No aplica | 3 |
-| ⏳ Fuera de alcance | 9 |
+| ⏳ Fuera de alcance | 8 |
 | **Total de controles** | **87** |
