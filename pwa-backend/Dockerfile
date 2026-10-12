@@ -6,7 +6,9 @@ FROM ${NODE_IMAGE}
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Tras instalar, se quita npm de la imagen final: el contenedor arranca con `node` y no lo usa, y el npm que trae la imagen base
+# acumulaba 21 hallazgos de trivy (brace-expansion, ip-address, undici...) y es una herramienta menos para un atacante dentro del contenedor.
+RUN npm ci --omit=dev && npm cache clean --force     && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 COPY --chown=node:node . .
 
