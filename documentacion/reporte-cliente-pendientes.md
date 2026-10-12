@@ -42,6 +42,7 @@
 **Verificar cada ID antes de borrar.**
 
 ### Obra #235 (Id interno 136)
+- **Verificado el 12-10-2026: la obra tiene 20 documentos, casi todos de prueba**, entre ellos actas y informes con nombres como `acta_camino_feliz.pdf`, `acta_retest.pdf`, `acta_recepcion_firmada_PRUEBA.pdf`, `planos_as_built.pdf`, `documentacion_ito.pdf` y cuatro archivos `perf_*.txt` de pruebas de rendimiento, además del documento opcional `acta_entrega_terreno.pdf` (tipo 69, subido desde la PWA). Verificar antes de borrar.
 - Eventos 143, 144, 147, 149, 161 (y sus inspecciones 114, 115, 118, 120, 121 y la de finalización).
 - Ítems de SharePoint 67, 68, 87, 88.
 - Acta de recepción de prueba y documentos asociados.
