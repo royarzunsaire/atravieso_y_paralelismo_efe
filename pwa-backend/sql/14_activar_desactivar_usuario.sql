@@ -21,8 +21,8 @@
 --
 -- Efecto en la PWA: el login local solo admite usuarios con activo = 1
 -- (database.js → getLocalActiveUserByEmail). Un usuario dado de baja no puede iniciar sesión.
--- OJO: una sesión ya abierta sigue válida hasta que expire su JWT (7 días) salvo que el
--- backend consulte `activo` en cada petición (pendiente de decidir).
+-- Sesiones ya abiertas: el backend consulta `activo` en cada petición (con una caché de 60 s,
+-- variable SESION_CACHE_SEG), así que la baja corta la sesión en menos de un minuto (H-08).
 -- ============================================================
 
 -- 1) POST /usuarios-actions/{id}/activo
