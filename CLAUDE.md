@@ -218,6 +218,7 @@ antes de asumir un comportamiento de error.
 | Cámara, GPS o instalación del celular no funcionan | La página no está en HTTPS | Servir el front por HTTPS (en `localhost` sí funciona) |
 | **403 `SIN_ACCESO_SOLICITUD`** de un usuario en una obra | La API del jefe no lo tiene asignado (pasó con Alan en la #999 tras el nuevo deploy, hallazgo 23) | Reasignarlo como Supervisor/ITO en el sistema del jefe |
 | El navegador muestra una versión vieja de la app | Caché del navegador o del service worker | Ctrl+F5; el servidor de prueba ya manda `no-cache` |
+| El contenedor construido por el jefe **no arranca** en OCI (exec format error) | Construyó en un equipo ARM (Mac con chip Apple) y la instancia es x86 | Reconstruir con `docker build --platform linux/amd64 …` (las guías ya lo indican; el jefe construye él mismo desde `pwa-*-codigo.zip`) |
 | Login lento o error 5xx puntual | La API de SharePoint atiende de a una petición (3–13 s) | Esperar/reintentar; no es del front |
 | Baja de un usuario no corta la sesión de inmediato | Caché de «cuenta activa» de 60 s | Es lo esperado (≤ 1 min) |
 

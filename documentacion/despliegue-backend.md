@@ -30,8 +30,11 @@ docker load -i ayp-backend.tar            # queda como ayp-backend:local
 O, si prefieren construirla desde el código (la base está fijada por digest en el `Dockerfile`):
 
 ```bash
-cd pwa-backend && docker build -t ayp-backend:local .
+cd pwa-backend && docker build --platform linux/amd64 -t ayp-backend:local .
 ```
+
+
+> **Arquitectura (importante):** las imágenes entregadas son **linux/amd64 (x86)**. Si la construyes en un equipo con otro procesador (por ejemplo un Mac con chip Apple), añade `--platform linux/amd64` al comando; si no, la imagen sale arm64 y **no arranca en una instancia x86 de OCI** (E-series). Solo sería correcto construir sin esa opción si la instancia de OCI es Ampere (ARM). Se verifica con `docker image inspect ayp-backend:local --format '{{.Os}}/{{.Architecture}}'` (debe decir `linux/amd64`).
 
 ## 3. Variables de entorno (archivo `backend.env`, NO va al repositorio)
 
