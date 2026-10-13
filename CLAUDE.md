@@ -201,6 +201,30 @@ antes de asumir un comportamiento de error.
 
 ---
 
+## ESTADO AL 13-10-2026 Y GUÍA RÁPIDA PARA DUDAS DEL JEFE (leer al retomar)
+
+**Dónde estamos:** el jefe de Rodrigo montó el **backend** en OCI (API Gateway `…/mobileayp-api`) y publicó la **API de SharePoint** nueva por HTTPS (`…/ayp`, ya entrega las URL de descarga con HTTPS; la API vieja `146.181.52.2:3000` está APAGADA). Rodrigo le envió el **paquete del frontend** (`entrega-frontend/`: imagen `ayp-frontend.tar` sha256 `d676cb00…`, `frontend.env`, guía) y el `backend.env` por Teams. **Todo el código está subido a GitHub (rama `chore/retirar-v1`, PR #1 abierto, último commit de esta etapa `5f3cf80`).** Imágenes finales: backend `5a43e5a7…` (187 312 640 B) y frontend `d676cb00…` (63 648 256 B), ambas con `trivy` 0/0. El checklist de seguridad está en 59 ✅ / 16 ⚠️ / 1 ❌ (el ❌ ya no aplica: la API del cliente va por HTTPS). **Lo pendiente está en el item 18 (leerlo y listar TODO cuando Rodrigo pregunte «qué falta»).**
+
+**Si el jefe tiene dudas o algo falla con el frontend, mirar primero:**
+| Síntoma | Causa más probable | Solución |
+|---|---|---|
+| El login da **403** («CORS: origen no permitido») | `FRONTEND_URL` del backend vacío o distinto del origen donde se sirve el front | Poner el **origen exacto** (`https://host`, sin ruta ni barra final) y **recrear** el contenedor del backend |
+| Las **fotos/documentos no cargan** (consola: «violates … connect-src») | `CSP_CONNECT_EXTRA` del front sin el origen del gateway | `CSP_CONNECT_EXTRA=https://<host-del-gateway>` (solo origen) y reiniciar el front |
+| Las fotos no cargan y la consola dice contenido mixto | La API entrega URL `http://` | Ya resuelto en la API nueva; si reaparece, revisar `UrlDescarga` (plan B en el item 19) |
+| **504** a los 10 s al guardar/cargar | Read timeout del API Gateway en 10 s | Subirlo a 90–120 s en los DOS deployments (`/mobileayp-api` y `/ayp`) |
+| Página en blanco o sin estilos bajo un prefijo | Se abrió sin la barra final o el gateway no quita el prefijo | Abrir `https://<gateway>/<prefijo>/` y configurar la ruta con `{path*}` quitando el prefijo |
+| `config.js` muestra `API_URL: ""` | Falta `API_URL` en el contenedor del front | Pasar `--env-file frontend.env`; ver `docker logs` (`40-ayp-config.sh`) |
+| `config.js` ignora el valor («caracteres no permitidos») | `API_URL` con comillas o caracteres no válidos | Dejar solo una URL, sin comillas |
+| Cámara, GPS o instalación del celular no funcionan | La página no está en HTTPS | Servir el front por HTTPS (en `localhost` sí funciona) |
+| **403 `SIN_ACCESO_SOLICITUD`** de un usuario en una obra | La API del jefe no lo tiene asignado (pasó con Alan en la #999 tras el nuevo deploy, hallazgo 23) | Reasignarlo como Supervisor/ITO en el sistema del jefe |
+| El navegador muestra una versión vieja de la app | Caché del navegador o del service worker | Ctrl+F5; el servidor de prueba ya manda `no-cache` |
+| Login lento o error 5xx puntual | La API de SharePoint atiende de a una petición (3–13 s) | Esperar/reintentar; no es del front |
+| Baja de un usuario no corta la sesión de inmediato | Caché de «cuenta activa» de 60 s | Es lo esperado (≤ 1 min) |
+
+**Herramientas de prueba (en el repo):** `pwa-frontend/scripts/servidor-prueba-gateway.cjs` (front local → backend de OCI, config `frontend-oci` de `.claude/launch.json`) y `servidor-prueba-prefijo.cjs` (imita el contenedor bajo un prefijo, API en otro origen). **Procedimiento de imágenes en `concerto`:** item 16. **Reglas de oro para las pruebas en `concerto`:** usar DOS ventanas (una solo para el túnel `ssh -N -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -L 8090:127.0.0.1:8090 root@172.30.100.206`, otra para los comandos); los comandos `scp` hacia el PC se escriben en una terminal del PC, nunca en la de `concerto`; el apagado automático de los contenedores de prueba es de 90 min; un `ssh.exe` viejo puede atrapar el puerto 8090.
+
+---
+
 ## Reglas de trabajo aprendidas con Rodrigo (válidas en toda la sesión, además de las irrompibles)
 - Siempre en **español**. Antes de actuar: plan + impacto + aprobación; una corrección a la vez; después, verificar (batería, prueba en pantalla), documentar y commitear. Para decisiones con varias opciones, recomendar una.
 - **Antes de tocar la UI**: leer `contrato-ui.md` y correr `npm run check:ui`, `npx tsc --noEmit` y `npx eslint src --quiet`; subir la versión del contrato y agregar reglas a `pwa-frontend/scripts/check-ui-contract.mjs` (IDs únicos: verificar con `grep -o "id: 'CU-[0-9a-z]*'" … | sort | uniq -d`). `.claude/` está en `.gitignore` y se versiona como `.claude.7z`: actualizar con `"C:/Program Files/7-Zip/7z.exe" u .claude.7z .claude` y verificar extrayendo y comparando con `cmp`.
