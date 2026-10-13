@@ -4,14 +4,22 @@
 
 ## 1. Qué se entrega
 
-| Archivo | Tamaño (bytes) | sha256 |
-|---|---|---|
-| `ayp-backend.tar` (imagen Docker lista) | 187 312 640 | `5a43e5a7c29233d8dec679f66f4be84ad874b0de1c337f0d37ca824f36ceefe8` |
-| `pwa-backend/Dockerfile` + el código de `pwa-backend/` (para construirla uno mismo) | — | rama `chore/retirar-v1` del repositorio, PR #1 |
+| Archivo | Para qué sirve |
+|---|---|
+| `ayp-backend.tar` (187 312 640 bytes, sha256 `5a43e5a7c29233d8dec679f66f4be84ad874b0de1c337f0d37ca824f36ceefe8`) | **Imagen Docker ya construida y escaneada. Es la forma recomendada de montarlo.** |
+| `Dockerfile` y `.dockerignore` | Receta tal cual está en el repositorio (para ver cómo se construye o para construirla uno mismo). |
+| `pwa-backend-codigo.zip` | Código fuente completo del backend (la carpeta `pwa-backend/`, con su propio `Dockerfile`), necesario solo si se quiere construir la imagen en vez de usar el `.tar`. Incluye los scripts de Oracle (`sql/`). |
+| `backend.env.plantilla` | Las variables de entorno a completar (sin valores). |
+| `trivy-backend.txt` | Informe del escaneo de vulnerabilidades. |
+| `SHA256SUMS.txt` | Huellas para verificar que los archivos llegaron íntegros: `sha256sum -c SHA256SUMS.txt`. |
 
 - La imagen es `linux/amd64` (servidor x86). Node 24 sobre Alpine, usuario `node` (sin root), **sin `npm`**, con `HEALTHCHECK`.
 - `trivy`: **0 vulnerabilidades y 0 secretos** (informe en `documentacion/seguridad/trivy-backend.txt`).
 - Verificar la copia: `sha256sum ayp-backend.tar`.
+
+## 1b. Oracle: ¿hay que preparar algo?
+- **Si usan el mismo Oracle (ORDS) que desarrollo:** no hace falta ejecutar nada; ya están las tablas, los módulos ORDS y los clients OAuth2.
+- **Si es otro Oracle distinto:** ejecutar en orden, como script en SQL Developer Web, los archivos `sql/01_…` a `sql/14_…` que vienen en `pwa-backend-codigo.zip` (el `sql/README.md` explica cada uno). El `14` activa las rutas de baja y alta de usuarios. Hay que crear además los clients OAuth2 del `02` con sus propios secretos. Los usuarios se crean solo por ORDS (`POST /usuarios-actions/register`), no desde la app.
 
 ## 2. Cómo cargarla (o construirla)
 
