@@ -106,14 +106,6 @@ export function Toast({ isOpen, type, title, message, onClose, autoClose = 3500 
           </button>
         </div>
       </div>
-
-      {/* Animación CSS inline para la barra de progreso */}
-      <style>{`
-        @keyframes shrink {
-          from { transform: scaleX(1); }
-          to   { transform: scaleX(0); }
-        }
-      `}</style>
     </div>
   );
 }

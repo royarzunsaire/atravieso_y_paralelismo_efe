@@ -642,6 +642,16 @@ const REGLAS = [
   { id: 'CU-45c', archivo: '../vite.config.js', tipo: 'noDebe', texto: 'tuservidor',
     msg: 'vite.config.js no debe tener reglas de caché hacia api.tuservidor.com (dominio de plantilla).' },
 
+  // ── Visor de fotos y estilos en línea (CU-46 / CU-47) ──
+  { id: 'CU-46a', archivo: 'app/components/PhotosModal.tsx', tipo: 'noDebe', texto: 'URL.revokeObjectURL',
+    msg: 'El visor de fotos no debe liberar las imágenes del caché compartido (al reabrir salían «no encontradas»).' },
+  { id: 'CU-47a', archivo: 'app/components/Toast.tsx', tipo: 'noDebe', texto: '<style>',
+    msg: 'El Toast no debe insertar <style> en línea (la CSP lo bloquea).' },
+  { id: 'CU-47b', archivo: 'styles/theme.css', tipo: 'debe', texto: '@keyframes shrink',
+    msg: 'La animación del Toast vive en theme.css.' },
+  { id: 'CU-25e', archivo: 'utils/refrescarObra.ts', tipo: 'debe', texto: 'ESPERAS_DOCUMENTO_CORTAS_MS',
+    msg: 'Las acciones que crean inspección esperan poco sus documentos en la lista de la obra (los cuelga la inspección).' },
+
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',
     msg: 'Ctrl. Obra muestra el comentario de devolución.' },

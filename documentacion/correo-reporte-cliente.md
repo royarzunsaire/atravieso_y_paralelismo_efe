@@ -23,7 +23,7 @@ Te adjunto el reporte con lo que encontramos al integrar la app móvil (PWA de A
    - Las **obras finalizadas desaparecen** del listado inicial, por lo que la app no puede mostrar el historial. Necesitamos saber cómo listarlas.
    - **`CatalogosVersion` no cambia** cuando cambia el contenido del catálogo, y las acciones de control (detener, reactivar, finalizar) crean inspecciones con avance 0 % si no se envía el avance.
    - **Latencia alta y variable** (de 6 a 13 segundos o más por consulta), que se nota mucho en terreno.
-3. **Documentación y mejoras** (hallazgos 7, 11, 14 a 16, 20 y 21 del reporte): el swagger no documenta `TiposDocumentoOpcional` ni `GET /v1/inspecciones/{id}`; el POST de documentos no es idempotente; el mismo 404 para «el correo no existe» y «no tiene obras»; y el límite de peticiones (429) sin `Retry-After`.
+3. **Documentación y mejoras** (hallazgos 7, 11, 14 a 16 y 20 a 22 del reporte; el 22: el acta que se sube al detener la obra queda colgada de la inspección y no aparece en `Documentos` de la obra): el swagger no documenta `TiposDocumentoOpcional` ni `GET /v1/inspecciones/{id}`; el POST de documentos no es idempotente; el mismo 404 para «el correo no existe» y «no tiene obras»; y el límite de peticiones (429) sin `Retry-After`.
 
 **Datos de prueba a borrar** (ya verificados, con sus ids; conviene revisarlos antes de borrar, y avisar al dueño de los datos de SharePoint si corresponde):
 - **Obra #999 (Id 155):** inspecciones **206 y 207**, con fotos de prueba (una de 3 MB), `Areas.csv` y un acta de inicio de prueba.

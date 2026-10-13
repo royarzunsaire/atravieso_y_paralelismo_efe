@@ -190,3 +190,9 @@
     line-height: 1.5;
   }
 }
+
+/* Barra de progreso del Toast (antes un <style> en línea, que la CSP bloquea). */
+@keyframes shrink {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}

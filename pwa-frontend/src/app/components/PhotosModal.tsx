@@ -107,12 +107,8 @@ export function PhotosModal({
   useEffect(() => {
     if (!isOpen) return;
     return () => {
-      // limpiar object URLs al cerrar
-      Object.values(objectUrlsRef.current).forEach((u) => {
-        try {
-          URL.revokeObjectURL(u);
-        } catch {}
-      });
+      // NO se liberan (revokeObjectURL) las imágenes: pertenecen al caché compartido `fotosBlobCache`, que las entrega de nuevo al
+      // reabrir el visor y las libera al cerrar la sesión. Liberarlas aquí dejaba el caché con direcciones muertas (foto «no encontrada»).
       setObjectUrls({});
       setErroresPorFoto({});
     };

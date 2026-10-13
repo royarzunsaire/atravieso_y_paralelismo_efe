@@ -22,6 +22,7 @@ http.createServer((req, res) => {
   let f = path.resolve(path.join(DIST, url === '/' ? 'index.html' : decodeURIComponent(url)));
   if (!f.startsWith(DIST + path.sep) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(DIST, 'index.html');
   const h = { 'Content-Type': tipos[path.extname(f)] || 'application/octet-stream' };
+  if (path.extname(f) === '.html' || path.basename(f) === 'sw.js') h['Cache-Control'] = 'no-cache'; // que el navegador no se quede con una versión vieja
   for (const [k, v] of cabeceras) if (k !== 'Strict-Transport-Security') h[k] = v;
   res.writeHead(200, h); fs.createReadStream(f).pipe(res);
 }).listen(Number(process.env.PORT || 8081), () => console.log('Servidor de prueba en http://localhost:' + (process.env.PORT || 8081) + ' → ' + GW.href));

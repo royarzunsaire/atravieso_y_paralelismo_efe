@@ -36,6 +36,7 @@
 | 19 | **El swagger describe la cabecera `X-Usuario-Prueba`**, que permitiría simular a cualquier usuario si la variable `AUTH_DESACTIVADA` estuviera activa. | Si llegara activa a producción, cualquiera podría suplantar a cualquier usuario. | **Confirmar por escrito que `AUTH_DESACTIVADA=false` en producción** (y de preferencia quitar la cabecera de la documentación pública). |
 | 20 | **El mismo `404 USUARIO_NO_ENCONTRADO` para «el correo no existe» y «existe pero no tiene obras»** (ver también el hallazgo 5). | Imposible diagnosticar por qué un usuario no ve obras; además no permite distinguir un error de alta de un usuario sin asignación. | Códigos distintos (por ejemplo `USUARIO_SIN_OBRAS`). |
 | 21 | **Límite de peticiones (429) sin cabecera `Retry-After`** y con un umbral que no está documentado. | La PWA tuvo que inventar esperas (botón «Actualizar» bloqueado 5 s). | Documentar el límite y enviar `Retry-After`. |
+| 22 | **El documento que se sube con una acción de control (ej. «Detener obra») queda colgado de la INSPECCIÓN que esa acción crea y NO aparece en la lista `Documentos` de la obra.** Visto el 13-10-2026 en la #999: el acta de detención (tipo 71 «Acta de Detención de Obra») está en la inspección 209 (`InspeccionId` 209) y `GET /v1/solicitudes/155` solo lista `Areas.csv`. En la #136, en cambio, actas de detención y reactivación sí figuran en `Documentos`. | Quien busca el acta en la pestaña «Documentos» no la encuentra; la PWA esperaba verla ahí. (La PWA ya se ajustó: espera esos adjuntos en la inspección.) | Confirmar cuál es el comportamiento deseado y, si el acta debe verse a nivel de obra, incluirla en `Documentos`. |
 
 ## 2. Datos de prueba a borrar (ambiente dev del cliente)
 
@@ -55,6 +56,9 @@
 - Inspecciones 129–132 y 137–143 (y otras de las pruebas).
 - Actas de prueba (inicio, recepción, acta corregida), informe final de prueba, evento 167.
 - La ficha técnica `…Ficha_Tecnica_Indicadores_Pasajeros_EFE_Central.docx` subida como acta/informe de prueba.
+
+### Obra #999 — pruebas del 13-10-2026 contra el backend de OCI
+- Rodrigo creó la **inspección 208** (Inspección General, 15 %, 1 foto y 1 informe `.docx`) y detuvo la obra: **inspección 209** «Paralización de Obra» (15 %, con el acta de detención `.docx`). **La obra quedó en «Obra detenida»: reactivarla para dejarla «en ejecución».**
 
 ### Obra #1000 (Id interno 156, «Solicitud AYP Sin ITO»)
 - **6 inspecciones de prueba** hechas por `alan.sepulveda@efe.cl`: ids **185, 186, 187, 188, 189 y 190** (verificado el 12-10-2026; avances 10, 25, 25, 25, 100 y 100 %; con fotos e informes de prueba).
