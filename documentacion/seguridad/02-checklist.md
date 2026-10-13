@@ -33,9 +33,9 @@
 | B9 | Al cerrar sesión se limpia todo el almacenamiento de la sesión | ASVS 3.3 | ✅ | `localStorage`, `sessionStorage` y cachés (H-14 corregido 11-10-2026) |
 | B10 | Sin *source maps* en producción | ASVS 14.3.2 | ✅ | `dist/assets/*.map`: 0 |
 | B11 | Sin datos sensibles en consola del navegador | ASVS 7.1 | ✅ | Sin `console.log` de token, usuario o payload |
-| B12 | El service worker no cachea respuestas autenticadas | ASVS 8.2 | ✅ | Solo precachea estáticos; `runtimeCaching` apunta a un dominio inexistente (H-23) |
+| B12 | El service worker no cachea respuestas autenticadas | ASVS 8.2 | ✅ | Solo precachea estáticos; ya no hay `runtimeCaching` (H-23 corregido 12-10-2026) |
 | B13 | URLs de descarga con token temporal | ASVS 8.3.1 | ⚠️ | SharePoint entrega URLs con `?token=` válidas ~1 h; informar a ciberseguridad (viajan en la URL) |
-| B14 | Sin código muerto con credenciales o claves heredadas | A05 | ⚠️ | `supabase_session`, `connection_token` (H-23) |
+| B14 | Sin código muerto con credenciales o claves heredadas | A05 | ✅ | Restos de Supabase y regla de caché de plantilla eliminados (H-23 corregido 12-10-2026) |
 | B15 | Geolocalización solo con permiso del usuario | Privacidad | ✅ | `navigator.geolocation` (el navegador pide permiso) |
 | B16 | Validación de entradas en el cliente (no sustituye al servidor) | ASVS 5.1 | ✅ | Validación por banderas de la API; el servidor revalida |
 
@@ -118,8 +118,8 @@
 ## Recuento
 | Estado | Cantidad |
 |---|---|
-| ✅ Cumple | 58 |
-| ⚠️ Parcial / atención | 17 |
+| ✅ Cumple | 59 |
+| ⚠️ Parcial / atención | 16 |
 | ❌ No cumple | 1 |
 | ➖ No aplica | 3 |
 | ⏳ Fuera de alcance | 8 |

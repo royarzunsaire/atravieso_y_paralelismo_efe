@@ -634,6 +634,14 @@ const REGLAS = [
   { id: 'CU-44c', archivo: '../seguridad.inc.template', tipo: 'noDebe', texto: 'fonts.gstatic.com',
     msg: 'La CSP no debe admitir orígenes de Google Fonts.' },
 
+  // ── Sin restos de Supabase ni de plantilla (CU-45) ──
+  { id: 'CU-45a', archivo: 'services/auth.js', tipo: 'noDebe', texto: 'x-supabase-token',
+    msg: 'No se debe enviar la cabecera heredada x-supabase-token (H-23).' },
+  { id: 'CU-45b', archivo: 'services/auth.js', tipo: 'noDebe', texto: 'getConnectionToken',
+    msg: 'No debe existir getConnectionToken (código heredado de Supabase).' },
+  { id: 'CU-45c', archivo: '../vite.config.js', tipo: 'noDebe', texto: 'tuservidor',
+    msg: 'vite.config.js no debe tener reglas de caché hacia api.tuservidor.com (dominio de plantilla).' },
+
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',
     msg: 'Ctrl. Obra muestra el comentario de devolución.' },

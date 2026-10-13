@@ -22,12 +22,6 @@ export const authService = {
 
     // Guardar token y usuario en localStorage
     localStorage.setItem('token', data.token);
-    if (data.connection_token) {
-      localStorage.setItem('connection_token', data.connection_token);
-    }
-    if (data.supabase_session) {
-      localStorage.setItem('supabase_session', JSON.stringify(data.supabase_session));
-    }
     localStorage.setItem('user', JSON.stringify(data.user));
 
     return data;
@@ -85,7 +79,6 @@ export const authService = {
 async logout() {
   try {
     const token = this.getToken();
-    const supabaseToken = this.getConnectionToken();
 
     if (token) {
       await fetch(`${API_URL}/auth/logout`, {
@@ -93,8 +86,6 @@ async logout() {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          // Enviar el token de Supabase para cerrar esa sesión
-          ...(supabaseToken && { 'x-supabase-token': supabaseToken }),
         },
       });
     }
@@ -102,9 +93,10 @@ async logout() {
     console.warn('⚠️  Error cerrando sesión en servidor:', e.message);
   } finally {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    // Claves de una versión antigua (Supabase): ya no se escriben, pero se borran por si algún dispositivo las conserva (H-23).
     localStorage.removeItem('connection_token');
     localStorage.removeItem('supabase_session');
-    localStorage.removeItem('user');
     // H-14: borradores de inspección (con fotos), obra abierta y demás datos de la pestaña no deben sobrevivir al cierre de sesión.
     try { sessionStorage.clear(); } catch { /* sin acceso al almacenamiento: nada que limpiar */ }
     // CU-20: lo guardado en memoria de esta sesión (obras, detalles, fotos, catálogo) se descarta.
@@ -115,11 +107,6 @@ async logout() {
   // Obtener token
   getToken() {
     return localStorage.getItem('token');
-  },
-
-  // Obtener token de conexión de Supabase para usuarios locales
-  getConnectionToken() {
-    return localStorage.getItem('connection_token');
   },
 
   // Obtener usuario guardado

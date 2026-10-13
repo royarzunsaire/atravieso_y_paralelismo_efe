@@ -15,7 +15,7 @@ Los problemas están en la **capa de autenticación y en el endurecimiento**: el
 | **Alta** | 4 (3 corregidas: H-02, H-03, H-04) | ~~H-02~~, ~~H-03~~, ~~H-04~~, H-05 |
 | **Media** | 9 (7 corregidas: H-06, H-07, H-09, H-10, H-11, H-12, H-14; 2 parciales: H-08, H-13) | ~~H-06~~, ~~H-07~~, H-08 (parcial), ~~H-09~~, ~~H-10~~, ~~H-11~~, ~~H-12~~, H-13 (parcial), ~~H-14~~ |
 | **Baja** | 8 (8 corregidas: H-15 a H-22) | ~~H-15~~, ~~H-16~~, ~~H-17~~, ~~H-18~~, ~~H-19~~, ~~H-20~~, ~~H-21~~, ~~H-22~~ |
-| **Informativa** | 2 | H-23, H-24 |
+| **Informativa** | 2 (1 corregida: H-23) | ~~H-23~~, H-24 |
 
 ## 2. Impacto de corregir los hallazgos críticos y altos
 Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna corrección se aplica sin tu aprobación punto por punto.
@@ -164,7 +164,7 @@ Esta tabla responde a «¿qué le pasa a la app si corregimos esto?». Ninguna c
 | H-22 | ✅ CORREGIDO (11-10-2026) — `uncaughtException` solo se registraba y el proceso sigue vivo en estado indefinido · CWE-248 | `server.js:11-17` | Corregido (`utils/errorFatal.js`, cargado desde `server.js`): `uncaughtException` y `unhandledRejection` se registran y, con `NODE_ENV=production`, el proceso termina con código 1 tras 200 ms; en desarrollo solo se registra (nodemon no se corta). Verificado con 4 pruebas aisladas: producción → salida 1 en ambos casos; desarrollo → el proceso sigue vivo. El ciclo de sincronización ya tiene su propio `try/catch`, así que un fallo de red no reinicia el contenedor. **Requiere política de reinicio** (compose ya tiene `restart: unless-stopped`; el colega de OCI debe configurarla). |
 
 ### Informativos
-- **H-23 — Código muerto:** claves `supabase_session`/`connection_token` en `auth.js` del frontend, `runtimeCaching` apuntando a `api.tuservidor.com` en `vite.config.js`, la dependencia `passport-azure-ad` (solo aparece en un comentario). Quitar reduce superficie.
+- **H-23 — ✅ CORREGIDO (12-10-2026) — Código muerto:** claves `supabase_session`/`connection_token` en `auth.js` del frontend, `runtimeCaching` apuntando a `api.tuservidor.com` en `vite.config.js`, la dependencia `passport-azure-ad` (solo aparece en un comentario). Quitar reduce superficie. **Corrección:** `auth.js` ya no guarda ni envía `connection_token`/`supabase_session`/`x-supabase-token` (al cerrar sesión sí borra esas dos claves antiguas por si un dispositivo las conserva); `vite.config.js` sin `runtimeCaching` hacia `api.tuservidor.com` (el service worker sigue precacheando las mismas 9 entradas); `passport-azure-ad` ya se había desinstalado (H-02). Contrato de UI v68 (CU-45, 3 reglas). Verificado en pantalla: tras cerrar sesión `localStorage` queda vacío, también con las claves antiguas puestas a mano.
 - **H-24 — DOMPurify y XSS:** no se encontró `dangerouslySetInnerHTML`, `innerHTML`, `eval`, `new Function` ni `document.write` en el frontend; React escapa el texto. DOMPurify **no es necesario hoy** y tampoco impide que un usuario modifique su propio DOM desde el navegador (eso solo lo contiene la validación del servidor, que sí existe). Solo se justificaría si algún día se muestra HTML proveniente de la API.
 
 ## 4. Lo que se verificó como correcto
