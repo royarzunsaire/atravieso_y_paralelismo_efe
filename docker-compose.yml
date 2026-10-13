@@ -40,7 +40,12 @@ services:
     environment:
       # nginx alcanza al backend por el nombre de servicio de compose.
       # En OCI Container Instance esto cambia a "localhost".
-      CSP_CONNECT_EXTRA: "http://146.181.52.2:3000"   # origen de la API del cliente (CSP): en producción, su URL HTTPS
+      # Origen(es) a los que el navegador puede conectarse (CSP): el gateway de OCI donde están la API de SharePoint y el backend.
+      # Se puede sobrescribir al ejecutar:  CSP_CONNECT_EXTRA=https://otro-gateway docker compose up
+      CSP_CONNECT_EXTRA: "${CSP_CONNECT_EXTRA:-https://gtibyxnoeyzrfkb5a26vg53vfi.apigateway.sa-santiago-1.oci.customer-oci.com}"
+      # Dirección del backend que usa el NAVEGADOR. Vacía = mismo origen (nginx hace de proxy hacia BACKEND_HOST); con el backend detrás de un
+      # API Gateway: API_URL=https://<gateway>/<prefijo>.
+      API_URL: "${API_URL:-}"
       BACKEND_HOST: backend
       BACKEND_PORT: "3001"
     ports:
