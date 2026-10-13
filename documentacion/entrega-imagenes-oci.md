@@ -18,7 +18,7 @@ Adjunto las dos imágenes Docker de la PWA del Sistema de Atravieso y Paralelism
 | Archivo | Tamaño (bytes) | sha256 |
 |---|---|---|
 | `ayp-backend.tar` | 187 312 640 | `5a43e5a7c29233d8dec679f66f4be84ad874b0de1c337f0d37ca824f36ceefe8` |
-| `ayp-frontend.tar` | 63 642 624 | `f5adf817ad22bd558354eb0be369a3093a4de6960e6ec088be43cd19651fc224` |
+| `ayp-frontend.tar` | 63 648 256 | `d676cb008db78e44b6e57b265235359cffb7a3231619834f380f0d905de8d780` |
 
 Verificar la copia antes de cargar: `sha256sum ayp-backend.tar ayp-frontend.tar` (Linux) o `Get-FileHash -Algorithm SHA256 ayp-*.tar` (PowerShell).
 

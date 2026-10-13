@@ -6,7 +6,7 @@
 ## 1. Qué se entrega
 | Archivo | Para qué sirve |
 |---|---|
-| `ayp-frontend.tar` | Imagen Docker ya construida (nginx sin privilegios, puerto 8080, usuario 101). |
+| `ayp-frontend.tar` (63 648 256 bytes, sha256 `d676cb008db78e44b6e57b265235359cffb7a3231619834f380f0d905de8d780`) | Imagen Docker ya construida y escaneada (0 vulnerabilidades, 0 secretos): nginx sin privilegios, puerto 8080, usuario 101. |
 | `Dockerfile`, `nginx.conf.template`, `seguridad.inc.template`, `40-ayp-config.sh` | Receta y configuración tal cual están en el repositorio (`pwa-frontend/`). |
 | `SHA256SUMS.txt` | Para verificar la copia: `sha256sum -c SHA256SUMS.txt`. |
 
