@@ -50,7 +50,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
             <div className="relative">
               <div className="relative flex items-center justify-center w-30">
                 <img 
-                  src="/Imagen1-Photoroom.png"
+                  src="./Imagen1-Photoroom.png"
                   alt="Logo app"
                 />
               </div>

@@ -45,7 +45,7 @@ export function Header({
             <div className="flex items-center gap-2">
               <div className="flex items-center justify-center w-10 h-10 bg-white rounded">
                 <img 
-                  src="/Logo_EFE.png"
+                  src="./Logo_EFE.png"
                   alt="Logo app"
                   className="w-8 h-8 object-contain"
                 />

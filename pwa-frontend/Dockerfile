@@ -39,6 +39,12 @@ ENV NGINX_ENVSUBST_FILTER="^(BACKEND_|CSP_)"
 # Origen de la API del cliente de donde el navegador baja las fotos (CSP connect-src). Se define al desplegar
 # (ej. https://api.cliente.cl). Vacío = las fotos descargadas no cargarían.
 ENV CSP_CONNECT_EXTRA=""
+# Dirección del backend que usa el NAVEGADOR (se escribe en /config.js al arrancar). Vacío = mismo origen (nginx hace de proxy hacia BACKEND_HOST).
+# Con el backend detrás de un API Gateway: https://<host-del-gateway>/<prefijo>  (sin barra final).
+ENV API_URL=""
+# Valores por defecto del proxy (solo se usan si API_URL está vacío): permiten que nginx arranque aunque no se definan.
+ENV BACKEND_HOST=127.0.0.1
+ENV BACKEND_PORT=3001
 
 # Parches de seguridad ya publicados por Alpine que la imagen base fijada aún no trae: zlib (CVE-2026-85091, 1.3.2-r0 → r1) y
 # tiff (CVE-2026-4775, 4.7.1-r0 → 4.7.2-r0). Quitar cuando se actualice el digest de la imagen base (ver oci-deploy.md).
@@ -49,6 +55,7 @@ USER 101
 
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY seguridad.inc.template /etc/nginx/templates/seguridad.inc.template
+COPY --chmod=0755 40-ayp-config.sh /docker-entrypoint.d/40-ayp-config.sh
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 8080

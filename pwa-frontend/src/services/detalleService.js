@@ -1,7 +1,7 @@
 import { authService } from './auth';
 import { detalleCache } from './detalleCache';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+import { API_URL } from '../config/apiUrl';
 
 // Pedidos en curso: si dos partes piden lo mismo a la vez (dashboard y detalle,
 // cola de inspecciones y motivo de la detención, doble render de StrictMode),

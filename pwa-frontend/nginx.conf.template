@@ -73,6 +73,14 @@ server {
         proxy_read_timeout 120s;
     }
 
+    # Dirección del backend generada al arrancar el contenedor (40-ayp-config.sh): nunca se cachea.
+    location = /config.js {
+        alias /tmp/ayp-config.js;
+        default_type application/javascript;
+        add_header Cache-Control "no-store";
+        include /etc/nginx/conf.d/seguridad.inc;
+    }
+
     # El service worker no debe cachearse (para que la PWA se actualice)
     location = /sw.js {
         add_header Cache-Control "no-cache";
