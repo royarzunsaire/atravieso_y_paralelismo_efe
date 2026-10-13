@@ -1,5 +1,7 @@
 # Reporte para el cliente / jefe — hallazgos y datos de prueba (BORRADOR)
 
+> **Nota (13-10-2026):** la API de SharePoint la construyó el propio jefe de Rodrigo, así que casi todos los hallazgos de la sección 1 los puede corregir él directamente. Las secciones de datos de prueba (2) y de pendientes (3) pueden requerir además al dueño de los datos de SharePoint.
+
 > Preparado el 01-10-2026 (ampliado el 12-10-2026 con los hallazgos 15 a 21 y la sección de seguridad) a partir de las pruebas reales de la integración directa a SharePoint
 > (spec 13). **No está enviado.** Rodrigo lo entrega cuando termine sus pruebas. Las listas de
 > datos de prueba salen de las sesiones de trabajo: **verificar contra la API antes de borrar**.
