@@ -58,7 +58,7 @@
 - La ficha técnica `…Ficha_Tecnica_Indicadores_Pasajeros_EFE_Central.docx` subida como acta/informe de prueba.
 
 ### Obra #999 — pruebas del 13-10-2026 contra el backend de OCI
-- Rodrigo creó la **inspección 208** (Inspección General, 15 %, 1 foto y 1 informe `.docx`) y detuvo la obra: **inspección 209** «Paralización de Obra» (15 %, con el acta de detención `.docx`). **La obra quedó en «Obra detenida»: reactivarla para dejarla «en ejecución».**
+- Rodrigo creó la **inspección 208** (Inspección General, 15 %, 1 foto y 1 informe `.docx`) y detuvo la obra: **inspección 209** «Paralización de Obra» (15 %, con el acta de detención `.docx`). La obra se detuvo y **ya se reactivó** (13-10-2026: «Obra en ejecución», avance 30 %); además se crearon la **inspección 210** («Reactivación de Obra») y la **211** (Inspección General, 30 %).
 
 ### Obra #1000 (Id interno 156, «Solicitud AYP Sin ITO»)
 - **6 inspecciones de prueba** hechas por `alan.sepulveda@efe.cl`: ids **185, 186, 187, 188, 189 y 190** (verificado el 12-10-2026; avances 10, 25, 25, 25, 100 y 100 %; con fotos e informes de prueba).
