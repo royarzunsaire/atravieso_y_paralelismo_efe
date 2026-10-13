@@ -84,5 +84,9 @@ Si el login responde `429`, se superaron 5 intentos fallidos en 10 minutos para 
 - El frontend también necesita `CSP_CONNECT_EXTRA` = origen de la API del cliente (para descargar fotos).
 - Si en cambio el frontend se publicara en un servidor de archivos estáticos **sin nginx** (sin el proxy), sí habría que reconstruirlo con la URL absoluta del backend (`VITE_API_URL`) y habilitar CORS; avisar si es el caso.
 
+## 6b. API Gateway de OCI (verificado el 13-10-2026)
+- **Tamaño del cuerpo:** OK; el gateway deja pasar 16 MB o más (el backend limita `/auth` a 20 KB y `/api` a 15 MB).
+- **⚠️ Tiempo de espera de lectura (Read timeout): hoy 10 s → el gateway responde 504 si una petición tarda más.** Guardar una inspección con fotos o cargar varias obras puede pasarse de 10 s porque la API de SharePoint atiende de a una petición. **Subir el «Read timeout» y el «Send timeout» del backend HTTP de cada ruta a 90–120 s**, en los dos API Deployments (`/mobileayp-api` hacia el backend y `/ayp` hacia la API de SharePoint).
+
 ## 7. Qué NO cubre esta guía
 TLS/HTTPS, balanceador, WAF, respaldos de Oracle, monitoreo y rotación de secretos: son de la infraestructura. La API del cliente se consume hoy por HTTP sin cifrar (pendiente con el cliente). La duración de la sesión es de 7 días (decisión pendiente con la jefatura).
