@@ -187,12 +187,12 @@ const REGLAS = [
   // ── Acta de inicio como requisito previo (CU-15) ──
   { id: 'CU-15a', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '<TramitePendienteCard',
     msg: 'Información muestra la tarjeta para subir el acta de inicio cuando falta.' },
-  { id: 'CU-15b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: "USE_API_V2 && !obraSinActa ? [{ id: 'control'",
+  { id: 'CU-15b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: "!obraSinActa ? [{ id: 'control'",
     msg: 'Sin acta de inicio NO se muestra la pestaña Ctrl. Obra.' },
   { id: 'CU-15c', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'obraSinActa || obraCerrada',
     msg: 'Sin acta de inicio (o sin tipos de inspección habilitados) NO se muestra «+ Inspección».' },
-  { id: 'CU-15d', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '!USE_API_V2 && ultimaInspeccion?.progress === 100',
-    msg: 'El botón «Término de Ejecución de Obra» es solo del flujo v1.' },
+  { id: 'CU-15d', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'noDebe', texto: 'Término de Ejecución de Obra',
+    msg: 'El botón «Término de Ejecución de Obra» era del flujo v1 (retirado): el cierre es «Finalizar obra» en Ctrl. Obra.' },
   { id: 'CU-15e', archivo: 'app/components/SolicitudCard.tsx', tipo: 'debe', texto: '<EtiquetaTramitePendiente',
     msg: 'La tarjeta del dashboard muestra «FALTA ACTA DE INICIO».' },
   { id: 'CU-15f', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'enviarAccionObra(',
@@ -227,7 +227,7 @@ const REGLAS = [
     msg: 'La pestaña Inspecciones explica por qué no hay «+ Inspección» en una obra finalizada.' },
 
   // ── Borrador del formulario y espera del líder (CU-02 / CU-18) ──
-  { id: 'CU-02e', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'type, tipoInspeccionId, fechaInspeccion',
+  { id: 'CU-02e', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'tipoInspeccionId, fechaInspeccion, progress',
     msg: 'El borrador guarda el tipo de inspección de la API (se perdía al volver de la foto).' },
   { id: 'CU-02f', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'setTipoInspeccionId(draft.tipoInspeccionId)',
     msg: 'El borrador restaura el tipo de inspección de la API.' },
@@ -239,7 +239,7 @@ const REGLAS = [
   // ── Acta rechazada por el líder (CU-16) ──
   { id: 'CU-16d', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "etiqueta: 'ACTA RECHAZADA'",
     msg: 'El dashboard marca «ACTA RECHAZADA» cuando el líder devolvió el acta.' },
-  { id: 'CU-16e', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'Comentario del líder',
+  { id: 'CU-16e', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'Comentario rechazo',
     msg: 'La tarjeta muestra el comentario del líder cuando rechazó el documento.' },
   { id: 'CU-16f', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debeAntes', ancla: 'bloquea={obraSinActa}', ventana: 160, texto: 'comentarioDevolucion=',
     msg: 'Información le pasa a la tarjeta del trámite el comentario de devolución.' },
@@ -259,9 +259,9 @@ const REGLAS = [
   // ── Validación del informe final (CU-19) ──
   { id: 'CU-19a', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '<ValidarInformeCard',
     msg: 'El Supervisor ve la tarjeta «Informe final por validar» en Información.' },
-  { id: 'CU-19b', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'debe', texto: 'Aprobar informe final',
+  { id: 'CU-19b', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "aprobar: 'Aprobar informe final'",
     msg: 'La tarjeta tiene el botón «Aprobar informe final».' },
-  { id: 'CU-19c', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'debe', texto: 'Rechazar informe final',
+  { id: 'CU-19c', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "rechazar: 'Rechazar informe final'",
     msg: 'La tarjeta tiene el botón «Rechazar informe final».' },
   { id: 'CU-19d', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'debe', texto: '<BotonDescargar',
     msg: 'El Supervisor puede descargar el informe antes de decidir.' },
@@ -281,16 +281,16 @@ const REGLAS = [
     msg: 'Una carga de la sesión anterior no pisa los datos de la sesión nueva.' },
 
   // ── Sin flows de Power Automate en v2 (CU-21) ──
-  { id: 'CU-21a', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'if (esV2) { setLoadingUsuarios(false); return; }',
-    msg: 'En v2 NO se llama al flow de usuarios al abrir «+ Inspección».' },
+  { id: 'CU-21a', archivo: 'app/components/NewInspection.tsx', tipo: 'noDebe', texto: 'usuariosService',
+    msg: 'No se llama al flow de usuarios al abrir «+ Inspección» (v1 retirado).' },
   { id: 'CU-21b', archivo: 'app/components/NewInspection.tsx', tipo: 'noDebe', texto: '<PendienteApiBadge',
     msg: 'En v2 «Notificar a» se oculta: no queda ningún cartel «Pendiente en la API».' },
   { id: 'CU-21c', archivo: 'app/components/NewInspection.tsx', tipo: 'debeAntes', ancla: 'Selecciona los usuarios que recibirán notificación', ventana: 1500, texto: '{!esV2 && (',
     msg: 'La sección «Notificar a» solo se dibuja en v1.' },
-  { id: 'CU-21d', archivo: 'context/CatalogsContext.tsx', tipo: 'debe', texto: '!USE_API_V2 && authService.isAuthenticated()',
-    msg: 'En v2 no se pide /api/tipos-inspeccion al iniciar la app.' },
-  { id: 'CU-21e', archivo: 'app/App.tsx', tipo: 'debe', texto: 'if (!USE_API_V2) void recargarTiposInspeccion();',
-    msg: 'En v2 no se piden los tipos viejos al iniciar sesión.' },
+  { id: 'CU-21d', archivo: 'app/App.tsx', tipo: 'noDebe', texto: 'CatalogsProvider',
+    msg: 'No se piden los tipos viejos de Oracle (/api/tipos-inspeccion): v1 retirado.' },
+  { id: 'CU-21e', archivo: 'app/App.tsx', tipo: 'noDebe', texto: 'recargarTiposInspeccion',
+    msg: 'Al iniciar sesión no se piden los tipos viejos (v1 retirado).' },
 
   // ── Espera visible y errores explicados (CU-22) ──
   { id: 'CU-22a', archivo: 'app/App.tsx', tipo: 'debe', texto: '<ProgresoProvider>',
@@ -375,7 +375,7 @@ const REGLAS = [
     msg: 'Un rechazo de negocio de la API no se reintenta.' },
 
   // ── Fecha no futura y adjunto «foto O informe» (CU-02 / CU-23) ──
-  { id: 'CU-02f', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'max={ahoraCLParaInput()}',
+  { id: 'CU-02j', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'max={ahoraCLParaInput()}',
     msg: 'La fecha de la inspección no puede ser futura (max = ahora en hora de Chile).' },
   { id: 'CU-02g', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'no puede ser futura',
     msg: 'Una fecha futura se marca con su motivo al guardar.' },
@@ -389,7 +389,7 @@ const REGLAS = [
     msg: 'Entre foto e informe se muestra el separador «O».' },
 
   // ── Avance, avisos pastel, informe en borrador y Perfil (CU-23 / CU-02 / CU-27) ──
-  { id: 'CU-23n', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'const avanceBloqueado = esV2 && obraDetenida;',
+  { id: 'CU-23n', archivo: 'app/components/NewInspection.tsx', tipo: 'debe', texto: 'const avanceBloqueado = obraDetenida;',
     msg: 'El avance se bloquea SOLO con la obra detenida (no en Registro de Observación).' },
   { id: 'CU-23o', archivo: 'app/components/NewInspection.tsx', tipo: 'noDebe', texto: 'TIPO_REGISTRO_OBSERVACION_ID',
     msg: 'Registro de Observación ya no tiene un tratamiento especial de avance.' },
@@ -431,7 +431,7 @@ const REGLAS = [
   // ── Detalle sin acceso (CU-29) ──
   { id: 'CU-29a', archivo: 'services/detalleService.js', tipo: 'debe', texto: "err.code = 'SIN_ACCESO'",
     msg: 'El 403 del detalle se distingue del resto de errores.' },
-  { id: 'CU-29b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'detalleV2.sinAcceso && USE_API_V2',
+  { id: 'CU-29b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '{detalleV2.sinAcceso',
     msg: 'Ante un 403 no se ofrece «Reintentar» (se explica qué hacer).' },
   { id: 'CU-29c', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'No se pudo leer el detalle de las inspecciones',
     msg: 'Si el detalle no se leyó, la tarjeta de progreso no inventa «0 % / sin inspecciones».' },
@@ -439,14 +439,242 @@ const REGLAS = [
     msg: 'Sin detalle, el progreso muestra el avance real de la obra.' },
 
   // ── Varios documentos obligatorios en una acción (CU-30) ──
-  { id: 'CU-30a', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'const multiDoc = !inspeccion && accion.RequiereAdjunto && tiposDoc.length > 1;',
-    msg: 'Una acción con varios tipos de documento exige un archivo por cada tipo.' },
+  { id: 'CU-30a', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'const multiDoc = !inspeccion && tiposDoc.length > 1;',
+    msg: 'Una acción con varios tipos de documento ofrece un archivo por cada tipo (todos exigidos si la API pide adjunto).' },
   { id: 'CU-30b', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'else if (documentosB64.length > 0) payload.Documentos = documentosB64;',
     msg: 'Se envía un documento por cada tipo, con su TipoDocumentoId.' },
-  { id: 'CU-30c', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'debes subir los dos para poder enviarla',
+  { id: 'CU-30c', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'debes subir todos para poder enviarla',
     msg: 'El formulario avisa que hay que subir todos los documentos.' },
   { id: 'CU-30d', archivo: '../../pwa-backend/routes/eventos.js', tipo: 'debe', texto: 'DOCUMENTOS_INCOMPLETOS',
     msg: 'El backend rechaza el envío si falta algún tipo de documento de la acción.' },
+
+  // ── Retiro de v1 (CU-31): la app es siempre v2, sin flag ni servicios de flows ──
+  { id: 'CU-31a', archivo: 'app/App.tsx', tipo: 'noDebe', texto: 'USE_API_V2',
+    msg: 'El flag VITE_USE_API_V2 ya no existe: la app es siempre v2.' },
+  { id: 'CU-31b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'noDebe', texto: 'USE_API_V2',
+    msg: 'El detalle no tiene ramas v1.' },
+  { id: 'CU-31c', archivo: 'app/components/NewInspection.tsx', tipo: 'noDebe', texto: 'const esV2',
+    msg: 'El formulario de inspección no tiene ramas v1.' },
+  { id: 'CU-31d', archivo: 'app/components/SolicitudesDashboard.tsx', tipo: 'noDebe', texto: 'solicitudesService',
+    msg: 'El dashboard no usa el listado viejo de flows.' },
+  { id: 'CU-31e', archivo: 'app/App.tsx', tipo: 'noDebe', texto: 'CierreObra',
+    msg: 'La pantalla de cierre de obra v1 fue retirada (el cierre es «Finalizar obra»).' },
+  { id: 'CU-31f', archivo: 'app/components/SolicitudCard.tsx', tipo: 'noDebe', texto: 'const esV2',
+    msg: 'La tarjeta no distingue v1/v2.' },
+
+  // ── Toda acción lleva el avance vigente (CU-13) ──
+  { id: 'CU-13i', archivo: 'utils/avanceVigente.ts', tipo: 'debe', texto: 'export function avanceVigente(',
+    msg: 'Existe una única función para el avance vigente de la obra.' },
+  { id: 'CU-13j', archivo: 'utils/enviarAccionObra.ts', tipo: 'debe', texto: 'AvancePct: avanceVigente(obra)',
+    msg: 'Toda acción sin avance propio se envía con el avance vigente (nunca queda en 0 %).' },
+  { id: 'CU-13g', archivo: 'utils/tramitesObra.ts', tipo: 'noDebe', texto: 'enviaAvance',
+    msg: 'El avance ya no se decide trámite por trámite: lo completa enviarAccionObra.' },
+  { id: 'CU-13h', archivo: '../../pwa-backend/routes/eventos.js', tipo: 'debe', texto: 'payload.AvancePct = Math.round(Number(obraInicio.AvanceObraPct))',
+    msg: 'El backend completa el avance si el cliente no lo mandó.' },
+
+  // ── Documentación del ITO rechazada (CU-16): se ve en la etiqueta y en la tarjeta, NO en el «Estado» ──
+  { id: 'CU-16p', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "etiqueta: 'DOCUMENTACIÓN RECHAZADA'",
+    msg: 'La documentación del ITO rechazada por el líder tiene su etiqueta.' },
+  { id: 'CU-16q', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: 'La documentación de la obra fue rechazada',
+    msg: 'La tarjeta de la documentación rechazada lo dice.' },
+
+  { id: 'CU-16t', archivo: 'app/components/SolicitudCard.tsx', tipo: 'noDebe', texto: 'estadoExtra',
+    msg: 'El rechazo NO se agrega al texto «Estado» (decisión de Rodrigo): solo etiqueta y tarjeta.' },
+  { id: 'CU-16u', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'noDebe', texto: 'sufijoEstadoRechazo',
+    msg: 'El «Estado» de Información no lleva sufijo de rechazo.' },
+
+  // ── Validación de la documentación del ITO (CU-19) ──
+  { id: 'CU-19h', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "'ESPERANDO VALIDACIÓN DOCUMENTACIÓN'",
+    msg: 'Mientras el líder valida la documentación del ITO, la etiqueta lo dice (no «INFORME FINAL»).' },
+  { id: 'CU-19i', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'titulo="Documentación enviada"',
+    msg: 'La tarjeta de espera de la documentación se llama «Documentación enviada».' },
+  { id: 'CU-19j', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: '/documentaci[oó]n/i.test(obra?.Estado',
+    msg: 'La validación de documentación se distingue por el Estado de la obra (el sub-estado es genérico).' },
+
+  // ── Validación de la documentación: mismos botones, otros textos, con los 2 documentos en la tarjeta (CU-19) ──
+  { id: 'CU-19k', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "aprobar: 'Aprobar documentación'",
+    msg: 'Al validar la documentación los botones dicen «Aprobar/Rechazar documentación», no «informe final».' },
+  { id: 'CU-19l', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "etiqueta: 'VALIDAR DOCUMENTACIÓN'",
+    msg: 'La etiqueta del dashboard del Supervisor dice «VALIDAR DOCUMENTACIÓN» en esa etapa.' },
+  { id: 'CU-19m', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'debe', texto: 'TEXTOS_VALIDACION[contexto]',
+    msg: 'Todos los textos de la tarjeta salen del contexto (informe final o documentación).' },
+  { id: 'CU-19n', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'documentos={documentosAValidar}',
+    msg: 'Los documentos a validar se muestran en la misma tarjeta donde se aprueba o rechaza.' },
+  { id: 'CU-19o', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'noDebe', texto: 'Informe final por validar',
+    msg: 'El título no está fijo en «informe final»: depende del contexto.' },
+
+
+  { id: 'CU-19p', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'noDebe', texto: 'RequiereComentario: false',
+    msg: 'La bandera de comentario la manda la API y se respeta: no se fuerza a «sin comentario» (decisión de Rodrigo, 06-10-2026).' },
+  { id: 'CU-19q', archivo: 'app/components/ValidarInformeCard.tsx', tipo: 'debe', texto: 'textos.ayudaAprobar : textos.ayudaRechazo',
+    msg: 'Aprobar y rechazar tienen cada uno su propio texto de ayuda del comentario.' },
+
+  // ── Devolver documentación = rechazar la entrega de terreno (CU-32) ──
+  { id: 'CU-32a', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "ACCION_DEVOLVER_DOCUMENTACION = 'DEVOLVER_DOCUMENTACION'",
+    msg: 'La acción DEVOLVER_DOCUMENTACION es conocida (no cae en la tarjeta genérica).' },
+  { id: 'CU-32b', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'TEXTOS_DEVOLUCION.devolver',
+    msg: 'La tarjeta del acta de inicio ofrece el botón rojo «Devolver documentación».' },
+  { id: 'CU-32c', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'documentosEntrega : documentosDelTramite',
+    msg: 'La tarjeta muestra el acta de entrega a revisar junto a los botones.' },
+  { id: 'CU-32d', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "etiqueta: 'ACTA DE ENTREGA RECHAZADA'",
+    msg: 'El ITO ve la etiqueta de rechazo cuando le devuelven el acta de entrega.' },
+  { id: 'CU-32e', archivo: 'utils/gruposAcciones.ts', tipo: 'debe', texto: "'RECHAZAR_INFORME', 'DEVOLVER_DOCUMENTACION'",
+    msg: 'DEVOLVER_DOCUMENTACION tiene pantalla propia: no cae en la tarjeta genérica de acciones nuevas.' },
+  { id: 'CU-32f', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '<DevolverDocumentacionCard',
+    msg: 'En cualquier etapa distinta de «Gestión de Obra», devolver documentación tiene su tarjeta con los documentos del ITO.' },
+  { id: 'CU-32g', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "'REVISAR DOCUMENTACIÓN'",
+    msg: 'El Supervisor ve una etiqueta cuando puede devolver la documentación.' },
+
+  // ── Quien devolvió espera la corrección (CU-33) ──
+  { id: 'CU-33a', archivo: 'utils/tramitesObra.ts', tipo: 'debe', texto: "etiqueta: 'ESPERANDO CORRECCIÓN DEL ITO'",
+    msg: 'Quien devolvió un documento ve en el dashboard que espera la corrección del ITO.' },
+  { id: 'CU-33b', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'TEXTOS_ESPERA_CORRECCION.titulo',
+    msg: 'La tarjeta de quien espera la corrección lo dice y muestra comentario y documento.' },
+
+  // ── Ubicación de cada inspección (CU-34) ──
+  { id: 'CU-34a', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'Ver ubicación',
+    msg: 'Cada inspección con coordenadas ofrece el botón «Ver ubicación».' },
+  { id: 'CU-34b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: "lazy(() => import('./UbicacionModal'))",
+    msg: 'El mapa se carga bajo demanda, no en la carga inicial.' },
+  { id: 'CU-34c', archivo: 'app/components/UbicacionModal.tsx', tipo: 'debe', texto: 'tile.openstreetmap.org',
+    msg: 'El mapa usa OpenStreetMap.' },
+  { id: 'CU-34d', archivo: 'app/components/UbicacionModal.tsx', tipo: 'debe', texto: 'Mapa no disponible sin conexión',
+    msg: 'Sin conexión el pop-up avisa y deja las coordenadas.' },
+
+  // ── Campos siempre visibles, banderas siempre frescas (CU-35) ──
+  { id: 'CU-35a', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: '{accion.RequiereComentario && (',
+    msg: 'El comentario solo se muestra cuando la API lo exige.' },
+  { id: 'CU-35b', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'const mostrarAvance = inspeccion || accion.RequiereAvance;',
+    msg: 'El avance solo se pide al registrar una inspección (o si la API lo exige): los pasos del flujo no son inspecciones.' },
+  { id: 'CU-35c', archivo: 'app/components/EventoForm.tsx', tipo: 'noDebe', texto: 'Comentario <Marca',
+    msg: 'No hay comentario «(opcional)»: solo se muestra cuando es obligatorio.' },
+  { id: 'CU-35d', archivo: 'app/components/EventoForm.tsx', tipo: 'noDebe', texto: '{accion.RequiereAvance && (',
+    msg: 'El avance no se oculta cuando la API no lo exige.' },
+  { id: 'CU-35e', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: 'obligatorio={accion.RequiereAdjunto}',
+    msg: 'El adjunto solo se marca obligatorio si la API lo exige.' },
+  { id: 'CU-35h', archivo: 'app/components/EventoForm.tsx', tipo: 'debe', texto: '!inspeccion && !multiDoc && tiposDoc.length > 0 && (',
+    msg: 'El documento se ofrece según los tipos de documento de la acción: sin tipos (rechazar/aprobar/devolver) no hay archivo.' },
+  { id: 'CU-35f', archivo: 'utils/definicionVigente.ts', tipo: 'debe', texto: '...porDefecto, ...def, ...fresca,',
+    msg: 'Las banderas salen de la definición fresca de la obra (AccionesDef), por encima del catálogo.' },
+  { id: 'CU-35g', archivo: 'services/inicioService.js', tipo: 'debe', texto: 'const SIEMPRE_CATALOGO_FRESCO = true;',
+    msg: 'El catálogo se pide completo en cada carga (la versión no detecta cambios de banderas).' },
+
+  // ── Documentos opcionales de una acción (CU-36) ──
+  { id: 'CU-36a', archivo: 'app/components/DocumentosOpcionalesBoton.tsx', tipo: 'debe', texto: 'Agregar documento opcional',
+    msg: 'El botón de documentos opcionales se llama «Agregar documento opcional».' },
+  { id: 'CU-36b', archivo: 'app/components/TramitePendienteCard.tsx', tipo: 'debe', texto: 'accion?.TiposDocumentoOpcional?.length',
+    msg: 'La tarjeta de la acción muestra el botón solo si la API entrega TiposDocumentoOpcional.' },
+  { id: 'CU-36c', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'accion.TiposDocumentoOpcional?.length',
+    msg: 'Las acciones de Ctrl. Obra también ofrecen sus documentos opcionales.' },
+  { id: 'CU-36d', archivo: 'services/eventosService.js', tipo: 'debe', texto: '/documentos`',
+    msg: 'Los opcionales se suben por el endpoint propio /solicitudes/{id}/documentos (no dentro del evento).' },
+  { id: 'CU-36e', archivo: '../../pwa-backend/routes/eventos.js', tipo: 'debe', texto: 'TIPO_DOCUMENTO_NO_PERMITIDO',
+    msg: 'El backend revalida que el tipo esté en TiposDocumentoOpcional de una acción habilitada.' },
+  { id: 'CU-36f', archivo: '../../pwa-backend/apiEventos.js', tipo: 'debe', texto: 'TiposDocumentoOpcional: Array.isArray(a.TiposDocumentoOpcional)',
+    msg: 'El backend conserva TiposDocumentoOpcional de cada acción.' },
+
+  // ── Adjuntos de una inspección nueva (CU-37) ──
+  { id: 'CU-37a', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'fotosCargando ? <Loader2',
+    msg: 'Mientras llegan las fotos se muestra «cargando», no un 0.' },
+  { id: 'CU-37b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'informesCargando ? <Loader2',
+    msg: 'Mientras llegan los informes se muestra «cargando», no un 0.' },
+  { id: 'CU-37c', archivo: 'utils/refrescarObra.ts', tipo: 'debe', texto: 'esperarAdjuntosInspeccionEnSegundoPlano(',
+    msg: 'La inspección nueva espera en segundo plano a que lleguen sus fotos e informes.' },
+  { id: 'CU-37d', archivo: 'app/App.tsx', tipo: 'debe', texto: 'esperaAdjuntosInspeccion:',
+    msg: 'Al guardar una inspección se indica cuántas fotos e informes se esperan.' },
+  { id: 'CU-37e', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: '...conservar(prev.fotos), ...fotosMap',
+    msg: 'Recargar el detalle no vacía las fotos ya cargadas de las otras inspecciones.' },
+
+  // ── Actualizar el detalle de una obra (CU-38) ──
+  { id: 'CU-38a', archivo: 'app/components/Header.tsx', tipo: 'debe', texto: "refreshing ? 'Actualizando…' : 'Actualizar'",
+    msg: 'El encabezado ofrece el botón «Actualizar» (y dice «Actualizando…» mientras trabaja).' },
+  { id: 'CU-38b', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'onRefresh={actualizarDatos}',
+    msg: 'El detalle de la obra muestra «Actualizar» en su encabezado, para todas las pestañas.' },
+  { id: 'CU-38c', archivo: 'app/components/SolicitudDetail.tsx', tipo: 'debe', texto: 'setTimeout(() => setEnfriando(false), 5000)',
+    msg: 'Tras actualizar el botón queda bloqueado unos segundos (límite de peticiones de la API).' },
+
+  // ── Login bloqueado por intentos (CU-39) ──
+  { id: 'CU-39a', archivo: 'services/auth.js', tipo: 'debe', texto: "data.message || data.error || 'Error al iniciar sesión'",
+    msg: 'El login muestra el mensaje del bloqueo por demasiados intentos (429), que viene en `message`.' },
+
+  { id: 'CU-39b', archivo: '../../pwa-backend/config/auth.js', tipo: 'debe', texto: 'MENSAJE_CREDENCIALES',
+    msg: 'El login responde siempre el mismo mensaje de credenciales incorrectas (no revela si el correo existe).' },
+  { id: 'CU-39c', archivo: '../../pwa-backend/config/auth.js', tipo: 'noDebe', texto: "message: 'Usuario no encontrado'",
+    msg: 'El login no puede decir «Usuario no encontrado»: permitiría averiguar qué correos existen.' },
+
+  // ── Rutas relativas y CSP (CU-40) ──
+  { id: 'CU-40a', archivo: 'services/inicioService.js', tipo: 'debe', texto: 'inicio`, window.location.origin);',
+    msg: 'La URL de inicio se arma con el origen como base: la imagen Docker usa rutas relativas (VITE_API_URL vacío).' },
+  { id: 'CU-40b', archivo: 'services/inicioService.js', tipo: 'noDebe', texto: 'new URL(`${API_URL}/api/v2/inicio`);',
+    msg: 'new URL sin base falla con rutas relativas (dashboard vacío en la imagen Docker).' },
+  { id: 'CU-40c', archivo: '../seguridad.inc.template', tipo: 'debe', texto: "script-src 'self'",
+    msg: 'La CSP del frontend no admite scripts en línea ni de otros orígenes.' },
+
+  // ── Sin token en la URL (CU-41) ──
+  { id: 'CU-41a', archivo: 'app/App.tsx', tipo: 'noDebe', texto: 'AuthCallback',
+    msg: 'No debe existir una pantalla que acepte un token recibido por la URL (fijación de sesión, H-09).' },
+  { id: 'CU-41b', archivo: 'app/App.tsx', tipo: 'noDebe', texto: '/auth/callback',
+    msg: 'No debe existir la ruta /auth/callback.' },
+
+  // ── Cerrar sesión limpia sessionStorage (CU-42) ──
+  { id: 'CU-42a', archivo: 'services/auth.js', tipo: 'debe', texto: 'sessionStorage.clear()',
+    msg: 'Al cerrar sesión se vacía sessionStorage (borradores con fotos y obra abierta, H-14).' },
+
+  // ── Contraseña nueva (CU-43) ──
+  { id: 'CU-43a', archivo: 'app/components/ChangePassword.tsx', tipo: 'debe', texto: 'Mínimo 10 caracteres, con letras y números',
+    msg: 'El cambio de contraseña indica el mínimo de 10 caracteres con letras y números (H-19).' },
+  { id: 'CU-43b', archivo: 'app/components/ChangePassword.tsx', tipo: 'noDebe', texto: 'Mínimo 8 caracteres',
+    msg: 'No debe volver el mínimo antiguo de 8 caracteres.' },
+
+  // ── Fuente autohospedada (CU-44) ──
+  { id: 'CU-44a', archivo: 'styles/fonts.css', tipo: 'debe', texto: '@fontsource/inter',
+    msg: 'La fuente Inter se importa del paquete propio (H-21).' },
+  { id: 'CU-44b', archivo: 'styles/fonts.css', tipo: 'noDebe', texto: 'googleapis',
+    msg: 'No se debe cargar la fuente desde Google Fonts.' },
+  { id: 'CU-44c', archivo: '../seguridad.inc.template', tipo: 'noDebe', texto: 'fonts.gstatic.com',
+    msg: 'La CSP no debe admitir orígenes de Google Fonts.' },
+
+  // ── Sin restos de Supabase ni de plantilla (CU-45) ──
+  { id: 'CU-45a', archivo: 'services/auth.js', tipo: 'noDebe', texto: 'x-supabase-token',
+    msg: 'No se debe enviar la cabecera heredada x-supabase-token (H-23).' },
+  { id: 'CU-45b', archivo: 'services/auth.js', tipo: 'noDebe', texto: 'getConnectionToken',
+    msg: 'No debe existir getConnectionToken (código heredado de Supabase).' },
+  { id: 'CU-45c', archivo: '../vite.config.js', tipo: 'noDebe', texto: 'tuservidor',
+    msg: 'vite.config.js no debe tener reglas de caché hacia api.tuservidor.com (dominio de plantilla).' },
+
+  // ── Visor de fotos y estilos en línea (CU-46 / CU-47) ──
+  { id: 'CU-46a', archivo: 'app/components/PhotosModal.tsx', tipo: 'noDebe', texto: 'URL.revokeObjectURL',
+    msg: 'El visor de fotos no debe liberar las imágenes del caché compartido (al reabrir salían «no encontradas»).' },
+  { id: 'CU-47a', archivo: 'app/components/Toast.tsx', tipo: 'noDebe', texto: '<style>',
+    msg: 'El Toast no debe insertar <style> en línea (la CSP lo bloquea).' },
+  { id: 'CU-47b', archivo: 'styles/theme.css', tipo: 'debe', texto: '@keyframes shrink',
+    msg: 'La animación del Toast vive en theme.css.' },
+  { id: 'CU-25e', archivo: 'utils/refrescarObra.ts', tipo: 'debe', texto: 'ESPERAS_DOCUMENTO_CORTAS_MS',
+    msg: 'Las acciones que crean inspección esperan poco sus documentos en la lista de la obra (los cuelga la inspección).' },
+
+  // ── Dirección del backend configurable y app bajo cualquier prefijo (CU-48) ──
+  { id: 'CU-48a', archivo: 'config/apiUrl.js', tipo: 'debe', texto: 'window.__AYP_CONFIG__',
+    msg: 'La dirección del backend sale de la configuración en ejecución (/config.js).' },
+  { id: 'CU-48b', archivo: 'services/auth.js', tipo: 'debe', texto: "from '../config/apiUrl'",
+    msg: 'El servicio de sesión usa la dirección centralizada.' },
+  { id: 'CU-48c', archivo: 'services/detalleService.js', tipo: 'debe', texto: "from '../config/apiUrl'",
+    msg: 'El servicio de detalle usa la dirección centralizada.' },
+  { id: 'CU-48d', archivo: 'services/eventosService.js', tipo: 'debe', texto: "from '../config/apiUrl'",
+    msg: 'El servicio de eventos usa la dirección centralizada.' },
+  { id: 'CU-48e', archivo: 'services/inicioService.js', tipo: 'debe', texto: "from '../config/apiUrl'",
+    msg: 'El servicio de inicio usa la dirección centralizada.' },
+  { id: 'CU-48f', archivo: 'services/auth.js', tipo: 'noDebe', texto: 'import.meta.env.VITE_API_URL',
+    msg: 'Los servicios no leen VITE_API_URL directamente (se pierde la configuración en ejecución).' },
+  { id: 'CU-48g', archivo: '../index.html', tipo: 'debe', texto: './config.js',
+    msg: 'index.html carga la configuración en ejecución antes del paquete.' },
+  { id: 'CU-48h', archivo: '../vite.config.js', tipo: 'debe', texto: "base: './'",
+    msg: 'La app se compila con rutas relativas (funciona bajo un prefijo de URL).' },
+  { id: 'CU-48i', archivo: 'app/components/Header.tsx', tipo: 'noDebe', texto: 'src="/Logo_EFE.png"',
+    msg: 'Las imágenes se piden con ruta relativa (./), no absoluta, para que funcionen bajo un prefijo.' },
+  { id: 'CU-48j', archivo: 'app/components/Login.tsx', tipo: 'noDebe', texto: 'src="/Imagen1-Photoroom.png"',
+    msg: 'Las imágenes se piden con ruta relativa (./), no absoluta, para que funcionen bajo un prefijo.' },
+  { id: 'CU-48k', archivo: '../Dockerfile', tipo: 'debe', texto: '40-ayp-config.sh',
+    msg: 'El contenedor genera /config.js al arrancar.' },
 
   // ── Control de obra (CU-04) ──
   { id: 'CU-04a', archivo: 'app/components/ControlObra.tsx', tipo: 'debe', texto: 'comentarioDevolucion',

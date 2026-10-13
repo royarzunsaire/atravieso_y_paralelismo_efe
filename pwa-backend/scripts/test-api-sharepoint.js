@@ -3,13 +3,16 @@ const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
 
-const API_BASE_URL = 'http://146.181.52.2:3000';
-const CORREO_PRUEBA = 'gateway@efe.cl';
+// Herramienta de exploración de la API del cliente. Nada va escrito en el código (H-12 / H-20):
+//   SHAREPOINT_API_URL y SHAREPOINT_API_SECRET salen del .env; el correo de prueba, de CORREO_PRUEBA.
+// Las lecturas (GET) corren siempre; el envío de un evento de PRUEBA (POST, escribe en SharePoint) solo con --escribir.
+const API_BASE_URL = process.env.SHAREPOINT_API_URL;
+const CORREO_PRUEBA = process.env.CORREO_PRUEBA;
 
 async function main() {
   const secreto = process.env.SHAREPOINT_API_SECRET;
-  if (!secreto) {
-    console.error('Falta SHAREPOINT_API_SECRET en .env');
+  if (!secreto || !API_BASE_URL || !CORREO_PRUEBA) {
+    console.error('Faltan SHAREPOINT_API_URL y SHAREPOINT_API_SECRET en .env, o CORREO_PRUEBA en el entorno');
     process.exit(1);
   }
 
@@ -47,6 +50,11 @@ async function main() {
     } else {
       console.error('Error de red:', error.message);
     }
+  }
+
+  if (!process.argv.includes('--escribir')) {
+    console.log('\n(Se omitió el POST de prueba: escribe en SharePoint. Usa --escribir para enviarlo.)');
+    return;
   }
 
   try {

@@ -1,12 +1,13 @@
 import { authService } from './auth';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+import { API_URL } from '../config/apiUrl';
 
 // El catálogo y su versión se guardan JUNTOS (contrato del MD): nunca uno
 // sin el otro. Si el almacenamiento está vacío/corrupto, se manda '' y el
 // servidor responde con el catálogo completo — no hay estado inválido.
 const LS_CATALOGO = 'ayp.catalogo';
 const LS_CATALOGO_VERSION = 'ayp.catalogoVersion';
+const SIEMPRE_CATALOGO_FRESCO = true;
 
 function leerCatalogoCacheado() {
   try {
@@ -54,9 +55,13 @@ export const inicioService = {
    * @returns {Promise<{ usuario, obras, catalogo, catalogosVersion, total }>}
    */
   async getInicio({ forzarCatalogo = false } = {}) {
-    const version = forzarCatalogo ? '' : leerVersionCacheada();
+    // El catálogo se pide COMPLETO en cada carga: la API no cambia `CatalogosVersion` cuando modifican las banderas de una
+    // acción (comentario/adjunto/avance), y con la copia guardada la app seguiría exigiendo lo de antes (contrato CU-35).
+    // La copia guardada queda solo como respaldo si el servidor no manda catálogo.
+    const version = SIEMPRE_CATALOGO_FRESCO || forzarCatalogo ? '' : leerVersionCacheada();
 
-    const url = new URL(`${API_URL}/api/v2/inicio`);
+    // Con la imagen Docker API_URL es '' (rutas relativas, nginx hace de proxy): `new URL` necesita una base para eso.
+    const url = new URL(`${API_URL}/api/v2/inicio`, window.location.origin);
     if (version) url.searchParams.set('catalogosVersion', version);
 
     const response = await fetch(url.toString(), {

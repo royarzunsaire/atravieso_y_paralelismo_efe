@@ -3,7 +3,13 @@ const router = express.Router();
 const passport = require('../config/auth');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { validarPasswordNueva } = require('../utils/politicaPassword');
+
+// Costo de bcrypt para contraseñas NUEVAS (H-19). Los hashes existentes (costo 10) siguen validando: el costo va dentro del hash.
+const BCRYPT_COSTO = 12;
 const usersDb = require('../database');
+const { limitarLogin } = require('../middleware/limitarLogin');
+const { sesion } = require('../middleware/sesion');
 
 // ========================================
 // GENERAR TOKEN JWT (simplificado)
@@ -18,7 +24,7 @@ const generateToken = (user) => {
       auth_type: user.auth_type
     },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' } // 7 días
+    { algorithm: 'HS256', expiresIn: '7d' } // 7 días
   );
 };
 
@@ -38,14 +44,23 @@ const generateToken = (user) => {
 // ========================================
 // LOGIN LOCAL (usuario/contraseña)
 // ========================================
-router.post('/login/local', (req, res, next) => {
+router.post('/login/local', limitarLogin, (req, res, next) => {
+  // Validación de entrada (H-10): deben ser textos razonables; un objeto/arreglo/número no llega a Oracle ni a bcrypt.
+  const { email, password } = req.body ?? {};
+  if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password || email.length > 254 || password.length > 200) {
+    return res.status(400).json({ success: false, error: 'DATOS_INVALIDOS', message: 'Ingresa tu correo y tu contraseña.' });
+  }
   passport.authenticate('local', (err, user, info) => {
     if (err) {
-      return res.status(500).json({ success: false, error: err.message });
+      console.error('❌ Error en el login:', err.message);
+      return res.status(500).json({ success: false, error: 'ERROR_INTERNO', message: 'No se pudo iniciar sesión. Inténtalo de nuevo en unos minutos.' });
     }
     if (!user) {
-      return res.status(401).json({ success: false, error: info.message || 'Credenciales inválidas' });
+      return res.status(401).json({ success: false, error: info?.message || 'Correo o contraseña incorrectos. Si el problema continúa, contacta al administrador.' });
     }
+
+    // Acaba de comprobarse en Oracle que la cuenta está activa: se descarta lo que la caché recordaba (p. ej. una baja anterior).
+    sesion.olvidar(user.id);
 
     const token = generateToken(user);
 
@@ -83,84 +98,24 @@ router.post('/login/local', (req, res, next) => {
 //   (req, res) => {
 //     const token = generateToken(req.user);
 //
-//     // Redireccionar al frontend con el token
+//     // ⚠️ SEGURIDAD (H-09): NO reactivar este redirect tal cual. Un token en la URL queda en el historial, en los logs y en el
+//     // Referer, y la pantalla que lo recibía permitía iniciar la sesión de la víctima en la cuenta de un atacante (se eliminó).
+//     // Al retomar Azure AD: intercambiar un código de un solo uso por POST, o entregar el token en el fragmento (#), y validar `state`.
 //     res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
 //   }
 // );
 
 // ========================================
-// REGISTRO LOCAL
+// REGISTRO — eliminado a propósito (hallazgo de seguridad H-01)
+// Las cuentas NO se crean desde esta API: la API del cliente autoriza por el correo del token que firmamos
+// nosotros, así que un registro público permitiría suplantar a alguien que aún no tiene cuenta.
+// Solo se crean usuarios por ORDS (POST /usuarios-actions/register, client AYP_INTEGRACION_EXTERNA), a cargo del jefe de proyecto.
 // ========================================
-router.post('/register', async (req, res) => {
-  try {
-    const { email, password, nombre } = req.body;
-
-    // Validaciones
-    if (!email || !password || !nombre) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email, contraseña y nombre son requeridos' 
-      });
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email inválido' 
-      });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'La contraseña debe tener al menos 8 caracteres' 
-      });
-    }
-
-    // Verificar si existe
-    const existing = await usersDb.getUserByEmail(email);
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        error: 'El email ya está registrado'
-      });
-    }
-
-    // Hash password para el perfil local de la aplicación
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Insertar perfil local en Oracle
-    const createdUser = await usersDb.createLocalUser({
-      email,
-      password: hashedPassword,
-      nombre,
-    });
-
-    const user = {
-      id: createdUser.id,
-      email: createdUser.email,
-      nombre: createdUser.nombre,
-      rol: createdUser.rol,
-      auth_type: createdUser.auth_type
-    };
-
-    const token = generateToken(user);
-
-    res.status(201).json({
-      success: true,
-      token,
-      user
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 // ========================================
 // MIDDLEWARE - Verificar Token
 // ========================================
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -169,19 +124,31 @@ const verifyToken = (req, res, next) => {
 
   const token = authHeader.split(' ')[1];
 
+  let decoded;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
+    // Algoritmo fijado: nunca se acepta otro que el de emisión (H-08).
+    decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Token expirado. Por favor, inicia sesión nuevamente.' 
+      return res.status(401).json({
+        success: false,
+        error: 'Token expirado. Por favor, inicia sesión nuevamente.'
       });
     }
-    res.status(401).json({ success: false, error: 'Token inválido' });
+    return res.status(401).json({ success: false, error: 'Token inválido' });
   }
+
+  // H-08: la firma no basta. (1) «Cerrar sesión» invalida el token en el servidor.
+  if (sesion.estaRevocado(token)) {
+    return res.status(401).json({ success: false, error: 'Sesión cerrada. Por favor, inicia sesión nuevamente.' });
+  }
+  // (2) Un usuario dado de baja (usuarios.activo = 0) o eliminado pierde la sesión en menos de un minuto (caché de 60 s).
+  if (decoded.id && decoded.auth_type !== 'microsoft' && !(await sesion.cuentaActiva(decoded.id))) {
+    return res.status(401).json({ success: false, error: 'Tu cuenta ya no está activa. Contacta al administrador.' });
+  }
+
+  req.user = decoded;
+  next();
 };
 
 // ========================================
@@ -212,7 +179,8 @@ router.get('/me', verifyToken, async (req, res) => {
     const { password, activo, created_at: createdAt, debe_cambiar_password, ...safeUser } = user;
     res.json({ success: true, user: { ...safeUser, debeCambiarPassword: !!debe_cambiar_password } });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ Error en /auth:', error.message);
+    res.status(500).json({ success: false, error: 'ERROR_INTERNO', message: 'No se pudo completar la operación. Inténtalo de nuevo en unos minutos.' });
   }
 });
 
@@ -230,18 +198,16 @@ router.post('/change-password', verifyToken, async (req, res) => {
 
     const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
       return res.status(400).json({
         success: false,
         error: 'currentPassword y newPassword son requeridos',
       });
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({
-        success: false,
-        error: 'La nueva contraseña debe tener al menos 8 caracteres',
-      });
+    const problemaPassword = validarPasswordNueva(newPassword);
+    if (problemaPassword) {
+      return res.status(400).json({ success: false, error: 'PASSWORD_NO_VALIDA', message: problemaPassword });
     }
 
     const user = await usersDb.getUserById(req.user.id);
@@ -254,12 +220,17 @@ router.post('/change-password', verifyToken, async (req, res) => {
       return res.status(401).json({ success: false, error: 'Contraseña actual incorrecta' });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    if (newPassword === currentPassword) {
+      return res.status(400).json({ success: false, error: 'PASSWORD_NO_VALIDA', message: 'La nueva contraseña debe ser distinta de la actual.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_COSTO);
     await usersDb.updateUserPassword(user.id, hashedPassword);
 
     res.json({ success: true, message: 'Contraseña actualizada correctamente' });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ Error en /auth:', error.message);
+    res.status(500).json({ success: false, error: 'ERROR_INTERNO', message: 'No se pudo completar la operación. Inténtalo de nuevo en unos minutos.' });
   }
 });
 
@@ -274,15 +245,13 @@ router.post('/admin/reset-password/:id', verifyToken, async (req, res) => {
 
     const { newPassword } = req.body;
 
-    if (!newPassword) {
+    if (typeof newPassword !== 'string' || !newPassword) {
       return res.status(400).json({ success: false, error: 'newPassword es requerido' });
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({
-        success: false,
-        error: 'La nueva contraseña debe tener al menos 8 caracteres',
-      });
+    const problemaPassword = validarPasswordNueva(newPassword);
+    if (problemaPassword) {
+      return res.status(400).json({ success: false, error: 'PASSWORD_NO_VALIDA', message: problemaPassword });
     }
 
     const targetUser = await usersDb.getUserById(req.params.id);
@@ -290,7 +259,7 @@ router.post('/admin/reset-password/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_COSTO);
     // resetUserPassword (no updateUserPassword): además de la contraseña,
     // vuelve a activar debe_cambiar_password — el usuario deberá cambiarla
     // en su próximo login, ya que esta se la asignó el admin, no él mismo.
@@ -298,14 +267,17 @@ router.post('/admin/reset-password/:id', verifyToken, async (req, res) => {
 
     res.json({ success: true, message: `Contraseña de ${targetUser.email} restablecida correctamente` });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ Error en /auth:', error.message);
+    res.status(500).json({ success: false, error: 'ERROR_INTERNO', message: 'No se pudo completar la operación. Inténtalo de nuevo en unos minutos.' });
   }
 });
 
 // ========================================
-// LOGOUT (simplificado - solo para info)
+// LOGOUT (invalida el token en el servidor)
 // ========================================
 router.post('/logout', verifyToken, async (req, res) => {
+  // H-08: además de borrar el token del navegador, se invalida en el servidor hasta que venza.
+  sesion.revocar(req.headers.authorization.split(' ')[1], req.user.exp);
   res.json({ success: true, message: 'Sesión cerrada correctamente' });
 });
 

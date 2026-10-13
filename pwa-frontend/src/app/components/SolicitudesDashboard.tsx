@@ -1,10 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, RefreshCw } from 'lucide-react';
 import { Header } from './Header';
 import { SolicitudCard } from './SolicitudCard';
 import { Button } from './Button';
-import { solicitudesService } from '@/services/solicitudes';
-import { inspeccionesService } from '@/services/inspecciones';
 import { mapObraToSolicitud } from '@/utils/mapInicio';
 import { useInicio } from '@/context/InicioContext';
 import { detalleService } from '@/services/detalleService';
@@ -13,31 +11,9 @@ import { cargarMotivoDetencion } from '@/utils/useMotivoDetencion';
 import { etiquetaDashboard } from '@/utils/tramitesObra';
 import type { Solicitud } from '@/types/solicitud.ts';
 
-// Flag de migración (spec 10): cuando está activo, el dashboard usa la
-// API de eventos unificada (API_Inicio) en vez del listado viejo.
-const USE_API_V2 = import.meta.env.VITE_USE_API_V2 === 'true';
-
 // ========================================
 // INTERFACES
 // ========================================
-
-interface Stats {
-  total: number;
-  porEstado: Record<string, number>;
-  porPrioridad: {
-    Alta: number;
-    Media: number;
-    Baja: number;
-  };
-  conAdjuntos: number;
-  finalizadas: number;
-}
-
-/** Resumen del último avance para mostrar en la card del listado */
-interface UltimoAvance {
-  avance: number;
-  estado: 'conforme' | 'no-conforme' | null;
-}
 
 interface SolicitudesDashboardProps {
   onSolicitudSelect: (solicitudId: number) => void;
@@ -45,146 +21,40 @@ interface SolicitudesDashboardProps {
 }
 
 // ========================================
-// HELPER
-// ========================================
-
-/**
- * Dada una lista de inspecciones, retorna el avance y estado de la más reciente.
- * Ordena por fechaInspeccion → fechaCreacion como fallback.
- */
-function calcularUltimoAvance(inspecciones: any[]): UltimoAvance {
-  if (!inspecciones.length) return { avance: 0, estado: null };
-
-  const ultima = [...inspecciones].sort((a, b) => {
-    const ta = new Date(a.fechaInspeccion ?? a.fechaCreacion ?? 0).getTime();
-    const tb = new Date(b.fechaInspeccion ?? b.fechaCreacion ?? 0).getTime();
-    return tb - ta;
-  })[0];
-
-  return {
-    avance: Number(ultima.progress) || 0,
-    estado: (ultima.status === 'no-conforme' ? 'no-conforme' : 'conforme') as UltimoAvance['estado'],
-  };
-}
-
-// ========================================
 // COMPONENTE
 // ========================================
 
 export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: SolicitudesDashboardProps) {
-  // Estado compartido de la carga inicial (v2) — se reutiliza en toda la
-  // sesión sin re-cargar al navegar. En modo viejo no se usa.
+  // Estado compartido de la carga inicial (API_Inicio) — se reutiliza en toda la sesión sin re-cargar al navegar.
   const inicio = useInicio();
 
-  const [solicitudesViejas, setSolicitudesViejas] = useState<Solicitud[]>([]);
-  const [loadingViejo, setLoadingViejo] = useState(true);
-  const [errorViejo, setErrorViejo] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterByUser, setFilterByUser] = useState<boolean>();
-  const [stats, setStats] = useState<Stats | null>(null);
   // Re-dibuja las tarjetas cuando llega un detalle (etiqueta «ACTA RECHAZADA»: depende del comentario del líder).
   const [, setVersionDetalle] = useState(0);
   useEffect(() => detalleCache.suscribir(() => setVersionDetalle((v) => v + 1)), []);
 
-  // En v2 las solicitudes salen del context (obras mapeadas); en modo viejo,
-  // del estado local que llena solicitudesService.
-  const solicitudes: Solicitud[] = USE_API_V2
-      ? inicio.obras.map(mapObraToSolicitud)
-      : solicitudesViejas;
-  // `loading` (v2) controla el spinner de PANTALLA COMPLETA — solo debe
-  // verse en la carga inicial, cuando todavía no hay nada que mostrar.
-  // `refreshing` controla el botón "Actualizar": debe reflejar
-  // inicio.loading SIEMPRE (también en refrescos posteriores al primero),
-  // para que el botón dé feedback real sin ocultar la lista ya cargada
-  // (antes no distinguía ambos casos y el botón nunca giraba en refrescos).
-  const loading = USE_API_V2 ? inicio.loading && !inicio.cargado : loadingViejo;
-  const refreshing = USE_API_V2 ? inicio.loading : loadingViejo;
-  const error = USE_API_V2 ? inicio.error : errorViejo;
-
-  /**
-   * Mapa de avances: solicitudId → { avance, estado } | null (cargando).
-   * null = aún no terminó el fetch de inspecciones para esa solicitud.
-   * { avance: 0, estado: null } = sin inspecciones.
-   */
-  const [avancesMap, setAvancesMap] = useState<Record<number, UltimoAvance | null>>({});
-
-  // ── Fetch de avances ────────────────────────────────────────
-
-  /**
-   * Para cada solicitud, pide sus inspecciones en paralelo y actualiza
-   * el mapa de avances conforme van resolviendo (una a una, sin bloquear).
-   * Usa la caché de requestCache.js, por lo que si el usuario abre una
-   * solicitud después, no vuelve a fetchear.
-   */
-  const cargarAvances = useCallback(async (lista: Solicitud[]) => {
-    if (!lista.length) return;
-
-    // Inicializar todas como null (cargando)
-    const inicial: Record<number, UltimoAvance | null> = {};
-    lista.forEach(s => { inicial[s.id] = null; });
-    setAvancesMap(inicial);
-
-    // Fetch en paralelo — cada Promise actualiza su entrada al resolver
-    lista.forEach(solicitud => {
-      inspeccionesService
-          .getBySolicitudId(solicitud.id, { forceRefresh: false })
-          .then((inspecciones: any[]) => {
-            const resumen = calcularUltimoAvance(Array.isArray(inspecciones) ? inspecciones : []);
-            setAvancesMap(prev => ({ ...prev, [solicitud.id]: resumen }));
-          })
-          .catch(() => {
-            // En caso de error mostramos 0% para no dejar en estado null
-            setAvancesMap(prev => ({ ...prev, [solicitud.id]: { avance: 0, estado: null } }));
-          });
-    });
-  }, []);
-
-  // ── Cargar solicitudes ──────────────────────────────────────
-
-  const loadSolicitudes = useCallback(async (forceRefresh = false) => {
-    if (USE_API_V2) {
-      // Modo migración: el InicioContext carga UNA vez y se reutiliza toda
-      // la sesión; cargar() es idempotente (no re-llama si ya está cargado).
-      await inicio.cargar(forceRefresh);
-      return;
-    }
-    setLoadingViejo(true);
-    setErrorViejo(null);
-    try {
-      const data = await solicitudesService.getAll(filterByUser, { forceRefresh });
-      setSolicitudesViejas(data);
-      // Disparar avances sin bloquear el render de la lista
-      void cargarAvances(data);
-    } catch (err: any) {
-      setErrorViejo(err.message);
-      console.error('Error cargando solicitudes:', err);
-    } finally {
-      setLoadingViejo(false);
-    }
-  }, [filterByUser, cargarAvances, inicio]);
-
-  const loadStats = useCallback(async (forceRefresh = false) => {
-    try {
-      const data = await solicitudesService.getStats({ forceRefresh });
-      setStats(data);
-    } catch (err) {
-      console.error('Error cargando estadísticas:', err);
-    }
-  }, []);
+  const solicitudes: Solicitud[] = inicio.obras.map(mapObraToSolicitud);
+  // `loading` controla el spinner de PANTALLA COMPLETA — solo debe verse en la carga inicial, cuando todavía
+  // no hay nada que mostrar. `refreshing` controla el botón "Actualizar": debe reflejar inicio.loading SIEMPRE
+  // (también en refrescos posteriores al primero), para que el botón dé feedback real sin ocultar la lista.
+  const loading = inicio.loading && !inicio.cargado;
+  const refreshing = inicio.loading;
+  const error = inicio.error;
 
   // ── Efectos ─────────────────────────────────────────────────
 
+  // El InicioContext carga UNA vez y se reutiliza toda la sesión; cargar() es idempotente.
   useEffect(() => {
-    void loadSolicitudes();
-    if (filterByUser) void loadStats();
-  }, [filterByUser, loadSolicitudes, loadStats]);
+    void inicio.cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Carga en segundo plano (mejora de performance, solo v2): apenas está
+  // Carga en segundo plano (mejora de performance): apenas está
   // el listado de obras, precalienta el detalle de las 2 más recientes
   // (por FechaUltimoEvento) para que abran instantáneas. Silencioso — si
   // falla, no pasa nada, el detalle se carga normal al entrar.
   useEffect(() => {
-    if (!USE_API_V2 || !inicio.cargado) return;
+    if (!inicio.cargado) return;
 
     const masRecientes = [...inicio.obras]
       .sort((a, b) => {
@@ -206,36 +76,10 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
   // ── Refresh ─────────────────────────────────────────────────
 
   const handleRefresh = async () => {
-    if (USE_API_V2) {
-      // En v2 forceRefresh trae el catálogo completo de nuevo (gesto de recarga).
-      // También se descarta el detalle cacheado (CU-11): si alguien más agregó
-      // algo, al entrar al detalle se ve lo último, no lo guardado.
-      detalleCache.limpiarTodo();
-      await loadSolicitudes(true);
-      return;
-    }
-
-    setLoadingViejo(true);
-    setErrorViejo(null);
-
-    try {
-      if (filterByUser) {
-        const [solicitudesData] = await Promise.all([
-          solicitudesService.getAll(filterByUser, { forceRefresh: true }),
-          loadStats(true),
-        ]);
-        setSolicitudesViejas(solicitudesData);
-        void cargarAvances(solicitudesData);
-      } else {
-        const data = await solicitudesService.getAll(filterByUser, { forceRefresh: true });
-        setSolicitudesViejas(data);
-        void cargarAvances(data);
-      }
-    } catch (err: any) {
-      setErrorViejo(err.message);
-    } finally {
-      setLoadingViejo(false);
-    }
+    // forceRefresh trae el catálogo completo de nuevo (gesto de recarga). También se descarta el detalle
+    // cacheado (CU-11): si alguien más agregó algo, al entrar al detalle se ve lo último, no lo guardado.
+    detalleCache.limpiarTodo();
+    await inicio.cargar(true);
   };
 
   // ── Filtro de búsqueda ──────────────────────────────────────
@@ -294,24 +138,6 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
             </Button>
           </div>
 
-          {/* Estadísticas */}
-          {stats && filterByUser && (
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white rounded-lg p-3 shadow-sm">
-                  <p className="text-2xl text-[#0066CC] mb-1">{stats.total}</p>
-                  <p className="text-xs text-[#4A4A4A]">Total</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 shadow-sm">
-                  <p className="text-2xl text-red-600 mb-1">{stats.porPrioridad?.Alta || 0}</p>
-                  <p className="text-xs text-[#4A4A4A]">Prioridad Alta</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 shadow-sm">
-                  <p className="text-2xl text-green-600 mb-1">{stats.conAdjuntos}</p>
-                  <p className="text-xs text-[#4A4A4A]">Con Adjuntos</p>
-                </div>
-              </div>
-          )}
-
           {/* Manejo de errores */}
           {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -322,7 +148,7 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
           {/* Lista de solicitudes */}
           <div className="space-y-3">
             <h2 className="text-[#003D7A] px-1">
-              {filterByUser ? 'Mis Solicitudes Asignadas' : 'Todas las Solicitudes'}
+              Todas las Solicitudes
               ({filteredSolicitudes.length})
             </h2>
 
@@ -332,35 +158,23 @@ export function SolicitudesDashboard({ onSolicitudSelect, onLogout }: Solicitude
                   <p className="text-[#4A4A4A]">Cargando solicitudes...</p>
                 </div>
             ) : filteredSolicitudes.length > 0 ? (
-                filteredSolicitudes.map(solicitud => {
-                  const avanceData = avancesMap[solicitud.id];
-                  // En v2 el avance viene en la propia obra (avanceObraPct);
-                  // en modo viejo, del avancesMap (null = cargando).
-                  const ultimoAvance = USE_API_V2
-                      ? Math.round((solicitud as { avanceObraPct?: number }).avanceObraPct ?? 0)
-                      : (avanceData !== null && avanceData !== undefined ? avanceData.avance : undefined);
-                  return (
-                      <SolicitudCard
-                          key={solicitud.id}
-                          solicitud={solicitud}
-                          onClick={() => onSolicitudSelect(solicitud.id)}
-                          ultimoAvance={ultimoAvance}
-                          ultimoEstado={avanceData?.estado ?? null}
-                          tramitePendiente={USE_API_V2
-                              ? etiquetaDashboard(inicio.getObra(solicitud.id), inicio.catalogo, detalleCache.get(solicitud.id)?.data?.ComentarioDevolucion)
-                              : null}
-                          diasDetencion={USE_API_V2 ? (solicitud as { diasDetencion?: number | null }).diasDetencion : null}
-                      />
-                  );
-                })
+                filteredSolicitudes.map(solicitud => (
+                    <SolicitudCard
+                        key={solicitud.id}
+                        solicitud={solicitud}
+                        onClick={() => onSolicitudSelect(solicitud.id)}
+                        // El avance viene en la propia obra (avanceObraPct).
+                        ultimoAvance={Math.round((solicitud as { avanceObraPct?: number }).avanceObraPct ?? 0)}
+                        tramitePendiente={etiquetaDashboard(inicio.getObra(solicitud.id), inicio.catalogo, detalleCache.get(solicitud.id)?.data?.ComentarioDevolucion)}
+                        diasDetencion={(solicitud as { diasDetencion?: number | null }).diasDetencion}
+                    />
+                ))
             ) : (
                 <div className="bg-white rounded-lg p-8 text-center">
                   <p className="text-[#4A4A4A]">
                     {searchQuery
                         ? 'No se encontraron solicitudes con ese criterio de búsqueda'
-                        : filterByUser
-                            ? 'No tienes solicitudes asignadas'
-                            : 'No hay solicitudes registradas'}
+                        : 'No hay solicitudes registradas'}
                   </p>
                 </div>
             )}

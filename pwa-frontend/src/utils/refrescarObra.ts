@@ -30,6 +30,9 @@ const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 // segundo plano (sin bloquear nada) hasta que aparezca; al llegar se guarda en el caché y la pestaña
 // «Documentos» se completa sola.
 const ESPERAS_DOCUMENTO_MS = [3000, 5000, 8000, 12000, 20000];
+// Si el evento crea una inspección (detener, reactivar, finalizar…), la API cuelga el documento de ESA inspección y NO lo lista en los
+// «Documentos» de la obra: esperarlo ahí 90 s era inútil (13-10-2026). Se hace una espera corta y los adjuntos se esperan en la inspección.
+const ESPERAS_DOCUMENTO_CORTAS_MS = [3000, 5000];
 type DetalleDocs = { Documentos?: { DriveItemId?: string; Nombre?: string }[] } | undefined;
 const claveDoc = (d: { DriveItemId?: string; Nombre?: string }) => d.DriveItemId ?? d.Nombre ?? '';
 
@@ -37,11 +40,12 @@ function esperarDocumentoEnSegundoPlano(
   actualizarObra: (id: number, cambios: Partial<ObraInicio>) => void,
   solicitudId: number,
   previos: Set<string>,
+  esperas: number[] = ESPERAS_DOCUMENTO_MS,
 ): void {
   detalleCache.marcarEsperaDocumentos(solicitudId, true);
   void (async () => {
     try {
-      for (const ms of ESPERAS_DOCUMENTO_MS) {
+      for (const ms of esperas) {
         await esperar(ms);
         const data = await detalleService.getDetalle(solicitudId, { fresco: true });
         if (((data as DetalleDocs)?.Documentos ?? []).some((d) => !previos.has(claveDoc(d)))) {
@@ -58,7 +62,38 @@ function esperarDocumentoEnSegundoPlano(
   })();
 }
 
+// Una inspección recién creada aparece en el detalle antes que sus fotos e informe: la API los indexa con retraso, igual
+// que los documentos. Se vuelve a pedir SU detalle en segundo plano hasta que lleguen los adjuntos enviados y la tarjeta se
+// completa sola (CU-37). Mientras tanto la pantalla muestra «cargando» en vez de un 0 engañoso.
+const ESPERAS_ADJUNTOS_MS = [2000, 4000, 7000, 12000, 20000];
+
+function esperarAdjuntosInspeccionEnSegundoPlano(
+  inspeccionId: number,
+  esperados: { fotos: number; informes: number },
+): void {
+  detalleCache.marcarEsperaInspeccion(inspeccionId, true);
+  void (async () => {
+    try {
+      for (const ms of ESPERAS_ADJUNTOS_MS) {
+        await esperar(ms);
+        const d = (await detalleService.getInspeccion(inspeccionId, { forzar: true })) as
+          { Fotos?: unknown[]; Documentos?: unknown[]; Informes?: unknown[] } | undefined;
+        detalleCache.notificar();
+        const fotos = (d?.Fotos ?? []).length;
+        const informes = (d?.Documentos ?? d?.Informes ?? []).length;
+        if (fotos >= esperados.fotos && informes >= esperados.informes) return;
+      }
+    } catch {
+      // Sin red u otro fallo: queda lo ya mostrado y el botón «Actualizar» del usuario.
+    } finally {
+      detalleCache.marcarEsperaInspeccion(inspeccionId, false);
+    }
+  })();
+}
+
 interface OpcionesRefresco {
+  /** Fotos e informes que subió el evento: se espera en segundo plano a que la inspección nueva los muestre (CU-37). */
+  esperaAdjuntosInspeccion?: { fotos: number; informes: number };
   /** FechaUltimoEvento de la obra ANTES del evento. */
   fechaUltimoEventoPrevia?: string | null;
   /** false para eventos que no crean inspección (ej. el acta de inicio). Por defecto true. */
@@ -125,15 +160,22 @@ export async function refrescarObraTrasEvento(
     }
     if (!alDia(data) && !aceptable(data)) {
       // sigue atrasado: no se cachea ni se pisa lo que dijo el evento
-      if (opciones.esperaDocumento) esperarDocumentoEnSegundoPlano(actualizarObra, solicitudId, docsPrevios);
+      if (opciones.esperaDocumento) esperarDocumentoEnSegundoPlano(actualizarObra, solicitudId, docsPrevios, creaInspeccion ? ESPERAS_DOCUMENTO_CORTAS_MS : ESPERAS_DOCUMENTO_MS);
       return;
     }
 
     detalleCache.set(solicitudId, data);
     const cambios = cambiosDesdeDetalle(data);
     actualizarObra(solicitudId, cambios);
+    const esperadosAdj = opciones.esperaAdjuntosInspeccion;
+    if (esperadosAdj && (esperadosAdj.fotos > 0 || esperadosAdj.informes > 0) && creaInspeccion && hayReferencia) {
+      const candidatas = nuevas(data);
+      const delTipo = tipoEsperado ? candidatas.filter((i) => i.Tipo === tipoEsperado) : candidatas;
+      const elegida = [...(delTipo.length ? delTipo : candidatas)].sort((a, b) => b.Id - a.Id)[0];
+      if (elegida) esperarAdjuntosInspeccionEnSegundoPlano(elegida.Id, esperadosAdj);
+    }
     if (opciones.esperaDocumento && !((data as DetalleDocs)?.Documentos ?? []).some((d) => !docsPrevios.has(claveDoc(d)))) {
-      esperarDocumentoEnSegundoPlano(actualizarObra, solicitudId, docsPrevios);
+      esperarDocumentoEnSegundoPlano(actualizarObra, solicitudId, docsPrevios, creaInspeccion ? ESPERAS_DOCUMENTO_CORTAS_MS : ESPERAS_DOCUMENTO_MS);
     }
   } catch {
     // Si falla, el caché queda invalidado: la próxima vez que se abra el

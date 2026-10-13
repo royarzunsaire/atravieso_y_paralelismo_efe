@@ -1,4 +1,4 @@
-import { MapPin, User, AlertCircle, Handshake, TrendingUp, CheckCircle2, XCircle, FileText, Route, UserCog, CalendarDays } from 'lucide-react';
+import { MapPin, User, AlertCircle, Handshake, TrendingUp, FileText, Route, UserCog, CalendarDays } from 'lucide-react';
 import { getEstadoColor, getPrioridadColor } from '../../utils/solicitudUtils';
 import type { Solicitud } from '../../types/solicitud';
 import { EtiquetaDetenida } from './BannerDetencion';
@@ -12,10 +12,8 @@ import { formatearFechaCL, diasDesdeCL } from '../../utils/fechas';
 interface SolicitudCardProps {
   solicitud: Solicitud;
   onClick: () => void;
-  /** Porcentaje de avance de la última inspección. Undefined = aún cargando, null = sin inspecciones */
+  /** Porcentaje de avance de la obra (el que informa la plataforma). */
   ultimoAvance?: number | null;
-  /** Estado de la última inspección */
-  ultimoEstado?: 'conforme' | 'no-conforme' | null;
   /** Días de detención si la obra está detenida (CU-07); null/undefined = no detenida */
   diasDetencion?: number | null;
   /** Etiqueta del trámite documental pendiente (acta de inicio / recepción firmada — CU-15/16) */
@@ -36,25 +34,21 @@ function getProgressColor(progress: number): string {
 // COMPONENTE
 // ========================================
 
-/** Campos extra que solo trae la obra mapeada desde la API v2 (CU-08). */
+/** Campos extra que trae la obra mapeada desde la API (CU-08). */
 interface CamposV2 { rolEnObra?: string; subEstado?: string; fechaInicioObra?: string | null }
 
 function textoDias(n: number): string {
   return `${n} día${n !== 1 ? 's' : ''}`;
 }
 
-export function SolicitudCard({ solicitud, onClick, ultimoAvance, ultimoEstado, diasDetencion, tramitePendiente }: SolicitudCardProps) {
-  // Modo v2: la obra mapeada trae rolEnObra (aunque venga vacío la clave existe).
-  const esV2 = 'rolEnObra' in solicitud;
+export function SolicitudCard({ solicitud, onClick, ultimoAvance, diasDetencion, tramitePendiente }: SolicitudCardProps) {
   const v2 = solicitud as Solicitud & CamposV2;
-  const inicioFecha = esV2 ? formatearFechaCL(v2.fechaInicioObra) : '';
-  const diasObra = esV2 ? diasDesdeCL(v2.fechaInicioObra) : null;
+  const inicioFecha = formatearFechaCL(v2.fechaInicioObra);
+  const diasObra = diasDesdeCL(v2.fechaInicioObra);
   const tipoUbicacion = [solicitud.tipoObra, solicitud.ramal, solicitud.kilometraje ? `Km ${solicitud.kilometraje}` : null]
       .filter(Boolean).join(' · ');
-  const estadoTexto = esV2 ? (v2.subEstado ?? solicitud.etapa) : solicitud.etapa;
-  // Si es undefined = cargando (no mostrar datos), si es null = sin inspecciones → 0%
+  const estadoTexto = v2.subEstado ?? solicitud.etapa;
   const avance = ultimoAvance ?? 0;
-  const sinInspecciones = ultimoAvance == null;
 
   return (
       <button
@@ -69,11 +63,11 @@ export function SolicitudCard({ solicitud, onClick, ultimoAvance, ultimoEstado, 
             </h3>
           </div>
 
-          {(tramitePendiente || diasDetencion != null || (esV2 && diasObra != null)) && (
+          {(tramitePendiente || diasDetencion != null || diasObra != null) && (
               <div className="flex flex-col items-end gap-1 ml-auto">
                 {tramitePendiente && <EtiquetaTramitePendiente texto={tramitePendiente.texto} espera={tramitePendiente.espera} />}
                 {diasDetencion != null && <EtiquetaDetenida dias={diasDetencion} />}
-                {esV2 && diasObra != null && (
+                {diasObra != null && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-gray-100 border border-gray-300 text-xs font-medium text-gray-700 whitespace-nowrap">
                       Inicio de obra · lleva {textoDias(diasObra)}
                     </span>
@@ -90,14 +84,14 @@ export function SolicitudCard({ solicitud, onClick, ultimoAvance, ultimoEstado, 
 
         {/* Información del proyecto */}
         <div className="space-y-2 mb-3">
-          {esV2 && solicitud.title && (
+          {solicitud.title && (
               <div className="flex items-center gap-2 text-sm text-[#4A4A4A]">
                 <FileText className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">{solicitud.title}</span>
               </div>
           )}
 
-          {esV2 && tipoUbicacion && (
+          {tipoUbicacion && (
               <div className="flex items-center gap-2 text-sm text-[#4A4A4A]">
                 <Route className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">{tipoUbicacion}</span>
@@ -132,14 +126,14 @@ export function SolicitudCard({ solicitud, onClick, ultimoAvance, ultimoEstado, 
               </div>
           )}
 
-          {esV2 && v2.rolEnObra && (
+          {v2.rolEnObra && (
               <div className="flex items-center gap-2 text-sm text-[#4A4A4A]">
                 <UserCog className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">{v2.rolEnObra}</span>
               </div>
           )}
 
-          {esV2 && inicioFecha && (
+          {inicioFecha && (
               <div className="flex items-center gap-2 text-sm text-[#4A4A4A]">
                 <CalendarDays className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">Inició el {inicioFecha}</span>
@@ -156,27 +150,13 @@ export function SolicitudCard({ solicitud, onClick, ultimoAvance, ultimoEstado, 
             Avance de obra
           </span>
 
-            <div className="flex items-center gap-2">
-              {/* Badge de estado si hay inspecciones */}
-              {!sinInspecciones && ultimoEstado && (
-                  ultimoEstado === 'conforme'
-                      ? <CheckCircle2 className="w-4 h-4 text-green-600" />
-                      : <XCircle className="w-4 h-4 text-[#E30613]" />
-              )}
-              <span className={sinInspecciones ? 'text-[#4A4A4A]' : 'text-[#0066CC] font-semibold'}>
-              {sinInspecciones ? 'Sin inspecciones' : `${avance}%`}
-            </span>
-            </div>
+            <span className="text-[#0066CC] font-semibold">{avance}%</span>
           </div>
 
           <div className="w-full bg-[#F5F7FA] rounded-full h-2 overflow-hidden">
             <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                    sinInspecciones
-                        ? 'bg-gray-300'
-                        : `bg-gradient-to-r ${getProgressColor(avance)}`
-                }`}
-                style={{ width: sinInspecciones ? '0%' : `${avance}%` }}
+                className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${getProgressColor(avance)}`}
+                style={{ width: `${avance}%` }}
             />
           </div>
         </div>

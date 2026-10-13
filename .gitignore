@@ -60,3 +60,8 @@ temp/
 # package.json
 # package-lock.json
 # .env.example (plantilla SIN credenciales)
+
+# Bases de datos locales (SQLite antiguo): nunca al repositorio (contenían cuentas con hash de contraseña, H-13)
+*.db
+*.sqlite
+*.sqlite3

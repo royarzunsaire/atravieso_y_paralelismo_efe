@@ -2,6 +2,13 @@ const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const bcrypt = require('bcryptjs');
 const usersDb = require('../database');
+const { randomUUID } = require('crypto');
+
+// Seguridad (hallazgo H-06): el login NO debe revelar si un correo existe. Para eso (1) se responde SIEMPRE el mismo mensaje,
+// sea porque el correo no existe, está dado de baja o la contraseña es incorrecta, y (2) cuando el correo no existe se compara
+// igual contra un hash falso del mismo costo que los reales, para que el tiempo de respuesta no delate la diferencia.
+const MENSAJE_CREDENCIALES = 'Correo o contraseña incorrectos. Si el problema continúa, contacta al administrador.';
+const HASH_FALSO = bcrypt.hashSync(randomUUID(), 10);
 
 const isAzureConfigured = Boolean(
   process.env.AZURE_AD_CLIENT_ID &&
@@ -64,21 +71,27 @@ passport.use('local', new LocalStrategy({
 },
 async (email, password, done) => {
   try {
-    console.log('🔍 Buscando usuario:', email);
+    // Seguridad (hallazgo H-04): los logs NUNCA llevan el registro del usuario (incluye el hash de la contraseña),
+    // ni el correo, ni el motivo del rechazo. Solo un evento genérico y, si entró, su id interno.
     
     const user = await usersDb.getLocalActiveUserByEmail(email);
     
-    console.log('👤 Usuario encontrado:', user ? 'SÍ' : 'NO');
-    console.log('📦 Resultado raw:', JSON.stringify(user));
     
-    if (!user) return done(null, false, { message: 'Usuario no encontrado' });
+    if (!user) {
+      console.warn('⚠️  Login rechazado');
+      await bcrypt.compare(password, HASH_FALSO); // iguala el tiempo con el camino «contraseña incorrecta»
+      return done(null, false, { message: MENSAJE_CREDENCIALES });
+    }
     
-    const isValid = await bcrypt.compare(password, user.password);
-    console.log('🔐 Password válido:', isValid);
+    const isValid = typeof user.password === 'string' && await bcrypt.compare(password, user.password);
     
-    if (!isValid) return done(null, false, { message: 'Contraseña incorrecta' });
+    if (!isValid) {
+      console.warn('⚠️  Login rechazado');
+      return done(null, false, { message: MENSAJE_CREDENCIALES });
+    }
     
     const updatedUser = await usersDb.updateUserLastLogin(user.id);
+    console.log(`✅ Login correcto (usuario ${user.id})`);
     return done(null, updatedUser || user);
 
   } catch (error) {
@@ -87,19 +100,7 @@ async (email, password, done) => {
   }
 }));
 
-// Serialización
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-
-passport.deserializeUser(async (id, done) => {
-  try {
-    const user = await usersDb.getUserById(id);
-    done(null, user);
-  } catch (error) {
-    done(error);
-  }
-});
+// Sin sesiones: la autenticación es solo por token (JWT); no se serializa el usuario (H-17).
 
 passport.isAzureConfigured = isAzureConfigured;
 

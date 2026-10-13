@@ -1,7 +1,14 @@
 # ─────────────────────────────────────────────
 # Etapa 1 — Build de la SPA con Node
 # ─────────────────────────────────────────────
-FROM node:20-alpine AS build
+# Imágenes base (hallazgo H-12). Node 24 LTS para compilar (Node 20 está sin soporte desde abril de 2026) y nginx SIN privilegios
+# (corre como usuario no root). Para usar otras versiones, pasar --build-arg con el digest nuevo:
+#   --build-arg NODE_IMAGE=node:24-alpine@sha256:<digest>   --build-arg NGINX_IMAGE=nginxinc/nginx-unprivileged:stable-alpine@sha256:<digest>
+# Ambas están FIJADAS por digest: son exactamente las imágenes con que se probó (11-10-2026). Actualizar = obtener digest nuevo y reprobar.
+ARG NODE_IMAGE=node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+ARG NGINX_IMAGE=nginxinc/nginx-unprivileged:stable-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
+
+FROM ${NODE_IMAGE} AS build
 
 WORKDIR /app
 
@@ -16,24 +23,43 @@ COPY . .
 # nginx hace de reverse proxy hacia el backend. Así la imagen es INMUTABLE
 # entre ambientes: no se hornea ninguna URL del backend en el build.
 ARG VITE_API_URL=""
-ARG VITE_USE_API_V2="false"
 ENV VITE_API_URL=${VITE_API_URL}
-ENV VITE_USE_API_V2=${VITE_USE_API_V2}
 
 RUN npm run build
 
 # ─────────────────────────────────────────────
 # Etapa 2 — Servir con nginx
 # ─────────────────────────────────────────────
-FROM nginx:alpine
+FROM ${NGINX_IMAGE}
 
 # La imagen oficial procesa /etc/nginx/templates/*.template con envsubst al
 # arrancar. Solo sustituimos las variables BACKEND_* (resueltas en runtime),
 # para no tocar las variables propias de nginx ($uri, $host, etc.).
-ENV NGINX_ENVSUBST_FILTER="^BACKEND_"
+ENV NGINX_ENVSUBST_FILTER="^(BACKEND_|CSP_)"
+# Origen de la API del cliente de donde el navegador baja las fotos (CSP connect-src). Se define al desplegar
+# (ej. https://api.cliente.cl). Vacío = las fotos descargadas no cargarían.
+ENV CSP_CONNECT_EXTRA=""
+# Dirección del backend que usa el NAVEGADOR (se escribe en /config.js al arrancar). Vacío = mismo origen (nginx hace de proxy hacia BACKEND_HOST).
+# Con el backend detrás de un API Gateway: https://<host-del-gateway>/<prefijo>  (sin barra final).
+ENV API_URL=""
+# Valores por defecto del proxy (solo se usan si API_URL está vacío): permiten que nginx arranque aunque no se definan.
+ENV BACKEND_HOST=127.0.0.1
+ENV BACKEND_PORT=3001
+
+# Parches de seguridad ya publicados por Alpine que la imagen base fijada aún no trae: zlib (CVE-2026-85091, 1.3.2-r0 → r1) y
+# tiff (CVE-2026-4775, 4.7.1-r0 → 4.7.2-r0). Quitar cuando se actualice el digest de la imagen base (ver oci-deploy.md).
+# La imagen vuelve a correr sin privilegios (usuario 101) justo después.
+USER root
+RUN apk upgrade --no-cache zlib tiff
+USER 101
 
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY seguridad.inc.template /etc/nginx/templates/seguridad.inc.template
+COPY --chmod=0755 40-ayp-config.sh /docker-entrypoint.d/40-ayp-config.sh
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -q --spider http://127.0.0.1:8080/ || exit 1
 # CMD heredado de la imagen base de nginx (arranca el entrypoint + nginx)

@@ -12,7 +12,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
   // Registro deshabilitado en el frontend: las cuentas se crean desde
   // la plataforma externa del cliente (client OAuth2 AYP_INTEGRACION_EXTERNA
   // contra /usuarios-actions/register), no desde esta app. El endpoint
-  // /auth/register sigue existiendo en el backend (sin uso desde aquí).
+  // /auth/register del backend se eliminó (seguridad, H-01).
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -50,7 +50,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
             <div className="relative">
               <div className="relative flex items-center justify-center w-30">
                 <img 
-                  src="/Imagen1-Photoroom.png"
+                  src="./Imagen1-Photoroom.png"
                   alt="Logo app"
                 />
               </div>
@@ -211,28 +211,6 @@ export function Login({ onLoginSuccess }: LoginProps) {
           {/* Registro deshabilitado — las cuentas se crean desde la
               plataforma externa del cliente, no desde esta app. */}
         </div>
-
-        {/* Usuario de prueba (solo en desarrollo) */}
-        {/* {import.meta.env.DEV && (
-          <div className="bg-white/90 backdrop-blur-sm border-2 border-yellow-400 rounded-xl p-4 shadow-lg">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">👤</span>
-              <div>
-                <p className="text-sm font-semibold text-yellow-800 mb-2">
-                  Usuario de Prueba
-                </p>
-                <div className="space-y-1">
-                  <p className="text-xs text-yellow-700">
-                    <span className="font-medium">Email:</span> admin@efe.cl
-                  </p>
-                  <p className="text-xs text-yellow-700">
-                    <span className="font-medium">Password:</span> Admin123456
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )} */}
 
         {/* Footer con logo EFE */}
         <div className="mt-8 text-center">

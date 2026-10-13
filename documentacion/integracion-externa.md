@@ -167,6 +167,46 @@ Respuesta:
 
 ---
 
+### Activar / dar de baja un usuario — `POST /usuarios-actions/{id}/activo`
+
+Cambia solo el campo `activo` del usuario: `0` = dado de baja, `1` = activo. **No borra** al usuario
+(se conserva su historial y su correo queda reservado). Un usuario con `activo = 0` **no puede
+iniciar sesión** en la PWA.
+
+Por id (el `id` en hexadecimal, como lo devuelven `listar` y `{id}`):
+
+```
+POST {BaseURL}/usuarios-actions/{id}/activo
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{ "activo": 0 }
+```
+
+O por correo (la forma más cómoda si la plataforma identifica a los usuarios por email):
+
+```
+POST {BaseURL}/usuarios-actions/por-email/persona@efe.cl/activo
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{ "activo": 1 }
+```
+
+Respuesta exitosa (`200`):
+
+```json
+{ "activo_out": 0, "mensaje_out": "OK" }
+```
+
+Errores: `400` si `activo` no es `0` o `1` (o el id/correo es inválido), `404` si el usuario no existe,
+`401`/`403` por token o permiso (igual que el resto).
+
+> Una sesión que el usuario ya tenía abierta puede seguir válida hasta que expire su token (7 días),
+> salvo que el backend de la PWA consulte `activo` en cada petición.
+
+---
+
 ## Formato de datos
 
 - `id` siempre en **hex**.
@@ -184,6 +224,7 @@ Respuesta:
 | `403` | El client no tiene permiso sobre ese recurso. |
 | `404` / `items: []` | Recurso no encontrado (email/id inexistente). |
 | `405` | Método no permitido en esa ruta (ej. `GET` a `register`). |
+| `400` | `activo` distinto de `0`/`1` en `.../activo`. |
 | `4xx` | id mal formado (no hex) en `GET /{id}`. |
 
 ---

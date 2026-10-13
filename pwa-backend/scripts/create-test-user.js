@@ -2,9 +2,15 @@ const bcrypt = require('bcryptjs');
 const usersDb = require('../database');
 
 async function createTestUser() {
-  const email = 'admin@efe.cl';
-  const password = 'Admin123456';
-  const nombre = 'Administrador EFE';
+  // Crea un usuario ADMIN. Nada va escrito en el código: se pide por el entorno (H-12 / H-20).
+  const email = process.env.TEST_USER_EMAIL;
+  const password = process.env.TEST_USER_PASSWORD;
+  const nombre = process.env.TEST_USER_NOMBRE || 'Usuario de prueba';
+  if (!email || !password || password.length < 12) {
+    console.error('Define TEST_USER_EMAIL y TEST_USER_PASSWORD (mínimo 12 caracteres) en el entorno.');
+    console.error('Esta herramienta crea un usuario con rol ADMIN: úsala solo en desarrollo.');
+    process.exit(1);
+  }
 
   try {
     // Verificar si ya existe en la tabla usuarios
@@ -29,7 +35,6 @@ async function createTestUser() {
     console.log('═══════════════════════════════════');
     console.log('  Credenciales de acceso:');
     console.log(`  Email:    ${email}`);
-    console.log(`  Password: ${password}`);
     console.log(`  ID:       ${user.id}`);
     console.log(`  Rol:      ${user.rol}`);
     console.log('═══════════════════════════════════');

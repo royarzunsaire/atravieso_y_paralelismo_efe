@@ -1,6 +1,35 @@
+# HSTS solo si la petición original llegó por HTTPS (ver seguridad.inc.template).
+map $http_x_forwarded_proto $hsts_valor {
+    default "";
+    https   "max-age=31536000; includeSubDomains";
+}
+
+# ── Límite de peticiones por cliente (control E13: frena fuerza bruta y password spraying que el backend no ve) ──
+# IP del cliente: si la petición llega de una red PRIVADA (el balanceador de OCI o el proxy de Docker), se usa el último
+# elemento de X-Forwarded-For (el que agregó ese proxy; los anteriores los puede escribir el cliente). Si llega directo
+# desde Internet se usa su IP real. Sin esto, tras el balanceador TODOS los usuarios compartirían una sola cuenta de peticiones.
+geo $proxy_privado {
+    default        0;
+    127.0.0.1      1;
+    10.0.0.0/8     1;
+    172.16.0.0/12  1;
+    192.168.0.0/16 1;
+}
+map "$proxy_privado$http_x_forwarded_for" $ip_cliente {
+    default $remote_addr;
+    "~^1.*?([0-9a-fA-F:.]+)$" $1;
+}
+# /auth/ (login, cambio de clave): 20 por minuto y cliente (la ráfaga permite abrir sesión y cambiar la clave sin tropezar).
+# /api/: 50 por segundo y cliente, con ráfaga de 100 (el dashboard dispara varias lecturas a la vez). Al pasarse: 429.
+limit_req_zone $ip_cliente zone=limite_auth:10m rate=20r/m;
+limit_req_zone $ip_cliente zone=limite_api:10m  rate=50r/s;
+limit_req_status 429;
+
 server {
     listen 8080;
     server_name _;
+    # No revelar la versión de nginx (hallazgo H-07).
+    server_tokens off;
 
     # Raíz de la SPA compilada
     root /usr/share/nginx/html;
@@ -21,6 +50,7 @@ server {
     #   · docker-compose (local) → BACKEND_HOST=backend (nombre de servicio)
     #   · OCI Container Instance → BACKEND_HOST=localhost (namespace compartido)
     location /api/ {
+        limit_req zone=limite_api burst=100 nodelay;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
@@ -31,6 +61,9 @@ server {
     }
 
     location /auth/ {
+        # /auth solo recibe credenciales: tope pequeño (defensa en profundidad; el backend ya limita a 20 KB, H-10).
+        client_max_body_size 64k;
+        limit_req zone=limite_auth burst=10 nodelay;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
@@ -40,9 +73,18 @@ server {
         proxy_read_timeout 120s;
     }
 
+    # Dirección del backend generada al arrancar el contenedor (40-ayp-config.sh): nunca se cachea.
+    location = /config.js {
+        alias /tmp/ayp-config.js;
+        default_type application/javascript;
+        add_header Cache-Control "no-store";
+        include /etc/nginx/conf.d/seguridad.inc;
+    }
+
     # El service worker no debe cachearse (para que la PWA se actualice)
     location = /sw.js {
         add_header Cache-Control "no-cache";
+        include /etc/nginx/conf.d/seguridad.inc;
         try_files $uri =404;
     }
 
@@ -50,11 +92,13 @@ server {
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+        include /etc/nginx/conf.d/seguridad.inc;
         try_files $uri =404;
     }
 
     # SPA: cualquier ruta desconocida cae en index.html (routing del lado cliente)
     location / {
+        include /etc/nginx/conf.d/seguridad.inc;
         try_files $uri $uri/ /index.html;
     }
 }

@@ -5,29 +5,17 @@ import { Header } from './Header';
 import { Button } from './Button';
 import {
   AlertCircle,
-  AlertOctagon,
   Camera,
   CheckCircle2,
   FileText,
   Loader2,
   Paperclip,
-  RefreshCw,
-  Users,
   X,
   XCircle,
 } from 'lucide-react';
 import type { Solicitud, InspectionPhoto } from '../../types/solicitud';
-import { useCatalogs } from '@/context/CatalogsContext';
 import { useInicio } from '@/context/InicioContext';
 import { esAccionInspeccion } from '@/utils/gruposAcciones';
-import { usuariosService } from '@/services/usuarios';
-
-// ── Tipo local de usuario ─────────────────────────────────────
-interface Usuario {
-  id: number;
-  nombre: string;
-  correo: string;
-}
 
 function getLocalDateTimeString(): string {
   return ahoraCLParaInput();
@@ -50,30 +38,22 @@ interface NewInspectionProps {
   isSaving?: boolean;
   minimoAvance?: number;   // avance de la última inspección — no puede retroceders
   onSave: (inspection: {
-    type: string;
-    /** Solo modo v2 — id del catálogo TiposInspeccion de la API (spec 13). */
+    /** Id del catálogo TiposInspeccion de la API (spec 13). */
     tipoInspeccionId?: number;
-    /** Solo modo v2 — acción/evento asociado al tipo elegido (ej. INSPECCION_AVANCE). */
+    /** Acción/evento asociado al tipo elegido (ej. INSPECCION_AVANCE). */
     tipoEvento?: string;
     progress: number;
     comentariosAvance: string;
-    observacionesInspeccion: string;
     status: 'conforme' | 'no-conforme';
     photos: InspectionPhoto[];
-    solicitarParalizacion?: boolean;
     fechaInspeccion?: string;
-    usuariosNotificar: { id: number; nombre: string; correo: string }[];
-    informe?: { fileName: string; fileContentBase64: string; contentType: string; sizeKb: number } | null;
+    informe?: InformeAdjunto | null;
   }) => void;
   onAddPhoto: () => void;
   tempPhotos: InspectionPhoto[];
   onRemovePhoto: (photoId: string) => void;
-  /**
-   * Modo v2 (API de eventos): las acciones INSPECCION_* habilitadas para
-   * esta obra. Si viene, el form muestra/oculta secciones según ellas.
-   * Si es undefined, el form se comporta como siempre (modo viejo).
-   */
-  accionesV2?: string[];
+  /** Acciones habilitadas AHORA para la obra (API de eventos): de ellas salen los tipos de inspección. */
+  accionesV2: string[];
 }
 
 export function NewInspection({
@@ -91,13 +71,7 @@ export function NewInspection({
                               }: NewInspectionProps) {
   const draftKey = useMemo(() => `newInspectionDraft:${solicitud.id}`, [solicitud.id]);
 
-  // ── Modo v2: qué secciones mostrar según las acciones habilitadas ──
-  // Si accionesV2 es undefined, es modo viejo: se muestra todo (v1).
-  const esV2 = Array.isArray(accionesV2);
-  const inspecciones = esV2 ? accionesV2! : [];
-
-  const { tiposInspeccion, tiposInspeccionLoading, tiposInspeccionError, recargarTiposInspeccion } =
-      useCatalogs();
+  const inspecciones = accionesV2;
   const inicio = useInicio();
 
   // En v2 cada acción habilitada trae el tipo de inspección que le
@@ -106,7 +80,6 @@ export function NewInspection({
   // el evento a registrar sale de la acción del tipo elegido. Es el
   // catálogo de la API, no el viejo de Oracle (ids distintos).
   const opcionesTipoV2 = useMemo(() => {
-    if (!esV2) return [];
     const accionesTipo = inicio.getObra(solicitud.id)?.AccionesTipo ?? {};
     return inspecciones
         .filter((codigo) => esAccionInspeccion(codigo, inicio.catalogo) && accionesTipo[codigo])
@@ -116,32 +89,29 @@ export function NewInspection({
           nombre: accionesTipo[codigo].TipoInspeccionNombre,
         }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [esV2, inicio.obras, solicitud.id, accionesV2]);
+  }, [inicio.obras, solicitud.id, accionesV2]);
 
   // Todas las inspecciones reportan avance, sin importar el tipo (cliente).
   const muestraAvance = true;
   // Alguna inspección habilitada (aceptan adjunto/fotos).
-  const hayInspeccion = !esV2 || opcionesTipoV2.length > 0;
+  const hayInspeccion = opcionesTipoV2.length > 0;
   const muestraFotos = hayInspeccion;
   const muestraInforme = hayInspeccion;
 
   // ── Form state ────────────────────────────────────────────
-  const [type, setType] = useState('');
   const [tipoInspeccionId, setTipoInspeccionId] = useState('');
 
   // Un solo tipo permitido (ej. obra paralizada) → queda preseleccionado.
   useEffect(() => {
-    if (esV2 && opcionesTipoV2.length === 1) {
+    if (opcionesTipoV2.length === 1) {
       setTipoInspeccionId(String(opcionesTipoV2[0].tipoInspeccionId));
     }
-  }, [esV2, opcionesTipoV2]);
+  }, [opcionesTipoV2]);
   const [fechaInspeccion, setFechaInspeccion] = useState(getLocalDateTimeString);
   const [progress, setProgress] = useState(() => minimoAvance);
   const [progressInput, setProgressInput] = useState(() => String(minimoAvance));
   const [comentariosAvance, setComentariosAvance] = useState('');
-  const [observacionesInspeccion, setObservacionesInspeccion] = useState('');
   const [status, setStatus] = useState<'conforme' | 'no-conforme'>('conforme');
-  const [solicitarParalizacion, setSolicitarParalizacion] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   // ── Informe adjunto ───────────────────────────────────────
@@ -153,12 +123,12 @@ export function NewInspection({
 
   // ── CU-23: avance bloqueado y adjunto obligatorio (v2) ───────────────
   const refAdjuntos = useRef<HTMLDivElement>(null);
-  const obraActual = esV2 ? inicio.getObra(solicitud.id) : null;
-  const tipoSeleccionado = esV2 ? opcionesTipoV2.find((o) => String(o.tipoInspeccionId) === tipoInspeccionId) : undefined;
+  const obraActual = inicio.getObra(solicitud.id);
+  const tipoSeleccionado = opcionesTipoV2.find((o) => String(o.tipoInspeccionId) === tipoInspeccionId);
   const obraDetenida = !!obraActual?.Detencion?.FechaDetencionActual;
   // Con la obra detenida ninguna inspección cambia el avance (queda en el avance actual). Con la obra en ejecución
   // el avance es editable en todos los tipos, incluido «Registro de Observación».
-  const avanceBloqueado = esV2 && obraDetenida;
+  const avanceBloqueado = obraDetenida;
   useEffect(() => {
     if (avanceBloqueado) {
       setProgress(minimoAvance);
@@ -172,36 +142,16 @@ export function NewInspection({
     ? (obraActual?.AccionesDef?.[tipoSeleccionado.codigo]
         ?? inicio.catalogo?.TiposEvento?.find((t) => t.Codigo === tipoSeleccionado.codigo))
     : undefined;
-  const requiereAdjunto = esV2 && !!definicionTipo?.RequiereAdjunto;
+  const requiereAdjunto = !!definicionTipo?.RequiereAdjunto;
   const faltaAdjunto = requiereAdjunto && tempPhotos.length === 0 && !informe;
   useEffect(() => {
     if (!faltaAdjunto) setErrors((p) => (p.adjunto ? { ...p, adjunto: '' } : p));
   }, [faltaAdjunto]);
 
-  // ── Usuarios a notificar ──────────────────────────────────
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [loadingUsuarios, setLoadingUsuarios] = useState(true);
-  const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
-  const [busquedaUsuario, setBusquedaUsuario] = useState('');
-
   // ── Refs para scroll a error ──────────────────────────────
   const refFecha = useRef<HTMLDivElement>(null);
   const refTipo = useRef<HTMLDivElement>(null);
   const refComentarios = useRef<HTMLDivElement>(null);
-  const refObservaciones = useRef<HTMLDivElement>(null);
-
-  // ── Cargar usuarios al montar ─────────────────────────────
-  useEffect(() => {
-    // CU-21: en v2 «Notificar a» está oculto (la API no soporta notificaciones) → NO se llama al flow
-    // de usuarios de Power Automate (tardaba ~3,7 s en abrir el formulario).
-    if (esV2) { setLoadingUsuarios(false); return; }
-    setLoadingUsuarios(true);
-    usuariosService
-        .getAll()
-        .then((data: Usuario[]) => setUsuarios(data))
-        .catch(() => setUsuarios([]))
-        .finally(() => setLoadingUsuarios(false));
-  }, []);
 
   // ── Recuperar draft ───────────────────────────────────────
   useEffect(() => {
@@ -209,43 +159,25 @@ export function NewInspection({
       const raw = sessionStorage.getItem(draftKey);
       if (!raw) return;
       const draft = JSON.parse(raw);
-      if (typeof draft.type === 'string') setType(draft.type);
       // El tipo de la API (v2) también va en el borrador; solo se restaura si sigue permitido.
       if (typeof draft.tipoInspeccionId === 'string' && draft.tipoInspeccionId
-          && (!esV2 || opcionesTipoV2.some((o) => String(o.tipoInspeccionId) === draft.tipoInspeccionId))) {
+          && opcionesTipoV2.some((o) => String(o.tipoInspeccionId) === draft.tipoInspeccionId)) {
         setTipoInspeccionId(draft.tipoInspeccionId);
       }
       if (typeof draft.fechaInspeccion === 'string') setFechaInspeccion(draft.fechaInspeccion);
       if (typeof draft.progress === 'number') { setProgress(draft.progress); setProgressInput(String(draft.progress)); }
       if (typeof draft.comentariosAvance === 'string') setComentariosAvance(draft.comentariosAvance);
-      if (typeof draft.observacionesInspeccion === 'string') setObservacionesInspeccion(draft.observacionesInspeccion);
       if (draft.status === 'conforme' || draft.status === 'no-conforme') setStatus(draft.status);
-      if (typeof draft.solicitarParalizacion === 'boolean') setSolicitarParalizacion(draft.solicitarParalizacion);
     } catch { /* ignorar */ }
   }, [draftKey]);
 
   const saveDraftToSession = () => {
     try {
       sessionStorage.setItem(draftKey, JSON.stringify({
-        type, tipoInspeccionId, fechaInspeccion, progress, comentariosAvance,
-        observacionesInspeccion, status, solicitarParalizacion,
+        tipoInspeccionId, fechaInspeccion, progress, comentariosAvance, status,
       }));
     } catch { /* ignorar */ }
   };
-
-  // ── Selección de usuarios ─────────────────────────────────
-  const toggleUsuario = (id: number) => {
-    setSeleccionados(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const usuariosFiltrados = usuarios.filter(u =>
-      u.nombre.toLowerCase().includes(busquedaUsuario.toLowerCase()) ||
-      u.correo.toLowerCase().includes(busquedaUsuario.toLowerCase())
-  );
 
   // ── Handler: seleccionar informe ─────────────────────────
   const handleInformeSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -297,17 +229,14 @@ export function NewInspection({
     const newErrors: { [key: string]: string } = {};
     if (!fechaInspeccion) newErrors.fechaInspeccion = 'La fecha es obligatoria';
     else if (esFechaFutura(fechaInspeccion)) newErrors.fechaInspeccion = 'La fecha de la inspección no puede ser futura: elige hoy o un día anterior.';
-    if (!esV2 && !type) newErrors.type = 'Debe seleccionar un tipo de inspección';
-    if (esV2 && !tipoInspeccionId) newErrors.type = 'Debe seleccionar un tipo de inspección';
-    if (!comentariosAvance.trim()) newErrors.comentariosAvance = esV2 ? 'El comentario es obligatorio' : 'Los comentarios de avance son obligatorios';
-    // v2: el único texto es el Comentario, así que "No Conforme" exige mínimo 10 caracteres ahí.
-    else if (esV2 && status === 'no-conforme' && comentariosAvance.trim().length < 10)
+    if (!tipoInspeccionId) newErrors.type = 'Debe seleccionar un tipo de inspección';
+    if (!comentariosAvance.trim()) newErrors.comentariosAvance = 'El comentario es obligatorio';
+    // El único texto es el Comentario, así que "No Conforme" exige mínimo 10 caracteres ahí.
+    else if (status === 'no-conforme' && comentariosAvance.trim().length < 10)
       newErrors.comentariosAvance = 'Para No Conforme el comentario es obligatorio (mínimo 10 caracteres)';
     // El avance solo se valida si su sección está visible (v2: INSPECCION_AVANCE).
     if (muestraAvance && progress < minimoAvance)
       newErrors.progress = `El avance no puede ser menor al registrado anteriormente (${minimoAvance}%)`;
-    if (!esV2 && status === 'no-conforme' && observacionesInspeccion.trim().length < 10)
-      newErrors.observacionesInspeccion = 'Las observaciones son obligatorias para "No Conforme" (mínimo 10 caracteres)';
     if (faltaAdjunto) newErrors.adjunto = 'Este tipo de inspección exige al menos un adjunto: una foto O un informe o archivo (con uno basta).';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -320,35 +249,23 @@ export function NewInspection({
       const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) =>
           ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if (!fechaInspeccion || esFechaFutura(fechaInspeccion)) { scrollTo(refFecha); return; }
-      if (!esV2 && !type) { scrollTo(refTipo); return; }
-      if (esV2 && !tipoInspeccionId) { scrollTo(refTipo); return; }
+      if (!tipoInspeccionId) { scrollTo(refTipo); return; }
       if (!comentariosAvance.trim()) { scrollTo(refComentarios); return; }
-      if (esV2 && status === 'no-conforme' && comentariosAvance.trim().length < 10) { scrollTo(refComentarios); return; }
+      if (status === 'no-conforme' && comentariosAvance.trim().length < 10) { scrollTo(refComentarios); return; }
       if (faltaAdjunto) { scrollTo(refAdjuntos); return; }
-      if (!esV2 && status === 'no-conforme' && observacionesInspeccion.trim().length < 10) { scrollTo(refObservaciones); }
       return;
     }
 
     saveDraftToSession();
 
-    const usuariosNotificar = usuarios
-        .filter(u => seleccionados.has(u.id))
-        .map(u => ({ id: u.id, nombre: u.nombre, correo: u.correo }));
-
     onSave({
-      type,
-      tipoInspeccionId: esV2 && tipoInspeccionId ? Number(tipoInspeccionId) : undefined,
-      tipoEvento: esV2
-          ? opcionesTipoV2.find((o) => String(o.tipoInspeccionId) === tipoInspeccionId)?.codigo
-          : undefined,
+      tipoInspeccionId: tipoInspeccionId ? Number(tipoInspeccionId) : undefined,
+      tipoEvento: opcionesTipoV2.find((o) => String(o.tipoInspeccionId) === tipoInspeccionId)?.codigo,
       fechaInspeccion,
       progress,
       comentariosAvance,
-      observacionesInspeccion,
       status,
       photos: tempPhotos,
-      solicitarParalizacion,
-      usuariosNotificar,
       informe,
     });
   };
@@ -406,42 +323,17 @@ export function NewInspection({
             <label className="block text-sm text-[#4A4A4A] mb-2">
               Tipo de Inspección <span className="text-[#E30613]">*</span>
             </label>
-            {esV2 ? (
-                // v2: catálogo de la API nueva (TipoInspeccionId), distinto del viejo de Oracle.
-                <select
-                    value={tipoInspeccionId}
-                    onChange={(e) => { setTipoInspeccionId(e.target.value); setErrors(p => ({ ...p, type: '' })); }}
-                    className={`w-full h-11 px-3 bg-white rounded-lg border ${errors.type ? 'border-[#E30613]' : 'border-[#003D7A]/20'} focus:outline-none focus:ring-2 focus:ring-[#0066CC]`}
-                >
-                  <option value="">Seleccionar tipo...</option>
-                  {opcionesTipoV2.map(o => (
-                      <option key={o.codigo} value={o.tipoInspeccionId}>{o.nombre}</option>
-                  ))}
-                </select>
-            ) : tiposInspeccionLoading ? (
-                <div className="flex items-center gap-2 h-11 px-3 bg-[#F5F7FA] rounded-lg border border-[#003D7A]/20">
-                  <Loader2 className="w-4 h-4 text-[#0066CC] animate-spin" />
-                  <span className="text-sm text-[#4A4A4A]">Cargando tipos...</span>
-                </div>
-            ) : tiposInspeccionError ? (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-700 mb-2">{tiposInspeccionError}</p>
-                  <button type="button" onClick={recargarTiposInspeccion} className="flex items-center gap-1.5 text-sm text-[#0066CC]">
-                    <RefreshCw className="w-3.5 h-3.5" /> Reintentar
-                  </button>
-                </div>
-            ) : (
-                <select
-                    value={type}
-                    onChange={(e) => { setType(e.target.value); setErrors(p => ({ ...p, type: '' })); }}
-                    className={`w-full h-11 px-3 bg-white rounded-lg border ${errors.type ? 'border-[#E30613]' : 'border-[#003D7A]/20'} focus:outline-none focus:ring-2 focus:ring-[#0066CC]`}
-                >
-                  <option value="">Seleccionar tipo...</option>
-                  {tiposInspeccion.map(t => (
-                      <option key={t.id} value={t.titulo}>{t.titulo}</option>
-                  ))}
-                </select>
-            )}
+            {/* Catálogo de la API (TipoInspeccionId): solo los tipos habilitados AHORA para la obra. */}
+            <select
+                value={tipoInspeccionId}
+                onChange={(e) => { setTipoInspeccionId(e.target.value); setErrors(p => ({ ...p, type: '' })); }}
+                className={`w-full h-11 px-3 bg-white rounded-lg border ${errors.type ? 'border-[#E30613]' : 'border-[#003D7A]/20'} focus:outline-none focus:ring-2 focus:ring-[#0066CC]`}
+            >
+              <option value="">Seleccionar tipo...</option>
+              {opcionesTipoV2.map(o => (
+                  <option key={o.codigo} value={o.tipoInspeccionId}>{o.nombre}</option>
+              ))}
+            </select>
             {errors.type && <p className="mt-1 text-sm text-[#E30613]">{errors.type}</p>}
           </div>
 
@@ -503,11 +395,11 @@ export function NewInspection({
           </div>
           )}
 
-          {/* Comentario — v2: único campo de texto (la API solo guarda Comentario, contrato CU-02) */}
+          {/* Comentario: único campo de texto (la API solo guarda Comentario, contrato CU-02) */}
           <div ref={refComentarios} className="bg-white rounded-lg p-4 shadow-sm">
             <label className="block text-sm text-[#4A4A4A] mb-2">
-              {esV2 ? 'Comentario' : 'Comentarios de Avance'} <span className="text-[#E30613]">*</span>
-              {esV2 && status === 'no-conforme' && (
+              Comentario <span className="text-[#E30613]">*</span>
+              {status === 'no-conforme' && (
                   <span className="text-xs text-[#E30613] ml-1">(Obligatorio para No Conforme, mínimo 10 caracteres)</span>
               )}
             </label>
@@ -515,13 +407,11 @@ export function NewInspection({
                 value={comentariosAvance ?? ''}
                 onChange={(e) => { setComentariosAvance(e.target.value); setErrors(p => ({ ...p, comentariosAvance: '' })); }}
                 placeholder={
-                  esV2
-                      ? (status === 'no-conforme'
-                          ? 'Describa los problemas detectados en la inspección...'
-                          : 'Escriba su comentario sobre la inspección...')
-                      : 'Agregue cualquier comentario respecto al avance...'
+                  status === 'no-conforme'
+                      ? 'Describa los problemas detectados en la inspección...'
+                      : 'Escriba su comentario sobre la inspección...'
                 }
-                rows={esV2 ? 4 : 3}
+                rows={4}
                 className={`w-full px-3 py-2 bg-white rounded-lg border ${errors.comentariosAvance ? 'border-[#E30613]' : 'border-[#003D7A]/20'} focus:outline-none focus:ring-2 focus:ring-[#0066CC] resize-none`}
             />
             {errors.comentariosAvance && <p className="mt-1 text-sm text-[#E30613]">{errors.comentariosAvance}</p>}
@@ -536,7 +426,7 @@ export function NewInspection({
                   <button
                       key={option.value}
                       type="button"
-                      onClick={() => { setStatus(option.value); if (option.value === 'conforme') setSolicitarParalizacion(false); }}
+                      onClick={() => setStatus(option.value)}
                       className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${status === option.value ? option.activeColor : option.color}`}
                   >
                     {option.icon}<span>{option.label}</span>
@@ -544,70 +434,6 @@ export function NewInspection({
               ))}
             </div>
           </div>
-
-          {/* Solicitud de Paralización — v2: se oculta (va a la pestaña Control de obra) */}
-          {!esV2 && status === 'no-conforme' && (
-              <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <AlertOctagon className="w-6 h-6 text-orange-600 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <h3 className="text-[#003D7A] font-medium mb-1">Solicitar Paralización de Obra</h3>
-                    <p className="text-sm text-[#4A4A4A] mb-3">
-                      Si la situación requiere detener la obra, el supervisor será notificado para su revisión.
-                    </p>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                          type="checkbox"
-                          checked={solicitarParalizacion}
-                          onChange={(e) => setSolicitarParalizacion(e.target.checked)}
-                          className="w-5 h-5 text-orange-600 border-2 border-orange-400 rounded focus:ring-2 focus:ring-orange-500"
-                      />
-                      <span className="text-sm font-medium text-[#003D7A]">Solicitar paralización de esta obra</span>
-                    </label>
-                    {solicitarParalizacion && (
-                        <div className="mt-3 p-3 bg-orange-100 border border-orange-300 rounded-lg">
-                          <p className="text-xs text-orange-800">
-                            <strong>Importante:</strong> Esta solicitud será enviada al supervisor para su revisión. La obra no se paralizará automáticamente.
-                          </p>
-                        </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-          )}
-
-          {/* Observaciones de Inspección — solo v1 (en v2 la API guarda un único Comentario) */}
-          {!esV2 && (
-          <div ref={refObservaciones} className="bg-white rounded-lg p-4 shadow-sm">
-            <label className="block text-sm text-[#4A4A4A] mb-2">
-              Observaciones de Inspección
-              {status === 'no-conforme' && (
-                  <>
-                    <span className="text-[#E30613]"> *</span>
-                    <span className="text-xs text-[#E30613] ml-1">(Obligatorio para No Conforme)</span>
-                  </>
-              )}
-            </label>
-            <textarea
-                value={observacionesInspeccion ?? ''}
-                onChange={(e) => { setObservacionesInspeccion(e.target.value); setErrors(p => ({ ...p, observacionesInspeccion: '' })); }}
-                placeholder={
-                  status === 'no-conforme'
-                      ? 'Describa los problemas detectados en la inspección...'
-                      : 'Describa los detalles de la inspección (opcional)...'
-                }
-                rows={4}
-                className={`w-full px-3 py-2 bg-white rounded-lg border ${errors.observacionesInspeccion ? 'border-[#E30613]' : 'border-[#003D7A]/20'} focus:outline-none focus:ring-2 focus:ring-[#0066CC] resize-none`}
-            />
-            {errors.observacionesInspeccion && (
-                <p className="mt-1 text-sm text-[#E30613]">{errors.observacionesInspeccion}</p>
-            )}
-            <p className="mt-2 text-xs text-[#4A4A4A]">
-              {observacionesInspeccion.length} caracteres
-              {status === 'no-conforme' && ' (mínimo 10 requerido)'}
-            </p>
-          </div>
-          )}
 
           {/* Adjuntos — una sola tarjeta: foto O informe/archivo (CU-23) */}
           {(muestraFotos || muestraInforme) && (
@@ -720,117 +546,6 @@ export function NewInspection({
                 </button>
             )}
             </div>
-            )}
-          </div>
-          )}
-
-          {/* ── Usuarios a notificar ──────────────────────────────── */}
-          {/* CU-21: solo v1. En v2 la API no tiene campo para notificar → la sección se oculta. */}
-          {!esV2 && (
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <label className="flex items-center gap-2 text-sm font-medium text-[#003D7A] mb-1">
-              <Users className="w-4 h-4 text-[#0066CC]" />
-              Notificar a
-              <span className="ml-auto text-xs font-normal text-[#4A4A4A]">
-              {seleccionados.size > 0
-                  ? `${seleccionados.size} seleccionado${seleccionados.size > 1 ? 's' : ''}`
-                  : 'Opcional'}
-            </span>
-            </label>
-            <p className="text-xs text-[#4A4A4A] mb-3">
-              Selecciona los usuarios que recibirán notificación de esta inspección.
-            </p>
-
-            {loadingUsuarios ? (
-                <div className="flex items-center gap-2 py-4 text-[#4A4A4A]">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#0066CC]" />
-                  <span className="text-sm">Cargando usuarios...</span>
-                </div>
-            ) : (
-                <>
-                  {/* Buscador */}
-                  <div className="relative mb-2">
-                    <input
-                        type="text"
-                        placeholder="Buscar usuario..."
-                        value={busquedaUsuario}
-                        onChange={e => setBusquedaUsuario(e.target.value)}
-                        className="w-full h-9 pl-3 pr-8 text-sm bg-[#F5F7FA] rounded-lg border border-[#003D7A]/15 focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
-                    />
-                    {busquedaUsuario && (
-                        <button
-                            type="button"
-                            onClick={() => setBusquedaUsuario('')}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#4A4A4A]"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                    )}
-                  </div>
-
-                  {/* Lista */}
-                  <div className="border border-[#003D7A]/10 rounded-lg overflow-hidden max-h-52 overflow-y-auto">
-                    {usuariosFiltrados.length === 0 ? (
-                        <div className="py-4 text-center text-sm text-[#4A4A4A]">
-                          {usuarios.length === 0 ? 'No hay usuarios disponibles' : 'No se encontraron usuarios'}
-                        </div>
-                    ) : (
-                        usuariosFiltrados.map((usuario, index) => {
-                          const isSelected = seleccionados.has(usuario.id);
-                          return (
-                              <button
-                                  key={usuario.id}
-                                  type="button"
-                                  onClick={() => toggleUsuario(usuario.id)}
-                                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-[#003D7A]/5 last:border-b-0 active:scale-[0.99] ${
-                                      isSelected
-                                          ? 'bg-[#0066CC]/8'
-                                          : index % 2 === 0 ? 'bg-white' : 'bg-[#F5F7FA]/50'
-                                  }`}
-                              >
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold ${
-                                    isSelected ? 'bg-[#0066CC] text-white' : 'bg-[#003D7A]/10 text-[#003D7A]'
-                                }`}>
-                                  {usuario.nombre.charAt(0).toUpperCase()}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-[#1A1A1A] truncate">{usuario.nombre}</p>
-                                  <p className="text-xs text-[#4A4A4A] truncate">{usuario.correo}</p>
-                                </div>
-                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                                    isSelected ? 'bg-[#0066CC] border-[#0066CC]' : 'border-[#003D7A]/25 bg-white'
-                                }`}>
-                                  {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
-                                </div>
-                              </button>
-                          );
-                        })
-                    )}
-                  </div>
-
-                  {/* Chips seleccionados */}
-                  {seleccionados.size > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {usuarios
-                            .filter(u => seleccionados.has(u.id))
-                            .map(u => (
-                                <span
-                                    key={u.id}
-                                    className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 bg-[#0066CC]/10 text-[#003D7A] rounded-full text-xs font-medium"
-                                >
-                        {u.nombre.split(' ')[0]}
-                                  <button
-                                      type="button"
-                                      onClick={() => toggleUsuario(u.id)}
-                                      className="w-4 h-4 rounded-full bg-[#003D7A]/15 flex items-center justify-center hover:bg-[#E30613]/20 transition-colors"
-                                  >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </span>
-                            ))}
-                      </div>
-                  )}
-                </>
             )}
           </div>
           )}

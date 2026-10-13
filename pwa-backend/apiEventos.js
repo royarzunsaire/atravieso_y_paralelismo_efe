@@ -54,6 +54,8 @@ function mapaDefinicionesAccion(lista) {
         RequiereAdjunto: !!a.RequiereAdjunto,
         RequiereAvance: !!a.RequiereAvance,
         TiposDocumento: Array.isArray(a.TiposDocumento) ? a.TiposDocumento : [],
+        // Documentos que la acción admite como OPCIONALES: se suben aparte con POST /solicitudes/{id}/documentos.
+        TiposDocumentoOpcional: Array.isArray(a.TiposDocumentoOpcional) ? a.TiposDocumentoOpcional : [],
       };
       // Requisitos nuevos (`Requiere…`) que la API agregue: se conservan tal cual para que el frontend los detecte.
       for (const clave of Object.keys(a)) {
@@ -267,6 +269,27 @@ async function registrarEvento({ usuario, nombre, solicitudId, evento }) {
   };
 }
 
+/**
+ * POST /v1/solicitudes/{id}/documentos — sube documentos OPCIONALES a la carpeta DocumentosObra. No avanza el flujo, no
+ * crea eventos ni inspecciones. La API NO es idempotente (no recibe EventoIdExterno): este llamador no reintenta, porque un
+ * reintento podría duplicar el archivo. Lanza un Error con `status`/`code` si la API rechaza (400/403/404…).
+ */
+async function subirDocumentosOpcionales({ usuario, nombre, solicitudId, documentos }) {
+  const response = await callApi('post', `/v1/solicitudes/${solicitudId}/documentos`, {
+    usuario,
+    nombre,
+    data: { Documentos: documentos },
+  });
+  const body = response.data || {};
+  if (response.status >= 400 || body.success === false) {
+    const err = new Error(body.error?.message || `Error API Documentos (${response.status})`);
+    err.status = response.status;
+    err.code = body.error?.code;
+    throw err;
+  }
+  return body.data || {};
+}
+
 module.exports = {
   obtenerInicio,
   obtenerDetalleSolicitud,
@@ -274,4 +297,5 @@ module.exports = {
   obtenerAccionesHabilitadas,
   obtenerObraInicio,
   registrarEvento,
+  subirDocumentosOpcionales,
 };

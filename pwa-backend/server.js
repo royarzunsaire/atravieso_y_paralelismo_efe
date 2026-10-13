@@ -1,39 +1,54 @@
 const express = require('express');
 const cors = require('cors');
-const session = require('express-session');
+const helmet = require('helmet');
 const passport = require('./config/auth');
 require('dotenv').config();
 
-const datosRoutes = require('./routes/datos');
 const authRoutes = require('./routes/auth');
-const solicitudesRoutes = require('./routes/solicitudes');
-const archivosRoutes = require('./routes/archivos');
-const inspeccionesRoutes = require('./routes/inspecciones');
-const fotosRouter = require('./routes/fotos');
-const informesRouter = require('./routes/informes');
-const tiposInspeccionRoutes = require('./routes/tiposInspeccion');
-const usuariosRouter = require('./routes/usuarios');
 const eventosRouter = require('./routes/eventos');
 const { startSyncJob } = require('./syncJob');
 
-process.on('uncaughtException', (err) => {
-  console.error('💥 uncaughtException:', err.message, err.stack);
-});
-
-process.on('unhandledRejection', (reason) => {
-  console.error('💥 unhandledRejection:', reason);
-});
+// Errores sin capturar: registrar y, en producción, terminar para que el orquestador reinicie limpio (H-22).
+require('./utils/errorFatal');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Cuántos proxies de confianza hay delante (nginx del contenedor, balanceador de OCI…). Necesario para ver la IP REAL del
+// usuario (límite de intentos de login, H-03). 0 = sin proxy (desarrollo). Docker compose: 1 (nginx). OCI: nginx + balanceador
+// = 2 (confirmar con quien arma la infraestructura). Un valor mal puesto hace que todos parezcan tener la misma IP.
+const confianzaProxy = Number.parseInt(process.env.TRUST_PROXY ?? '0', 10);
+app.set('trust proxy', Number.isInteger(confianzaProxy) && confianzaProxy >= 0 ? confianzaProxy : 0);
+
+// ========================================
+// CABECERAS DE SEGURIDAD (hallazgo H-07)
+// Es una API JSON: no renderiza nada, así que la política es la más cerrada posible. Quita X-Powered-By y agrega
+// CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, HSTS (solo lo respeta el navegador sobre HTTPS)…
+// ========================================
+app.use(helmet({
+  contentSecurityPolicy: { useDefaults: false, directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+  frameguard: { action: 'deny' },
+  referrerPolicy: { policy: 'no-referrer' },
+  crossOriginResourcePolicy: { policy: 'same-site' },
+  hsts: { maxAge: 31536000, includeSubDomains: true },
+}));
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=(), payment=()');
+  next();
+});
+
 // ========================================
 // CORS
 // ========================================
-const allowedOrigins = [
+// Los orígenes de localhost (Vite en desarrollo) solo se aceptan fuera de producción (H-16).
+// En producción el único origen permitido es FRONTEND_URL.
+const origenesLocales = process.env.NODE_ENV === 'production' ? [] : [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://localhost:4173', // vite preview
+];
+const allowedOrigins = [
+  ...origenesLocales,
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
@@ -53,24 +68,14 @@ app.use(cors({
 // ========================================
 // MIDDLEWARES
 // ========================================
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Session
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production', // HTTPS en producción
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 horas
-  }
-}));
+// Límites de cuerpo POR ZONA (H-10). Antes había uno solo de 15 MB para todo, y se leía completo ANTES de autenticar:
+// /auth solo recibe credenciales (20 KB); la API de eventos lleva fotos y documentos en base64 (15 MB).
+app.use('/auth', express.json({ limit: '20kb' }));
+app.use('/auth', express.urlencoded({ extended: false, limit: '20kb' }));
+app.use('/api', express.json({ limit: '15mb' }));
 
 // Passport
 app.use(passport.initialize());
-app.use(passport.session());
 
 // ========================================
 // LOGGER DE REQUESTS (solo desarrollo)
@@ -85,56 +90,33 @@ if (process.env.NODE_ENV !== 'production') {
 // ========================================
 // HEALTH CHECK
 // ========================================
+// Respuestas MÍNIMAS: son públicas y no deben revelar el entorno ni qué variables hay configuradas (H-15).
+// El detalle de la configuración se registra en el log de arranque, que no sale por la red.
 app.get('/', (req, res) => {
-  res.json({
-    message: '✓ API funcionando',
-    status: 'online',
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ status: 'online' });
 });
 
 app.get('/health', (req, res) => {
   const checks = {
     oracle:            !!process.env.ORACLE_ORDS_URL && !!process.env.ORACLE_ORDS_CLIENT_ID && !!process.env.ORACLE_ORDS_CLIENT_SECRET,
     jwt:               !!process.env.JWT_SECRET,
-    session:           !!process.env.SESSION_SECRET,
     frontend_url:      !!process.env.FRONTEND_URL,
+    sharepoint_api:    !!(process.env.SHAREPOINT_API_URL && process.env.SHAREPOINT_API_SECRET),
     // azure_ad: deshabilitado temporalmente — ver spec 02-azure-ad-login.md
     // azure_ad:          !!(process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_TENANT_ID),
-    flow_solicitudes:  !!process.env.FLOW_SOLICITUD_READ_ALL_URL,
-    flow_inspecciones: !!process.env.FLOW_INSPECCIONES_CREAR_URL,
-    flow_archivos:     !!process.env.FLOW_ARCHIVOS_LISTAR_URL,
-    flow_subir_archivos: !!process.env.FLOW_SUBIR_ARCHIVOS_URL,
-    flow_tipos:        !!process.env.FLOW_TIPOS_INSPECCION_URL,
-    flow_usuarios:     !!process.env.FLOW_USUARIOS_URL,
-    flow_documentos_subir:  !!process.env.FLOW_DOCUMENTOS_SUBIR_URL,
-    flow_documentos_listar: !!process.env.FLOW_DOCUMENTOS_LISTAR_URL,
   };
 
-  const allCriticalOk = checks.oracle && checks.jwt && checks.session;
+  const allCriticalOk = checks.oracle && checks.jwt;
   const status = allCriticalOk ? 'ok' : 'degraded';
 
-  res.status(allCriticalOk ? 200 : 207).json({
-    status,
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString(),
-    checks,
-  });
+  if (!allCriticalOk) console.warn('⚠️  /health degradado:', JSON.stringify(checks));
+  res.status(allCriticalOk ? 200 : 207).json({ status });
 });
 
 // ========================================
 // ROUTES
 // ========================================
 app.use('/auth', authRoutes);
-app.use('/api/datos', datosRoutes);
-app.use('/api/solicitudes', solicitudesRoutes);
-app.use('/api/archivos', archivosRoutes);
-app.use('/api/inspecciones', inspeccionesRoutes);
-app.use('/api/fotos', fotosRouter);
-app.use('/api/informes', informesRouter);
-app.use('/api/tipos-inspeccion', tiposInspeccionRoutes);
-app.use('/api/usuarios', usuariosRouter);
 app.use('/api/v2', eventosRouter);
 
 // ========================================
@@ -151,10 +133,20 @@ app.use((req, res) => {
 // ERROR HANDLER GLOBAL
 // ========================================
 app.use((err, req, res, next) => {
+  // Errores al LEER el cuerpo (body-parser) son del cliente, no del servidor: 413 / 400, nunca 500 (H-10).
+  if (err.type === 'entity.too.large') {
+    console.warn('⚠️  Cuerpo demasiado grande rechazado');
+    return res.status(413).json({ success: false, error: 'CUERPO_DEMASIADO_GRANDE', message: 'El envío es demasiado grande.' });
+  }
+  if (['entity.parse.failed', 'encoding.unsupported', 'charset.unsupported', 'request.size.invalid'].includes(err.type)) {
+    console.warn('⚠️  Cuerpo inválido rechazado');
+    return res.status(400).json({ success: false, error: 'SOLICITUD_INVALIDA', message: 'El cuerpo de la solicitud no es válido.' });
+  }
+
   console.error('❌ Error no controlado:', err.message);
 
   if (err.message?.includes('CORS')) {
-    return res.status(403).json({ success: false, error: err.message });
+    return res.status(403).json({ success: false, error: 'ORIGEN_NO_PERMITIDO' });
   }
 
   res.status(500).json({
@@ -181,22 +173,13 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  ✓ Oracle Client ID:   ${process.env.ORACLE_ORDS_CLIENT_ID     ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ Oracle Client Secret: ${process.env.ORACLE_ORDS_CLIENT_SECRET ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ JWT Secret:         ${process.env.JWT_SECRET             ? '✅' : '❌ NO CONFIGURADO'}`);
-  console.log(`  ✓ Session Secret:     ${process.env.SESSION_SECRET         ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(`  ✓ Frontend URL:       ${process.env.FRONTEND_URL           ? `✅ ${process.env.FRONTEND_URL}` : '⚠️  Solo localhost'}`);
   // Azure AD deshabilitado temporalmente — ver spec 02-azure-ad-login.md
   // console.log(`  ✓ Azure AD:           ${process.env.AZURE_AD_CLIENT_ID     ? '✅' : '⚠️  No configurado (solo login local)'}`);
   console.log(separator);
-  console.log('  Flows Power Automate:');
-  console.log(`  ✓ Solicitudes:        ${process.env.FLOW_SOLICITUD_READ_ALL_URL  ? '✅' : '❌'}`);
-  console.log(`  ✓ Inspecciones:       ${process.env.FLOW_INSPECCIONES_CREAR_URL  ? '✅' : '❌'}`);
-  console.log(`  ✓ Archivos:           ${process.env.FLOW_ARCHIVOS_LISTAR_URL     ? '✅' : '❌'}`);
-  console.log(`  ✓ Subir archivos:     ${process.env.FLOW_SUBIR_ARCHIVOS_URL      ? '✅' : '❌'}`);
-  console.log(`  ✓ Fotos listar:       ${process.env.FLOW_FOTOS_LISTAR_URL        ? '✅' : '❌'}`);
-  console.log(`  ✓ Fotos contenido:    ${process.env.FLOW_FOTOS_CONTENIDO_URL     ? '✅' : '❌'}`);
-  console.log(`  ✓ Tipos inspección:   ${process.env.FLOW_TIPOS_INSPECCION_URL    ? '✅' : '❌'}`);
-  console.log(`  ✓ Usuarios:           ${process.env.FLOW_USUARIOS_URL            ? '✅' : '❌'}`);
-  console.log(`  ✓ Documentos subir:   ${process.env.FLOW_DOCUMENTOS_SUBIR_URL     ? '✅' : '❌'}`);
-  console.log(`  ✓ Documentos listar:  ${process.env.FLOW_DOCUMENTOS_LISTAR_URL    ? '✅' : '❌'}`);
+  console.log('  API del cliente (SharePoint):');
+  console.log(`  ✓ URL:               ${process.env.SHAREPOINT_API_URL    ? '✅' : '❌ NO CONFIGURADO'}`);
+  console.log(`  ✓ Secreto JWT:       ${process.env.SHAREPOINT_API_SECRET ? '✅' : '❌ NO CONFIGURADO'}`);
   console.log(separator);
 
   startSyncJob();

@@ -33,3 +33,4 @@ de ahora en adelante.
 | `11_tipos_inspeccion.sql` | Tabla `tipos_inspeccion` + AutoREST + carga inicial — reemplaza el flow de SharePoint (el jefe sincroniza la tabla; lectura para el backend) |
 | `12_grant_tipos_inspeccion.sql` | Otorga a `AYP_BACKEND_NODEJS` el rol interno de AutoREST de `tipos_inspeccion` (sin él, todo GET da 401) |
 | `13_lectura_usuarios.sql` | API de lectura de usuarios (consumo externo): GET `listar`/`{id}` (sin hash) y `por-email/{email}` (con `password_hash`) (spec 12) |
+| `14_activar_desactivar_usuario.sql` | Activar/dar de baja usuarios (consumo externo): POST `{id}/activo` y `por-email/{email}/activo` con `{ "activo": 0|1 }` — solo toca la columna `activo` |

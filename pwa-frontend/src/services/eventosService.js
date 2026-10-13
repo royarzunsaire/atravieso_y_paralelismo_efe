@@ -1,6 +1,6 @@
 import { authService } from './auth';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+import { API_URL } from '../config/apiUrl';
 
 /**
  * Genera un EventoIdExterno único. Se crea UNA vez, en el momento en que
@@ -37,6 +37,31 @@ export const eventosService = {
       'Content-Type': 'application/json',
       Authorization: token ? `Bearer ${token}` : '',
     };
+  },
+
+  /**
+   * Sube documentos OPCIONALES de una obra (POST /solicitudes/{id}/documentos): no avanza el flujo ni crea eventos.
+   * La API no es idempotente: NO se reintenta sola (un reintento podría duplicar el archivo).
+   *
+   * @param {{ solicitudId: number, documentos: Array<{ TipoDocumentoId: number, Nombre: string, Contenido: string }> }} p
+   */
+  async subirDocumentosOpcionales({ solicitudId, documentos }) {
+    const response = await fetch(`${API_URL}/api/v2/solicitudes/${solicitudId}/documentos`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ Documentos: documentos }),
+    });
+
+    if (response.status === 401) {
+      authService.logout();
+      throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.success === false) {
+      throw new Error(data?.message || data?.error || `No se pudo subir el documento (error ${response.status}).`);
+    }
+    return data?.data ?? {};
   },
 
   /**

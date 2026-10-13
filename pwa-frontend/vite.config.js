@@ -9,6 +9,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 
 export default defineConfig({
+  // Rutas RELATIVAS: la app funciona colgada de cualquier prefijo de URL (p. ej. detrás de un API Gateway en /algo/); no tiene router por URL.
+  base: './',
   plugins: [
     react(),
     tailwindcss(),
@@ -20,6 +22,8 @@ export default defineConfig({
         short_name: 'AyP Mobile',
         description: 'App Atravieso y Paralelismo Mobile',
         theme_color: '#ffffff',
+        start_url: './',
+        scope: './',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -34,20 +38,16 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // config.js (dirección del backend) cambia con el despliegue: no se precachea con una copia vieja; la red manda y, sin conexión, vale la última.
+        globIgnores: ['config.js'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/api\.tuservidor\.com\/.*/i,
+            urlPattern: ({ url }) => url.pathname.endsWith('/config.js'),
             handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 10,
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
-      }
+            options: { cacheName: 'ayp-config', networkTimeoutSeconds: 3 },
+          },
+        ],
+      },
     })
   ],
   build: {

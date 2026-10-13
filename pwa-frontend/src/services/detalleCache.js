@@ -13,6 +13,8 @@ const motivos = new Map();
 const oyentes = new Set();
 // Obras a las que se les espera un documento recién subido (la API tarda en reflejarlo en el detalle).
 const esperandoDocumentos = new Set();
+// Inspecciones recién creadas a las que se les espera las fotos/informes (la API los indexa con retraso; CU-37).
+const esperandoInspecciones = new Set();
 
 // Las URLs de descarga de la API vencen en ~1 h: el caché se descarta antes
 // para que nunca se muestre un archivo con el enlace vencido.
@@ -45,6 +47,21 @@ export const detalleCache = {
     oyentes.forEach((f) => f());
   },
 
+  esperaInspeccion(inspeccionId) {
+    return esperandoInspecciones.has(Number(inspeccionId));
+  },
+
+  marcarEsperaInspeccion(inspeccionId, activo) {
+    if (activo) esperandoInspecciones.add(Number(inspeccionId));
+    else esperandoInspecciones.delete(Number(inspeccionId));
+    oyentes.forEach((f) => f());
+  },
+
+  /** Avisa a los oyentes que cambió algo del caché (ej. llegaron las fotos de una inspección nueva). */
+  notificar() {
+    oyentes.forEach((f) => f());
+  },
+
   suscribir(fn) {
     oyentes.add(fn);
     return () => { oyentes.delete(fn); };
@@ -56,6 +73,11 @@ export const detalleCache = {
     if (vigente(e)) return e;
     inspecciones.delete(inspeccionId);
     return null;
+  },
+
+  /** Descarta el detalle completo de UNA inspección (botón «Actualizar» del detalle, CU-38). */
+  invalidarInspeccion(inspeccionId) {
+    inspecciones.delete(inspeccionId);
   },
 
   setInspeccion(inspeccionId, data) {
@@ -79,6 +101,7 @@ export const detalleCache = {
     motivos.clear();
     intentados.clear();
     esperandoDocumentos.clear();
+    esperandoInspecciones.clear();
   },
 
   getMotivo(clave) {

@@ -22,8 +22,8 @@ export function ChangePassword({ onBack, onSuccess, mandatory = false }: ChangeP
     e.preventDefault();
     setError('');
 
-    if (newPassword.length < 8) {
-      setError('La nueva contraseña debe tener al menos 8 caracteres');
+    if (newPassword.length < 10 || !/\p{L}/u.test(newPassword) || !/\d/.test(newPassword)) {
+      setError('La nueva contraseña debe tener al menos 10 caracteres, con letras y números');
       return;
     }
 
@@ -95,11 +95,11 @@ export function ChangePassword({ onBack, onSuccess, mandatory = false }: ChangeP
                 className="w-full h-12 px-4 bg-white rounded-lg border-2 border-[#003D7A]/20 focus:outline-none focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC]/20 transition-all"
                 placeholder="••••••••"
                 required
-                minLength={8}
+                minLength={10}
               />
               <p className="text-xs text-[#4A4A4A] mt-2 flex items-center gap-1">
                 <span className="text-[#0066CC]">ℹ️</span>
-                Mínimo 8 caracteres
+                Mínimo 10 caracteres, con letras y números
               </p>
             </div>
 
@@ -114,7 +114,7 @@ export function ChangePassword({ onBack, onSuccess, mandatory = false }: ChangeP
                 className="w-full h-12 px-4 bg-white rounded-lg border-2 border-[#003D7A]/20 focus:outline-none focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC]/20 transition-all"
                 placeholder="••••••••"
                 required
-                minLength={8}
+                minLength={10}
               />
             </div>
 

@@ -127,89 +127,12 @@ async function getInspeccionOutboxById(id) {
   return mapInspeccionOutboxRow(item || null);
 }
 
-async function getInspeccionesOutboxBySolicitud(solicitudId) {
-  // No reutiliza getInspeccionesPendientes(): esa acción filtra intentos<3
-  // porque es para que el sync job sepa qué reintentar. Una inspección con
-  // 3 intentos (error terminal) debe seguir siendo visible para el usuario
-  // (badge de error + botón reintentar), aunque el job ya no la reintente sola.
-  const data = await ordsGet(`/inspecciones-actions/por-solicitud/${solicitudId}`);
-  const items = data?.items || [];
-  return items.map(mapInspeccionOutboxRow);
-}
-
 async function marcarResultadoInspeccion(id, { resultado, sharepointId = null, mensaje = '' }) {
   await ordsPost(`/inspecciones-actions/${id}/marcar-resultado`, {
     resultado,
     sharepoint_id: sharepointId,
     mensaje: mensaje.slice(0, 4000),
   });
-}
-
-// ============================================================
-// Archivos — outbox (fotos/informes subidos por separado)
-// ============================================================
-
-// Un archivo cuelga de una inspección todavía pendiente en Oracle
-// (inspeccionOutboxId) o de una ya sincronizada en SharePoint
-// (sharepointInspeccionId) — nunca ambos, ver CHECK constraint en Oracle.
-async function createArchivoOutbox({
-  inspeccionOutboxId = null,
-  sharepointInspeccionId = null,
-  solicitudId,
-  tipo,
-  fileName,
-  contentType,
-  fileBase64,
-  inspectorEmail = '',
-  inspectorNombre = '',
-}) {
-  const result = await ordsPost('/inspecciones-actions/archivo/guardar', {
-    inspeccion_outbox_id: inspeccionOutboxId,
-    sharepoint_inspeccion_id: sharepointInspeccionId,
-    solicitud_id: solicitudId,
-    tipo,
-    file_name: fileName,
-    content_type: contentType,
-    file_base64: fileBase64,
-    inspector_email: inspectorEmail,
-    inspector_nombre: inspectorNombre,
-  });
-  return result.id_out;
-}
-
-function mapArchivoOutboxRow(item) {
-  if (!item) return null;
-  return {
-    id: item.id,
-    tipo: item.tipo,
-    fileName: item.file_name,
-    contentType: item.content_type,
-    fileBase64: item.file_base64,
-    estado: item.estado,
-    intentos: item.intentos,
-    solicitudId: item.solicitud_id,
-    sharepointInspeccionId: item.sharepoint_inspeccion_id,
-    inspectorEmail: item.inspector_email,
-    inspectorNombre: item.inspector_nombre,
-  };
-}
-
-async function getArchivosPendientes() {
-  const data = await ordsGet('/inspecciones-actions/archivos-pendientes');
-  const items = data?.items || [];
-  return items.map(mapArchivoOutboxRow);
-}
-
-async function marcarResultadoArchivo(id, { resultado }) {
-  await ordsPost(`/inspecciones-actions/archivo/${id}/marcar-resultado`, {
-    resultado,
-  });
-}
-
-async function getArchivosConErrorBySolicitud(solicitudId) {
-  const data = await ordsGet(`/inspecciones-actions/archivos-por-solicitud/${solicitudId}`);
-  const items = data?.items || [];
-  return items.map(mapArchivoOutboxRow);
 }
 
 module.exports = {
@@ -223,10 +146,5 @@ module.exports = {
   createInspeccionOutbox,
   getInspeccionesPendientes,
   getInspeccionOutboxById,
-  getInspeccionesOutboxBySolicitud,
   marcarResultadoInspeccion,
-  createArchivoOutbox,
-  getArchivosPendientes,
-  marcarResultadoArchivo,
-  getArchivosConErrorBySolicitud,
 };
