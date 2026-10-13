@@ -8,6 +8,8 @@
 |---|---|
 | `ayp-frontend.tar` (63 648 256 bytes, sha256 `d676cb008db78e44b6e57b265235359cffb7a3231619834f380f0d905de8d780`) | Imagen Docker ya construida y escaneada (0 vulnerabilidades, 0 secretos): nginx sin privilegios, puerto 8080, usuario 101. |
 | `Dockerfile`, `nginx.conf.template`, `seguridad.inc.template`, `40-ayp-config.sh` | Receta y configuración tal cual están en el repositorio (`pwa-frontend/`). |
+| `pwa-frontend-codigo.zip` | Código fuente completo del frontend (la carpeta `pwa-frontend/`, con su propio `Dockerfile`): solo hace falta si se prefiere **construir** la imagen en vez de usar el `.tar`. Construir: descomprimir, `cd pwa-frontend` y `docker build -t ayp-frontend:local --build-arg VITE_API_URL="" .` (el código no tiene secretos). |
+| `frontend.env` | Las dos variables ya completadas (`API_URL` y `CSP_CONNECT_EXTRA`); sin secretos. |
 | `SHA256SUMS.txt` | Para verificar la copia: `sha256sum -c SHA256SUMS.txt`. |
 
 ## 2. Cargarla y ejecutarla
