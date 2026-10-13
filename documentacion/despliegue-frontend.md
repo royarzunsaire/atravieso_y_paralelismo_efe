@@ -13,12 +13,9 @@
 ## 2. Cargarla y ejecutarla
 ```bash
 docker load -i ayp-frontend.tar        # queda como ayp-frontend:local
-docker run -d --name ayp-frontend --restart unless-stopped -p 8080:8080 \
-  --cap-drop ALL --security-opt no-new-privileges:true \
-  -e API_URL="https://<host-del-gateway>/<prefijo-del-backend>" \
-  -e CSP_CONNECT_EXTRA="https://<host-del-gateway>" \
-  ayp-frontend:local
+docker run -d --name ayp-frontend --restart unless-stopped -p 8080:8080   --cap-drop ALL --security-opt no-new-privileges:true   --env-file frontend.env   ayp-frontend:local
 ```
+El archivo **`frontend.env`** de esta carpeta ya trae las dos variables con los valores del API Gateway actual (no contiene secretos). Para otro ambiente (producción), se edita ese archivo y se recrea el contenedor.
 
 ## 3. Variables de entorno
 | Variable | Valor | Notas |
