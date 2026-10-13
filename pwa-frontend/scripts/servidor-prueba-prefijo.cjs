@@ -2,7 +2,7 @@
 // quita antes de reenviar), genera /config.js desde la variable API_URL (como 40-ayp-config.sh) y aplica las cabeceras de seguridad de
 // seguridad.inc.template. NO hace de proxy: el navegador llama directo a API_URL (hace falta que ese backend permita este origen por CORS).
 // Uso:  cd pwa-frontend && VITE_API_URL="" npm run build
-//       API_URL=http://localhost:3001 CSP_CONNECT_EXTRA="http://localhost:3001 http://146.181.52.2:3000" PREFIJO=/mobileayp-web PORT=4173 node scripts/servidor-prueba-prefijo.cjs
+//       API_URL=http://localhost:3001 CSP_CONNECT_EXTRA="http://localhost:3001 https://gtibyxnoeyzrfkb5a26vg53vfi.apigateway.sa-santiago-1.oci.customer-oci.com" PREFIJO=/mobileayp-web PORT=4173 node scripts/servidor-prueba-prefijo.cjs
 //       abrir http://localhost:4173/mobileayp-web/
 const http = require('http'), fs = require('fs'), path = require('path');
 const RAIZ = path.resolve(__dirname, '..') + path.sep, DIST = path.resolve(RAIZ + 'dist');

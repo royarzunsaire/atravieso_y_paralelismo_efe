@@ -7,7 +7,7 @@ const http = require('http'), https = require('https'), fs = require('fs'), path
 const RAIZ = path.resolve(__dirname, '..') + path.sep;
 const DIST = path.resolve(RAIZ + 'dist');
 const GW = new URL(process.env.GW_URL || 'https://gtibyxnoeyzrfkb5a26vg53vfi.apigateway.sa-santiago-1.oci.customer-oci.com/mobileayp-api');
-const EXTRA = process.env.CSP_CONNECT_EXTRA ?? 'http://146.181.52.2:3000';
+const EXTRA = process.env.CSP_CONNECT_EXTRA ?? 'https://gtibyxnoeyzrfkb5a26vg53vfi.apigateway.sa-santiago-1.oci.customer-oci.com';
 const plantilla = fs.readFileSync(RAIZ + 'seguridad.inc.template', 'utf8').replace(/\$\{CSP_CONNECT_EXTRA\}/g, EXTRA);
 const cabeceras = [...plantilla.matchAll(/^add_header\s+(\S+)\s+"([^"]*)"\s+always;/gm)].map((m) => [m[1], m[2]]);
 const tipos = { '.js': 'application/javascript', '.css': 'text/css', '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.woff2': 'font/woff2', '.woff': 'font/woff' };
